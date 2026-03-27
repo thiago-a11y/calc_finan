@@ -25,7 +25,11 @@ from api.security import hash_senha, criar_access_token
 @pytest.fixture(scope="session")
 def engine():
     """Cria engine SQLite em memória para testes."""
-    engine = create_engine("sqlite:///:memory:", echo=False)
+    engine = create_engine(
+        "sqlite:///:memory:",
+        echo=False,
+        connect_args={"check_same_thread": False},
+    )
     Base.metadata.create_all(bind=engine)
     return engine
 
