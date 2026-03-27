@@ -44,8 +44,16 @@ class RenomearConversaRequest(BaseModel):
     titulo: str
 
 
+class AnexoItem(BaseModel):
+    nome_original: str
+    url: str
+    tipo: str = "documento"
+    tamanho: int = 0
+
+
 class EnviarMensagemRequest(BaseModel):
     conteudo: str
+    anexos: list[AnexoItem] | None = None
 
 
 # =====================================================================
@@ -87,6 +95,7 @@ def _serializar_mensagem(m: LunaMensagemDB) -> dict:
         "conversa_id": m.conversa_id,
         "papel": m.papel,
         "conteudo": m.conteudo,
+        "anexos": m.anexos or [],
         "modelo_usado": m.modelo_usado or "",
         "provider_usado": m.provider_usado or "",
         "tokens_input": m.tokens_input or 0,
@@ -280,6 +289,11 @@ async def enviar_mensagem(
     if not dados.conteudo.strip():
         raise HTTPException(status_code=400, detail="Mensagem não pode ser vazia")
 
+    # Converter anexos para dicts
+    anexos_list = None
+    if dados.anexos:
+        anexos_list = [a.model_dump() for a in dados.anexos]
+
     async def gerar_stream():
         async for evento in luna_engine.stream_resposta(
             db=db,
@@ -287,6 +301,7 @@ async def enviar_mensagem(
             conteudo=dados.conteudo.strip(),
             usuario_id=usuario.id,
             usuario_nome=usuario.nome,
+            anexos=anexos_list,
         ):
             yield f"data: {json.dumps(evento, ensure_ascii=False)}\n\n"
 

@@ -192,7 +192,30 @@ export default function LunaChat({
                   }
                 >
                   {isUser ? (
-                    <p className="text-[14px] leading-relaxed whitespace-pre-wrap">{msg.conteudo}</p>
+                    <>
+                      <p className="text-[14px] leading-relaxed whitespace-pre-wrap">{msg.conteudo}</p>
+                      {/* Anexos do usuário */}
+                      {msg.anexos && msg.anexos.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+                          {msg.anexos.map((a, idx) => (
+                            <a
+                              key={idx}
+                              href={a.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] transition-colors hover:brightness-110"
+                              style={{
+                                background: 'rgba(255,255,255,0.15)',
+                                color: '#fff',
+                              }}
+                            >
+                              <span>{a.tipo === 'imagem' ? '🖼️' : a.tipo === 'pdf' ? '📕' : a.tipo === 'video' ? '🎬' : '📄'}</span>
+                              <span className="truncate max-w-[100px]">{a.nome_original}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <MarkdownRenderer content={msg.conteudo} />
                   )}

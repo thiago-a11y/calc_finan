@@ -216,12 +216,33 @@ class LunaEngine:
         logger.info(f"[Luna] Conversa criada: {conversa.id} (user={usuario_id})")
         return conversa
 
+    def _formatar_conteudo_com_anexos(self, conteudo: str, anexos: list | None) -> str:
+        """
+        Formata o conteúdo da mensagem incluindo referência aos anexos.
+        Assim o LLM sabe que o usuário enviou arquivos.
+        """
+        if not anexos:
+            return conteudo
+
+        partes = [conteudo]
+        partes.append("\n\n📎 Arquivos anexados:")
+        for a in anexos:
+            nome = a.get("nome_original", a.get("nome", "arquivo"))
+            tipo = a.get("tipo", "documento")
+            tamanho = a.get("tamanho", 0)
+            tamanho_str = f"{tamanho / 1024:.0f}KB" if tamanho > 0 else ""
+            partes.append(f"  - {nome} ({tipo}) {tamanho_str}")
+
+        return "\n".join(partes)
+
     def _montar_mensagens(
-        self, db: Session, conversa_id: str, nova_mensagem: str
+        self, db: Session, conversa_id: str, nova_mensagem: str,
+        anexos: list | None = None
     ) -> list:
         """
         Monta a lista de mensagens para enviar ao LLM.
         Usa janela deslizante com as últimas JANELA_CONTEXTO mensagens.
+        Inclui referência a anexos no contexto.
         """
         # Buscar mensagens anteriores (janela deslizante)
         mensagens_db = (
@@ -238,13 +259,19 @@ class LunaEngine:
         mensagens = [SystemMessage(content=SYSTEM_PROMPT)]
 
         for msg in mensagens_db:
-            if msg.papel == "user":
-                mensagens.append(HumanMessage(content=msg.conteudo))
-            elif msg.papel == "assistant":
-                mensagens.append(AIMessage(content=msg.conteudo))
+            conteudo = msg.conteudo
+            # Incluir referência a anexos do histórico
+            if msg.anexos:
+                conteudo = self._formatar_conteudo_com_anexos(conteudo, msg.anexos)
 
-        # Adicionar nova mensagem do usuário
-        mensagens.append(HumanMessage(content=nova_mensagem))
+            if msg.papel == "user":
+                mensagens.append(HumanMessage(content=conteudo))
+            elif msg.papel == "assistant":
+                mensagens.append(AIMessage(content=conteudo))
+
+        # Adicionar nova mensagem do usuário (com anexos se houver)
+        conteudo_final = self._formatar_conteudo_com_anexos(nova_mensagem, anexos)
+        mensagens.append(HumanMessage(content=conteudo_final))
 
         return mensagens
 
@@ -273,6 +300,7 @@ class LunaEngine:
         conteudo: str,
         usuario_id: int,
         usuario_nome: str = "",
+        anexos: list | None = None,
     ) -> AsyncGenerator[dict, None]:
         """
         Envia mensagem e faz streaming da resposta da Luna.
@@ -293,11 +321,25 @@ class LunaEngine:
             yield {"tipo": "erro", "mensagem": "Conversa não encontrada"}
             return
 
+        # Serializar anexos para JSON
+        anexos_json = None
+        if anexos:
+            anexos_json = [
+                {
+                    "nome_original": a.get("nome_original", ""),
+                    "url": a.get("url", ""),
+                    "tipo": a.get("tipo", "documento"),
+                    "tamanho": a.get("tamanho", 0),
+                }
+                for a in anexos
+            ]
+
         # Salvar mensagem do usuário
         msg_usuario = LunaMensagemDB(
             conversa_id=conversa_id,
             papel="user",
             conteudo=conteudo,
+            anexos=anexos_json,
         )
         db.add(msg_usuario)
         db.commit()
@@ -305,8 +347,8 @@ class LunaEngine:
         # Decidir modelo
         forcar = self._decidir_modelo(conteudo, conversa.modelo_preferido)
 
-        # Montar histórico
-        mensagens = self._montar_mensagens(db, conversa_id, conteudo)
+        # Montar histórico (inclui referência a anexos no contexto do LLM)
+        mensagens = self._montar_mensagens(db, conversa_id, conteudo, anexos_json)
 
         # Cadeia de fallback
         cadeia = _obter_cadeia_fallback(forcar)

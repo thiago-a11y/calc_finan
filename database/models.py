@@ -419,6 +419,9 @@ class LunaMensagemDB(Base):
     papel = Column(String(20), nullable=False)  # "user" ou "assistant"
     conteudo = Column(Text, nullable=False)
 
+    # Anexos (JSON: lista de {nome_original, url, tipo, tamanho})
+    anexos = Column(JSON, nullable=True)
+
     # Métricas de uso (preenchidas na resposta da IA)
     modelo_usado = Column(String(100), default="")  # ex: "claude-sonnet-4", "llama-3.3-70b"
     provider_usado = Column(String(50), default="")  # ex: "anthropic", "groq", "fireworks"

@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import type { LunaConversa, LunaMensagem, LunaArtefato } from '../types'
+import type { LunaConversa, LunaMensagem, LunaArtefato, LunaAnexo } from '../types'
 import {
   listarConversas,
   criarConversa,
@@ -159,8 +159,8 @@ export default function Luna() {
   }
 
   // Enviar mensagem
-  const handleEnviar = async (texto: string) => {
-    if (!texto.trim() || streaming) return
+  const handleEnviar = async (texto: string, anexosMsg?: LunaAnexo[]) => {
+    if ((!texto.trim() && (!anexosMsg || anexosMsg.length === 0)) || streaming) return
 
     let idConversa = conversaAtiva
 
@@ -183,6 +183,7 @@ export default function Luna() {
       conversa_id: idConversa,
       papel: 'user',
       conteudo: texto,
+      anexos: anexosMsg,
       modelo_usado: '',
       provider_usado: '',
       tokens_input: 0,
@@ -272,7 +273,8 @@ export default function Luna() {
         setErro(error.message)
         setStreaming(false)
         setTextoStreaming('')
-      }
+      },
+      anexosMsg,
     )
 
     controllerRef.current = controller

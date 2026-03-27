@@ -5,6 +5,7 @@ import type {
   LunaConversaCompleta,
   LunaUsuarioResumo,
   LunaConversaAdmin,
+  LunaAnexo,
 } from '../types'
 
 const BASE = '/api/luna'
@@ -122,6 +123,7 @@ export function enviarMensagemStream(
   conteudo: string,
   onEvento: (evento: LunaStreamEvento) => void,
   onErro?: (erro: Error) => void,
+  anexos?: LunaAnexo[],
 ): AbortController {
   const controller = new AbortController()
 
@@ -134,7 +136,7 @@ export function enviarMensagemStream(
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ conteudo }),
+        body: JSON.stringify({ conteudo, anexos: anexos || null }),
         signal: controller.signal,
       })
 

@@ -296,11 +296,19 @@ export interface LunaConversa {
   ultima_mensagem?: string
 }
 
+export interface LunaAnexo {
+  nome_original: string
+  url: string
+  tipo: string
+  tamanho: number
+}
+
 export interface LunaMensagem {
   id: number
   conversa_id: string
   papel: 'user' | 'assistant'
   conteudo: string
+  anexos?: LunaAnexo[]
   modelo_usado: string
   provider_usado: string
   tokens_input: number
