@@ -260,6 +260,27 @@ export const listarConversasFuncionario = (usuarioId: number) =>
 export const verConversaFuncionario = (usuarioId: number, conversaId: string) =>
   get<LunaConversaAdmin>(`/admin/conversas/${usuarioId}/${conversaId}`)
 
+/* --- Geração de Arquivos --- */
+
+export interface LunaArquivoGerado {
+  url: string
+  nome: string
+  nome_salvo: string
+  formato: string
+  tipo: string
+  tamanho: number
+  gerado_por: string
+  gerado_em: string
+}
+
+export const gerarArquivo = (dados: {
+  formato: string
+  conteudo: string
+  nome?: string
+  titulo?: string
+  conversa_id?: string
+}) => post<LunaArquivoGerado>('/gerar-arquivo', dados)
+
 /* --- Lixeira (Proprietários) --- */
 
 export interface LunaConversaLixeira extends LunaConversa {

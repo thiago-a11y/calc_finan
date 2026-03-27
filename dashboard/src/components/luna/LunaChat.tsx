@@ -4,6 +4,7 @@ import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { Moon, Copy, Check, RefreshCw, ChevronUp, Play } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import MarkdownRenderer from './MarkdownRenderer'
+import LunaFileBlock, { extrairBlocosArquivo } from './LunaFileBlock'
 import type { LunaMensagem, LunaArtefato } from '../../types'
 
 interface LunaChatProps {
@@ -217,7 +218,31 @@ export default function LunaChat({
                       )}
                     </>
                   ) : (
-                    <MarkdownRenderer content={msg.conteudo} />
+                    (() => {
+                      const { textoLimpo, arquivos } = extrairBlocosArquivo(msg.conteudo)
+                      return (
+                        <>
+                          {textoLimpo && <MarkdownRenderer content={textoLimpo} />}
+                          {arquivos.map((arq, idx) => (
+                            <LunaFileBlock
+                              key={`${msg.id}-file-${idx}`}
+                              nome={arq.nome}
+                              conteudo={arq.conteudo}
+                              conversaId={msg.conversa_id}
+                              onPreview={(url, fmt, nome) => {
+                                onAbrirPreview({
+                                  id: `file-${msg.id}-${idx}`,
+                                  tipo: fmt === 'html' ? 'html' : 'codigo',
+                                  linguagem: fmt,
+                                  conteudo: url,
+                                  titulo: nome,
+                                })
+                              }}
+                            />
+                          ))}
+                        </>
+                      )
+                    })()
                   )}
 
                   {/* Botoes de preview para blocos de codigo */}

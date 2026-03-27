@@ -26,6 +26,7 @@ from database.models import (
     UsuarioDB, LunaConversaDB, LunaMensagemDB
 )
 from core.luna_engine import luna_engine
+from core.luna_file_generator import gerar_arquivo
 
 logger = logging.getLogger("synerium.api.luna")
 
@@ -54,6 +55,14 @@ class AnexoItem(BaseModel):
 class EnviarMensagemRequest(BaseModel):
     conteudo: str
     anexos: list[AnexoItem] | None = None
+
+
+class GerarArquivoRequest(BaseModel):
+    formato: str  # xlsx, docx, pptx, pdf, txt, md, csv, json, html
+    conteudo: str
+    nome: str = "arquivo"
+    titulo: str = ""
+    conversa_id: str | None = None  # Vincular ao chat
 
 
 # =====================================================================
@@ -349,6 +358,49 @@ async def regenerar_resposta(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# =====================================================================
+# Endpoints — Geração de Arquivos
+# =====================================================================
+
+
+@router.post("/gerar-arquivo")
+def endpoint_gerar_arquivo(
+    dados: GerarArquivoRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """
+    Gera um arquivo (XLSX, DOCX, PPTX, PDF, TXT, MD, CSV, JSON, HTML)
+    a partir do conteúdo fornecido. Retorna URL para download.
+    """
+    try:
+        resultado = gerar_arquivo(
+            formato=dados.formato,
+            conteudo=dados.conteudo,
+            nome_base=dados.nome,
+            usuario_nome=usuario.nome,
+            titulo=dados.titulo or dados.nome,
+        )
+
+        # Se vinculado a uma conversa, salvar como mensagem de sistema
+        if dados.conversa_id:
+            conversa = db.query(LunaConversaDB).filter(
+                LunaConversaDB.id == dados.conversa_id,
+                LunaConversaDB.usuario_id == usuario.id,
+            ).first()
+            if conversa:
+                conversa.atualizado_em = datetime.utcnow()
+                db.commit()
+
+        return resultado
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[Luna] Erro ao gerar arquivo: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar arquivo: {str(e)}")
 
 
 # =====================================================================
