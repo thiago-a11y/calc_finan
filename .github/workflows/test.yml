@@ -33,6 +33,11 @@ jobs:
           LANGSMITH_API_KEY=test
           LANGSMITH_TRACING=false
           CREWAI_TRACING_ENABLED=false
+          OPENAI_API_KEY=sk-test-fake-key-for-ci
+          ANTHROPIC_API_KEY=sk-ant-test-fake-key-for-ci
+          LIVEKIT_API_KEY=test
+          LIVEKIT_API_SECRET=test
+          LIVEKIT_URL=wss://test.livekit.cloud
           EOF
 
       - name: Criar diretórios necessários
