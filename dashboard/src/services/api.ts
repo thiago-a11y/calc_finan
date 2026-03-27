@@ -150,6 +150,41 @@ export const atualizarPerfil = (dados: { nome?: string; cargo?: string }) =>
 export const criarUsuario = (dados: CriarUsuarioPayload) =>
   post<Usuario>('/usuarios', dados)
 
+/* --- Convites por Email --- */
+
+export interface ConviteResponse {
+  id: number
+  email: string
+  nome: string
+  token: string
+  link_registro: string
+  expira_em: string
+  usado: boolean
+  email_enviado: boolean
+}
+
+export interface ConvitePendente {
+  id: number
+  email: string
+  nome: string
+  cargo: string
+  usado: boolean
+  token: string
+  expira_em: string
+  criado_em: string
+}
+
+export const enviarConvite = (dados: {
+  email: string
+  nome: string
+  cargo: string
+  papeis: string[]
+  enviar_email: boolean
+}) => post<ConviteResponse>('/convites', dados)
+
+export const listarConvites = () =>
+  get<ConvitePendente[]>('/convites')
+
 export const editarUsuario = (id: string, dados: Record<string, unknown>) =>
   put<Usuario>(`/usuarios/${id}`, dados)
 

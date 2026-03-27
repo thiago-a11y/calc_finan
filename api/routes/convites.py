@@ -149,8 +149,9 @@ def listar_convites(
             "nome": c.nome,
             "cargo": c.cargo,
             "usado": c.usado,
+            "token": c.token,
             "expira_em": c.expira_em.isoformat() if c.expira_em else "",
-            "criado_em": "",
+            "criado_em": c.criado_em.isoformat() if c.criado_em else "",
         }
         for c in convites
     ]

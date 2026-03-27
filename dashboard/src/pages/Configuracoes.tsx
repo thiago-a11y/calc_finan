@@ -4,15 +4,17 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import PermissoesGranulares from '../components/PermissoesGranulares'
 import {
-  buscarUsuarios, criarUsuario, editarUsuario, atualizarPermissoes,
+  buscarUsuarios, editarUsuario, atualizarPermissoes,
   desativarUsuario, buscarPapeisDisponiveis, buscarAreasAprovacao,
+  enviarConvite, listarConvites,
 } from '../services/api'
+import type { ConvitePendente } from '../services/api'
 import type { Usuario, PapelDisponivel, AreaAprovacaoDisponivel } from '../types'
 import {
-  Users, ShieldCheck, Settings, Plus, X, Pencil, UserX,
-  CheckCircle2,  Crown, Briefcase, Shield, Target,
+  Users, ShieldCheck, Settings, X, Pencil, UserX,
+  CheckCircle2, Crown, Briefcase, Shield, Target,
   Rocket, Megaphone, AlertTriangle, Lock,
-  Server, Cpu, Globe,
+  Server, Cpu, Globe, Mail, Copy, Clock, Send, UserPlus,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -112,7 +114,7 @@ export default function Configuracoes() {
       </div>
 
       {aba === 'usuarios' && (
-        <AbaUsuarios usuarios={usuarios} papeis={papeis} areas={areas}
+        <AbaUsuarios usuarios={usuarios} papeis={papeis}
           onRecarregar={carregarDados} setMensagem={setMensagem} setErro={setErro} />
       )}
       {aba === 'permissoes' && (
@@ -129,8 +131,8 @@ export default function Configuracoes() {
 /* ABA: USUÁRIOS                                                     */
 /* ================================================================ */
 
-function AbaUsuarios({ usuarios, papeis, areas, onRecarregar, setMensagem, setErro }: {
-  usuarios: Usuario[]; papeis: PapelDisponivel[]; areas: AreaAprovacaoDisponivel[]
+function AbaUsuarios({ usuarios, papeis, onRecarregar, setMensagem, setErro }: {
+  usuarios: Usuario[]; papeis: PapelDisponivel[]
   onRecarregar: () => void; setMensagem: (m: string) => void; setErro: (e: string) => void
 }) {
   const [mostrarForm, setMostrarForm] = useState(false)
@@ -138,34 +140,51 @@ function AbaUsuarios({ usuarios, papeis, areas, onRecarregar, setMensagem, setEr
   const [salvando, setSalvando] = useState(false)
   const [novoNome, setNovoNome] = useState('')
   const [novoEmail, setNovoEmail] = useState('')
-  const [novoSenha, setNovoSenha] = useState('')
   const [novoCargo, setNovoCargo] = useState('')
   const [novoPapeis, setNovoPapeis] = useState<string[]>([])
-  const [novoPodeAprovar, setNovoPodeAprovar] = useState(false)
-  const [novoAreas, setNovoAreas] = useState<string[]>([])
   const [editNome, setEditNome] = useState('')
   const [editCargo, setEditCargo] = useState('')
   const [editEmail, setEditEmail] = useState('')
+  const [convites, setConvites] = useState<ConvitePendente[]>([])
+  const [linkCopiado, setLinkCopiado] = useState<string | null>(null)
+
+  useEffect(() => {
+    listarConvites().then(setConvites).catch(() => {})
+  }, [])
 
   const limparForm = () => {
-    setNovoNome(''); setNovoEmail(''); setNovoSenha('')
-    setNovoCargo(''); setNovoPapeis([]); setNovoPodeAprovar(false); setNovoAreas([])
+    setNovoNome(''); setNovoEmail(''); setNovoCargo(''); setNovoPapeis([])
     setMostrarForm(false)
   }
 
-  const criarNovoUsuario = async () => {
-    if (!novoNome || !novoEmail || !novoSenha) { setErro('Nome, email e senha são obrigatórios.'); return }
-    if (novoSenha.length < 8) { setErro('Senha deve ter no mínimo 8 caracteres.'); return }
+  const enviarNovoConvite = async () => {
+    if (!novoNome || !novoEmail) { setErro('Nome e email sao obrigatorios.'); return }
     setSalvando(true); setErro('')
     try {
-      await criarUsuario({
-        nome: novoNome, email: novoEmail, senha: novoSenha, cargo: novoCargo,
-        papeis: novoPapeis, pode_aprovar: novoPodeAprovar,
-        areas_aprovacao: novoPodeAprovar ? novoAreas : [],
+      const resultado = await enviarConvite({
+        email: novoEmail, nome: novoNome, cargo: novoCargo,
+        papeis: novoPapeis, enviar_email: true,
       })
-      setMensagem(`Usuário "${novoNome}" criado!`); limparForm(); onRecarregar()
-    } catch (e: unknown) { setErro(e instanceof Error ? e.message : 'Erro ao criar.') }
+      if (resultado.email_enviado) {
+        setMensagem(`Convite enviado para ${novoNome} (${novoEmail})! O usuario recebera um email com link para criar a senha.`)
+      } else {
+        setMensagem(`Convite criado para ${novoNome}. Link: ${resultado.link_registro} (email nao enviado — copie o link manualmente).`)
+      }
+      limparForm()
+      listarConvites().then(setConvites).catch(() => {})
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Erro ao enviar convite.'
+      if (msg.includes('409')) setErro('Este email ja esta cadastrado ou ja tem um convite pendente.')
+      else setErro(msg)
+    }
     finally { setSalvando(false) }
+  }
+
+  const copiarLink = (convite: ConvitePendente) => {
+    const url = `${window.location.origin}/registrar?token=${convite.token}`
+    navigator.clipboard.writeText(url)
+    setLinkCopiado(convite.token)
+    setTimeout(() => setLinkCopiado(null), 2000)
   }
 
   const salvarEdicao = async (id: string) => {
@@ -187,11 +206,13 @@ function AbaUsuarios({ usuarios, papeis, areas, onRecarregar, setMensagem, setEr
 
   const inputClasses = "w-full sf-glass border sf-border rounded-lg px-3 py-2.5 text-sm sf-text-white placeholder:sf-text-ghost focus:outline-none focus:border-emerald-500/50 transition-colors"
 
+  const convitesPendentes = convites.filter(c => !c.usado)
+
   return (
     <div className="relative">
       <div className="flex justify-between items-center mb-6">
         <h3 className="text-lg font-semibold sf-text-white">
-          Usuários <span className="sf-text-ghost font-normal">({usuarios.length})</span>
+          Usuarios <span className="sf-text-ghost font-normal">({usuarios.length})</span>
         </h3>
         <button
           onClick={() => setMostrarForm(!mostrarForm)}
@@ -201,14 +222,23 @@ function AbaUsuarios({ usuarios, papeis, areas, onRecarregar, setMensagem, setEr
               : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/30'
           }`}
         >
-          {mostrarForm ? <><X size={14} /> Cancelar</> : <><Plus size={14} /> Novo Usuário</>}
+          {mostrarForm ? <><X size={14} /> Cancelar</> : <><UserPlus size={14} /> Convidar Membro</>}
         </button>
       </div>
 
-      {/* Form criação */}
+      {/* Form convite */}
       {mostrarForm && (
         <div className="sf-glass border sf-border rounded-2xl p-6 mb-6">
-          <h4 className="font-semibold sf-text-white mb-5">Criar Novo Usuário</h4>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <Mail size={18} className="text-emerald-400" />
+            </div>
+            <div>
+              <h4 className="font-semibold sf-text-white">Convidar Novo Membro</h4>
+              <p className="text-xs sf-text-dim">Um email sera enviado com o link para criar a conta</p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs sf-text-dim uppercase tracking-wider mb-1.5">Nome *</label>
@@ -218,12 +248,7 @@ function AbaUsuarios({ usuarios, papeis, areas, onRecarregar, setMensagem, setEr
             <div>
               <label className="block text-xs sf-text-dim uppercase tracking-wider mb-1.5">Email *</label>
               <input value={novoEmail} onChange={e => setNovoEmail(e.target.value)} type="email"
-                className={inputClasses} placeholder="email@empresa.com" />
-            </div>
-            <div>
-              <label className="block text-xs sf-text-dim uppercase tracking-wider mb-1.5">Senha *</label>
-              <input value={novoSenha} onChange={e => setNovoSenha(e.target.value)} type="password"
-                className={inputClasses} placeholder="Mínimo 8 caracteres" />
+                className={inputClasses} placeholder="email@objetivasolucao.com.br" />
             </div>
             <div>
               <label className="block text-xs sf-text-dim uppercase tracking-wider mb-1.5">Cargo</label>
@@ -233,7 +258,7 @@ function AbaUsuarios({ usuarios, papeis, areas, onRecarregar, setMensagem, setEr
           </div>
 
           <div className="mt-5">
-            <label className="block text-xs sf-text-dim uppercase tracking-wider mb-2">Papéis</label>
+            <label className="block text-xs sf-text-dim uppercase tracking-wider mb-2">Papeis</label>
             <div className="flex flex-wrap gap-2">
               {papeis.map(p => {
                 const selected = novoPapeis.includes(p.id)
@@ -252,43 +277,21 @@ function AbaUsuarios({ usuarios, papeis, areas, onRecarregar, setMensagem, setEr
             </div>
           </div>
 
-          <div className="mt-4">
-            <label className="flex items-center gap-2.5 text-sm cursor-pointer">
-              <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                novoPodeAprovar ? 'bg-emerald-500/20 border-emerald-500/40' : 'border-white/15 bg-white/[0.02]'
-              }`} onClick={() => setNovoPodeAprovar(!novoPodeAprovar)}>
-                {novoPodeAprovar && <CheckCircle2 size={12} className="text-emerald-400" />}
-              </div>
-              <span className="sf-text-dim">Pode aprovar solicitações</span>
-            </label>
+          <div className="mt-5 px-4 py-3 rounded-xl bg-blue-500/5 border border-blue-500/10">
+            <div className="flex items-start gap-2">
+              <Mail size={14} className="text-blue-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-300/80">
+                O membro recebera um email via Amazon SES com um link para criar sua senha.
+                O convite expira em 7 dias. Permissoes de aprovacao podem ser configuradas depois na aba Permissoes.
+              </p>
+            </div>
           </div>
 
-          {novoPodeAprovar && (
-            <div className="mt-3 ml-6">
-              <label className="block text-xs sf-text-dim uppercase tracking-wider mb-2">Áreas</label>
-              <div className="flex flex-wrap gap-2">
-                {areas.map(a => {
-                  const selected = novoAreas.includes(a.id)
-                  return (
-                    <button key={a.id} type="button"
-                      onClick={() => setNovoAreas(prev => prev.includes(a.id) ? prev.filter(x => x !== a.id) : [...prev, a.id])}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                        selected
-                          ? 'bg-blue-500/15 border-blue-500/30 text-blue-400'
-                          : 'sf-glass sf-text-dim hover:border-white/15'
-                      }`}>
-                      {a.nome}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
           <div className="mt-6 flex gap-3">
-            <button onClick={criarNovoUsuario} disabled={salvando}
-              className="px-5 py-2.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl text-sm font-medium hover:bg-emerald-500/30 disabled:opacity-50 transition-all">
-              {salvando ? 'Criando...' : 'Criar Usuário'}
+            <button onClick={enviarNovoConvite} disabled={salvando}
+              className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl text-sm font-medium hover:bg-emerald-500/30 disabled:opacity-50 transition-all">
+              <Send size={14} />
+              {salvando ? 'Enviando...' : 'Enviar Convite'}
             </button>
             <button onClick={limparForm}
               className="px-5 py-2.5 bg-white/5 sf-text-dim border border-white/10 rounded-xl text-sm hover:bg-white/10 transition-all">
@@ -298,7 +301,47 @@ function AbaUsuarios({ usuarios, papeis, areas, onRecarregar, setMensagem, setEr
         </div>
       )}
 
-      {/* Lista */}
+      {/* Convites pendentes */}
+      {convitesPendentes.length > 0 && (
+        <div className="mb-6">
+          <h4 className="text-sm font-medium sf-text-dim mb-3 flex items-center gap-2">
+            <Clock size={14} /> Convites Pendentes ({convitesPendentes.length})
+          </h4>
+          <div className="space-y-2">
+            {convitesPendentes.map(c => (
+              <div key={c.id} className="sf-glass border border-amber-500/10 rounded-xl p-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                    <Mail size={14} className="text-amber-400" />
+                  </div>
+                  <div>
+                    <span className="text-sm sf-text-white">{c.nome || c.email}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs sf-text-dim font-mono">{c.email}</span>
+                      {c.cargo && <span className="text-xs sf-text-ghost">· {c.cargo}</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] sf-text-ghost">
+                    Expira: {new Date(c.expira_em).toLocaleDateString('pt-BR')}
+                  </span>
+                  <button
+                    onClick={() => copiarLink(c)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs sf-text-dim hover:bg-white/10 transition-all"
+                    title="Copiar link de registro"
+                  >
+                    {linkCopiado === c.token ? <CheckCircle2 size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                    {linkCopiado === c.token ? 'Copiado' : 'Link'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Lista de usuarios ativos */}
       <div className="space-y-3">
         {usuarios.map((u, idx) => {
           const cor = avatarCores[idx % avatarCores.length]
