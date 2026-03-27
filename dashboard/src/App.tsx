@@ -24,6 +24,8 @@ import Projetos from './pages/Projetos'
 import Consumo from './pages/Consumo'
 import Deploy from './pages/Deploy'
 import LLMProviders from './pages/LLMProviders'
+import Catalogo from './pages/Catalogo'
+import Atribuicoes from './pages/Atribuicoes'
 
 /* Rota protegida — redireciona para /login se não autenticado */
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -97,6 +99,22 @@ function AppRoutes() {
         element={
           <RotaProtegida>
             <LayoutPrincipal><Squads /></LayoutPrincipal>
+          </RotaProtegida>
+        }
+      />
+      <Route
+        path="/catalogo"
+        element={
+          <RotaProtegida>
+            <LayoutPrincipal><Catalogo /></LayoutPrincipal>
+          </RotaProtegida>
+        }
+      />
+      <Route
+        path="/atribuicoes"
+        element={
+          <RotaProtegida>
+            <LayoutPrincipal><Atribuicoes /></LayoutPrincipal>
           </RotaProtegida>
         }
       />

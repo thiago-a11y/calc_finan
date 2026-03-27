@@ -14,19 +14,13 @@ Segurança:
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 
-from api.dependencias import obter_fabrica, obter_usuario_atual
+from api.dependencias import obter_fabrica, obter_usuario_atual, _nome_squad_usuario
 from api.schemas import SquadResponse
 from database.models import UsuarioDB
 
 logger = logging.getLogger("synerium.squads")
 
 router = APIRouter(prefix="/api", tags=["Squads"])
-
-# Mapeamento de email → nome do squad pessoal
-SQUAD_POR_EMAIL = {
-    "thiago@objetivasolucao.com.br": "CEO — Thiago",
-    "jonatas@objetivasolucao.com.br": "Diretor Técnico — Jonatas",
-}
 
 # Squads de área — compartilhados (todos veem)
 SQUADS_AREA = {"Dev Backend", "Dev Frontend", "Marketing"}
@@ -51,19 +45,22 @@ def _tem_visao_geral(usuario: UsuarioDB) -> bool:
 
 
 def _squad_pessoal_do_usuario(usuario: UsuarioDB) -> str | None:
-    """Retorna o nome do squad pessoal do usuário."""
-    return SQUAD_POR_EMAIL.get(usuario.email)
+    """Retorna o nome do squad pessoal do usuário (baseado no banco)."""
+    return _nome_squad_usuario(usuario)
 
 
 def _montar_resposta(nome: str, squad, usuario: UsuarioDB) -> SquadResponse:
     """Monta o SquadResponse com metadados de propriedade."""
     squad_pessoal = _squad_pessoal_do_usuario(usuario)
     is_area = nome in SQUADS_AREA
+
+    # Extrair email do proprietário do contexto do squad (se pessoal)
     proprietario = ""
-    for email, squad_nome in SQUAD_POR_EMAIL.items():
-        if squad_nome == nome:
-            proprietario = email
-            break
+    if hasattr(squad, "contexto") and "Email:" in squad.contexto:
+        try:
+            proprietario = squad.contexto.split("Email:")[1].split(".")[0].strip()
+        except (IndexError, AttributeError):
+            pass
 
     return SquadResponse(
         nome=nome,

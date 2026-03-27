@@ -158,3 +158,105 @@ class StandupResponse(BaseModel):
     relatorio: str
     data_execucao: str
     squads_reportados: int
+
+
+# --- Catálogo de Agentes ---
+
+class AgenteCatalogoResponse(BaseModel):
+    """Agente do catálogo (prateleira)."""
+    id: int
+    nome_exibicao: str
+    papel: str
+    objetivo: str
+    historia: str
+    perfil_agente: str
+    categoria: str
+    icone: str
+    allow_delegation: bool
+    ativo: bool
+    criado_em: datetime | None = None
+    total_usuarios: int = 0  # Quantos usuários usam este agente
+
+
+class AgenteCatalogoCreateRequest(BaseModel):
+    """Request para criar um agente no catálogo."""
+    nome_exibicao: str
+    papel: str
+    objetivo: str
+    historia: str
+    perfil_agente: str
+    categoria: str = "geral"
+    icone: str = "Bot"
+    regras_extras: str = ""
+    allow_delegation: bool = False
+
+
+class AgenteCatalogoUpdateRequest(BaseModel):
+    """Request para atualizar um agente no catálogo."""
+    nome_exibicao: str | None = None
+    papel: str | None = None
+    objetivo: str | None = None
+    historia: str | None = None
+    perfil_agente: str | None = None
+    categoria: str | None = None
+    icone: str | None = None
+    regras_extras: str | None = None
+    allow_delegation: bool | None = None
+    ativo: bool | None = None
+
+
+# --- Atribuições ---
+
+class AgenteAtribuidoResponse(BaseModel):
+    """Agente atribuído a um usuário."""
+    id: int
+    agente_catalogo_id: int
+    usuario_id: int
+    nome_agente: str = ""
+    perfil_agente: str = ""
+    categoria: str = ""
+    icone: str = ""
+    ordem: int = 0
+    ativo: bool = True
+    criado_em: datetime | None = None
+
+
+class AtribuirAgenteRequest(BaseModel):
+    """Request para atribuir agente do catálogo a um usuário."""
+    agente_catalogo_id: int
+    usuario_id: int
+
+
+class RemoverAtribuicaoRequest(BaseModel):
+    """Request para remover atribuição."""
+    pass
+
+
+# --- Solicitações de Agentes ---
+
+class SolicitacaoAgenteResponse(BaseModel):
+    """Solicitação de agente por um usuário."""
+    id: int
+    usuario_id: int
+    usuario_nome: str
+    agente_catalogo_id: int | None = None
+    nome_agente: str = ""  # Nome do agente do catálogo (se especificado)
+    descricao: str
+    perfil_sugerido: str = ""
+    status: str = "pendente"
+    aprovado_por_nome: str = ""
+    comentario: str = ""
+    criado_em: datetime | None = None
+
+
+class SolicitacaoAgenteCreateRequest(BaseModel):
+    """Request para solicitar um agente."""
+    agente_catalogo_id: int | None = None
+    descricao: str
+    perfil_sugerido: str = ""
+
+
+class SolicitacaoAgenteAcaoRequest(BaseModel):
+    """Request para aprovar/rejeitar solicitação de agente."""
+    aprovado: bool
+    comentario: str = ""

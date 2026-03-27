@@ -6,12 +6,13 @@ import {
   buscarAprovacoes, acaoAprovacao, criarAprovacao,
   buscarPropostas, aprovarProposta, rejeitarProposta,
   buscarDeploys, aprovarDeploy, rejeitarDeploy,
+  buscarSolicitacoesAgente, acaoSolicitacaoAgente,
 } from '../services/api'
 import {
   ShieldCheck, Plus, X, Clock, CheckCircle2, XCircle,
   Rocket, Zap, Briefcase, Megaphone, Radio, Send,
   History, DollarSign, User2, Code2, FileEdit, Eye,
- Upload, GitBranch,
+  Upload, GitBranch, Bot,
 } from 'lucide-react'
 
 const tipoIcons: Record<string, { icon: typeof Rocket; cor: string; label: string }> = {
@@ -22,16 +23,18 @@ const tipoIcons: Record<string, { icon: typeof Rocket; cor: string; label: strin
   outreach_massa: { icon: Radio, cor: '#ec4899', label: 'Outreach Massa' },
 }
 
-type Aba = 'geral' | 'codigo' | 'deploys'
+type Aba = 'geral' | 'codigo' | 'deploys' | 'agentes'
 
 export default function Aprovacoes() {
   const [aba, setAba] = useState<Aba>('codigo')
   const fetchAprovacoes = useCallback(() => buscarAprovacoes(), [])
   const fetchPropostas = useCallback(() => buscarPropostas(), [])
   const fetchDeploys = useCallback(() => buscarDeploys(), [])
+  const fetchSolicitacoes = useCallback(() => buscarSolicitacoesAgente(), [])
   const { dados: aprovacoes, carregando: cAprov, recarregar: recarregarAprov } = usePolling(fetchAprovacoes, 5000)
   const { dados: propostas, carregando: cProp, recarregar: recarregarProp } = usePolling(fetchPropostas, 5000)
   const { dados: deploys, carregando: cDep, recarregar: recarregarDep } = usePolling(fetchDeploys, 5000)
+  const { dados: solicitacoes, carregando: cSol, recarregar: recarregarSol } = usePolling(fetchSolicitacoes, 5000)
   const [processando, setProcessando] = useState<string | number | null>(null)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [expandido, setExpandido] = useState<string | null>(null)
@@ -77,7 +80,16 @@ export default function Aprovacoes() {
     finally { setProcessando(null) }
   }
 
-  const carregando = cAprov || cProp || cDep
+  const executarAcaoSolicitacao = async (id: number, aprovado: boolean) => {
+    setProcessando(id)
+    try {
+      await acaoSolicitacaoAgente(id, aprovado)
+      await recarregarSol()
+    } catch (e) { alert(`Erro: ${e instanceof Error ? e.message : 'desconhecido'}`) }
+    finally { setProcessando(null) }
+  }
+
+  const carregando = cAprov || cProp || cDep || cSol
   if (carregando) {
     return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>
   }
@@ -88,7 +100,9 @@ export default function Aprovacoes() {
   const propostasResolvidas = (propostas || []).filter((p: any) => p.status !== 'pendente')
   const deploysPendentes = (deploys || []).filter((d: any) => d.status === 'pendente')
   const deploysResolvidos = (deploys || []).filter((d: any) => d.status !== 'pendente')
-  const totalPendentes = pendentesAprov.length + propostasPendentes.length + deploysPendentes.length
+  const solicitacoesPendentes = (solicitacoes || []).filter((s: any) => s.status === 'pendente')
+  const solicitacoesResolvidas = (solicitacoes || []).filter((s: any) => s.status !== 'pendente')
+  const totalPendentes = pendentesAprov.length + propostasPendentes.length + deploysPendentes.length + solicitacoesPendentes.length
 
   const inputCls = "w-full sf-glass border sf-border rounded-xl px-4 py-2.5 text-sm sf-text-white placeholder:sf-text-ghost focus:outline-none focus:border-emerald-500/50 transition-colors"
 
@@ -151,6 +165,22 @@ export default function Aprovacoes() {
           {deploysPendentes.length > 0 && (
             <span className="w-5 h-5 bg-red-500/20 text-red-400 rounded-full text-[10px] flex items-center justify-center font-bold border border-red-500/30">
               {deploysPendentes.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setAba('agentes')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+            aba === 'agentes'
+              ? 'bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/10'
+              : 'sf-text-dim hover:bg-white/5'
+          }`}
+        >
+          <Bot size={13} />
+          Agentes
+          {solicitacoesPendentes.length > 0 && (
+            <span className="w-5 h-5 bg-purple-500/20 text-purple-400 rounded-full text-[10px] flex items-center justify-center font-bold border border-purple-500/30">
+              {solicitacoesPendentes.length}
             </span>
           )}
         </button>
@@ -416,6 +446,110 @@ export default function Aprovacoes() {
                           {d.push_resultado?.merge_ok && ' · Merged ✓'}
                           {` · ${d.aprovado_por || d.rejeitado_por || ''}`}
                         </p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ==================== ABA: SOLICITAÇÕES DE AGENTES ==================== */}
+      {aba === 'agentes' && (
+        <div>
+          {/* Pendentes */}
+          {solicitacoesPendentes.length > 0 ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 mb-4">
+                <Clock size={14} className="text-purple-400" />
+                <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wider">
+                  Solicitações pendentes
+                </h3>
+              </div>
+              {solicitacoesPendentes.map((s: any) => (
+                <div key={s.id} className="bg-gradient-to-br from-purple-500/[0.04] to-white/[0.01] border border-purple-500/20 rounded-xl p-5">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mt-0.5">
+                        <Bot size={16} className="text-purple-400" strokeWidth={1.8} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                            Solicitação de Agente
+                          </span>
+                          {s.nome_agente && (
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                              {s.nome_agente}
+                            </span>
+                          )}
+                          {s.perfil_sugerido && (
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-gray-500/10 sf-text-dim border border-white/10">
+                              {s.perfil_sugerido}
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-medium sf-text-white text-sm">{s.descricao}</p>
+                        <p className="text-[10px] sf-text-ghost mt-1">
+                          Solicitado por {s.usuario_nome} · {s.criado_em ? new Date(s.criado_em).toLocaleString('pt-BR') : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 ml-4 shrink-0">
+                      <button
+                        onClick={() => executarAcaoSolicitacao(s.id, true)}
+                        disabled={processando === s.id}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 rounded-lg text-xs font-medium hover:bg-emerald-500/25 disabled:opacity-50 transition-all"
+                      >
+                        <CheckCircle2 size={12} /> Aprovar
+                      </button>
+                      <button
+                        onClick={() => executarAcaoSolicitacao(s.id, false)}
+                        disabled={processando === s.id}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-red-500/15 border border-red-500/25 text-red-400 rounded-lg text-xs font-medium hover:bg-red-500/25 disabled:opacity-50 transition-all"
+                      >
+                        <XCircle size={12} /> Rejeitar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <div className="w-14 h-14 mx-auto mb-4 rounded-2xl sf-glass border flex items-center justify-center" style={{ borderColor: 'var(--sf-border-subtle)' }}>
+                <Bot size={24} className="sf-text-ghost" strokeWidth={1.5} />
+              </div>
+              <p className="text-sm sf-text-dim">Nenhuma solicitação de agente pendente.</p>
+              <p className="text-xs sf-text-ghost mt-1">Quando um usuário solicitar um agente, a solicitação aparece aqui.</p>
+            </div>
+          )}
+
+          {/* Histórico de solicitações */}
+          {solicitacoesResolvidas.length > 0 && (
+            <div className="mt-8">
+              <div className="flex items-center gap-2 mb-4">
+                <History size={14} className="sf-text-dim" />
+                <h3 className="text-sm font-semibold sf-text-dim uppercase tracking-wider">Histórico de solicitações</h3>
+              </div>
+              <div className="space-y-2">
+                {solicitacoesResolvidas.map((s: any) => {
+                  const aprovada = s.status === 'aprovado'
+                  return (
+                    <div key={s.id} className="sf-glass border rounded-xl p-4 flex items-center justify-between hover:border-white/10 transition-all" style={{ borderColor: 'var(--sf-border-subtle)' }}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: aprovada ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }}>
+                          {aprovada ? <CheckCircle2 size={14} className="text-emerald-400" /> : <XCircle size={14} className="text-red-400" />}
+                        </div>
+                        <div>
+                          <p className="text-sm sf-text-dim">{s.descricao}</p>
+                          <p className="text-[10px] sf-text-ghost">
+                            {s.usuario_nome} · {aprovada ? 'Aprovado' : 'Rejeitado'} por {s.aprovado_por_nome}
+                            {s.comentario && ` — "${s.comentario}"`}
+                          </p>
                         </div>
                       </div>
                     </div>

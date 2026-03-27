@@ -194,6 +194,81 @@ export interface ModuloDisponivel {
   icone: string
 }
 
+// --- Catálogo de Agentes ---
+
+export interface AgenteCatalogo {
+  id: number
+  nome_exibicao: string
+  papel: string
+  objetivo: string
+  historia: string
+  perfil_agente: string
+  categoria: string
+  icone: string
+  allow_delegation: boolean
+  ativo: boolean
+  criado_em?: string
+  total_usuarios: number
+}
+
+export interface AgenteCatalogoCreate {
+  nome_exibicao: string
+  papel: string
+  objetivo: string
+  historia: string
+  perfil_agente: string
+  categoria?: string
+  icone?: string
+  regras_extras?: string
+  allow_delegation?: boolean
+}
+
+export interface AgenteCatalogoUpdate {
+  nome_exibicao?: string
+  papel?: string
+  objetivo?: string
+  historia?: string
+  perfil_agente?: string
+  categoria?: string
+  icone?: string
+  regras_extras?: string
+  allow_delegation?: boolean
+  ativo?: boolean
+}
+
+export interface AgenteAtribuido {
+  id: number
+  agente_catalogo_id: number
+  usuario_id: number
+  nome_agente: string
+  perfil_agente: string
+  categoria: string
+  icone: string
+  ordem: number
+  ativo: boolean
+  criado_em?: string
+}
+
+export interface SolicitacaoAgente {
+  id: number
+  usuario_id: number
+  usuario_nome: string
+  agente_catalogo_id?: number
+  nome_agente: string
+  descricao: string
+  perfil_sugerido: string
+  status: string
+  aprovado_por_nome: string
+  comentario: string
+  criado_em?: string
+}
+
+export interface PerfilDisponivel {
+  perfil: string
+  descricao: string
+  tier_llm: string
+}
+
 export interface FileAttachment {
   nome_original: string
   nome_salvo: string

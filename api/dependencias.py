@@ -31,14 +31,13 @@ def inicializar_fabrica():
     Inicializa a instância singleton do SyneriumFactory.
 
     Chamado uma única vez no startup do FastAPI (via lifespan).
-    Registra os squads padrão automaticamente.
+    Carrega squads dinamicamente do banco de dados (catálogo de agentes).
     """
     global _fabrica
 
     from orchestrator import SyneriumFactory
-    from squads.squad_ceo_thiago import criar_squad_ceo
-    from squads.squad_diretor_jonatas import criar_squad_jonatas
     from tools.skills_setup import inicializar_skills
+    from database.session import SessionLocal
 
     logger.info("[API] Inicializando SyneriumFactory...")
     _fabrica = SyneriumFactory()
@@ -52,27 +51,16 @@ def inicializar_fabrica():
     )
 
     # ==========================================
-    # Squad do CEO — Thiago (8 agentes turbinados)
+    # Carregar squads dinamicamente do banco
     # ==========================================
-    squad_ceo = criar_squad_ceo(tools=[_fabrica.ferramenta_rag])
-    _fabrica.squads["CEO — Thiago"] = squad_ceo
-    logger.info(
-        f"[SQUAD] Registrado: CEO — Thiago "
-        f"({len(squad_ceo.agentes)} agentes especializados)"
-    )
+    db = SessionLocal()
+    try:
+        _carregar_squads_do_banco(_fabrica, db)
+    finally:
+        db.close()
 
     # ==========================================
-    # Squad do Jonatas — Diretor Técnico (3 agentes)
-    # ==========================================
-    squad_jonatas = criar_squad_jonatas(tools=[_fabrica.ferramenta_rag])
-    _fabrica.squads["Diretor Técnico — Jonatas"] = squad_jonatas
-    logger.info(
-        f"[SQUAD] Registrado: Diretor Técnico — Jonatas "
-        f"({len(squad_jonatas.agentes)} agentes)"
-    )
-
-    # ==========================================
-    # Squads de Área
+    # Squads de Área (compartilhados, sem agentes do catálogo)
     # ==========================================
     _fabrica.registrar_squad(
         nome="Dev Backend",
@@ -94,6 +82,100 @@ def inicializar_fabrica():
     return _fabrica
 
 
+def _carregar_squads_do_banco(fabrica, db):
+    """Carrega squads de TODOS os usuários que têm agentes atribuídos."""
+    from database.models import UsuarioDB, AgenteAtribuidoDB
+
+    # Encontrar todos os usuários com atribuições ativas
+    usuarios_com_agentes = (
+        db.query(UsuarioDB)
+        .join(AgenteAtribuidoDB, AgenteAtribuidoDB.usuario_id == UsuarioDB.id)
+        .filter(AgenteAtribuidoDB.ativo == True, UsuarioDB.ativo == True)
+        .distinct()
+        .all()
+    )
+
+    for usuario in usuarios_com_agentes:
+        carregar_squad_usuario(fabrica, usuario.id, db)
+
+    logger.info(f"[SQUADS] {len(usuarios_com_agentes)} squads carregados do banco.")
+
+
+def carregar_squad_usuario(fabrica, usuario_id: int, db):
+    """
+    Carrega/recarrega o squad de um usuário a partir das atribuições no banco.
+
+    Usado na inicialização e no hot-reload ao atribuir/remover agentes.
+    """
+    from database.models import UsuarioDB, AgenteAtribuidoDB, AgenteCatalogoDB
+    from squads.squad_template import SquadPessoal
+    from tools.registry import skill_registry
+
+    usuario = db.query(UsuarioDB).filter_by(id=usuario_id, ativo=True).first()
+    if not usuario:
+        return
+
+    atribuicoes = (
+        db.query(AgenteAtribuidoDB)
+        .filter_by(usuario_id=usuario.id, ativo=True)
+        .order_by(AgenteAtribuidoDB.ordem)
+        .all()
+    )
+
+    if not atribuicoes:
+        # Remover squad existente se não tem mais agentes
+        nome_squad = _nome_squad_usuario(usuario)
+        fabrica.squads.pop(nome_squad, None)
+        return
+
+    # Determinar especialidade com base no cargo
+    especialidade = f"Squad Pessoal — {usuario.cargo or 'Geral'}"
+    nome_squad = _nome_squad_usuario(usuario)
+
+    squad = SquadPessoal(
+        nome_membro=f"{usuario.nome} ({usuario.cargo})",
+        especialidade=especialidade,
+        contexto=(
+            f"Squad pessoal de {usuario.nome}. "
+            f"Email: {usuario.email}. "
+            "Domínio: @objetivasolucao.com.br."
+        ),
+        tools=[fabrica.ferramenta_rag] if hasattr(fabrica, 'ferramenta_rag') else [],
+    )
+
+    for atrib in atribuicoes:
+        catalogo = db.query(AgenteCatalogoDB).filter_by(id=atrib.agente_catalogo_id).first()
+        if not catalogo or not catalogo.ativo:
+            continue
+
+        objetivo = atrib.objetivo_custom or catalogo.objetivo
+        historia = (atrib.historia_custom or catalogo.historia) + (catalogo.regras_extras or "")
+
+        squad.criar_agente_auxiliar(
+            papel=catalogo.papel,
+            objetivo=objetivo,
+            historia=historia,
+            perfil_agente=catalogo.perfil_agente,
+        )
+
+        # Atribuir tools do perfil
+        kit = skill_registry.montar_kit(catalogo.perfil_agente)
+        if kit:
+            squad.agentes[-1].tools = kit
+
+    fabrica.squads[nome_squad] = squad
+    logger.info(
+        f"[SQUAD] {'Recarregado' if nome_squad in fabrica.squads else 'Registrado'}: "
+        f"{nome_squad} ({len(squad.agentes)} agentes)"
+    )
+
+
+def _nome_squad_usuario(usuario) -> str:
+    """Gera o nome do squad a partir do usuário."""
+    cargo_curto = usuario.cargo.split(" e ")[0] if usuario.cargo else "Membro"
+    return f"{cargo_curto} — {usuario.nome}"
+
+
 def inicializar_banco():
     """
     Cria as tabelas do banco e executa o seed inicial.
@@ -103,15 +185,17 @@ def inicializar_banco():
     from database.models import Base
     from database.session import engine, SessionLocal
     from database.seed import executar_seed
+    from database.seed_catalogo import executar_seed_catalogo
 
     logger.info("[DB] Criando tabelas do banco de dados...")
     Base.metadata.create_all(bind=engine)
     logger.info("[DB] Tabelas criadas com sucesso.")
 
-    # Seed — criar usuários iniciais
+    # Seed — criar usuários iniciais + catálogo de agentes
     db = SessionLocal()
     try:
         executar_seed(db)
+        executar_seed_catalogo(db)
     finally:
         db.close()
 

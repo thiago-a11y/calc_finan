@@ -5,6 +5,9 @@ Tabelas:
 - usuarios: Cadastro de usuários com autenticação
 - convites: Convites por email para novos usuários
 - audit_log: Log de auditoria de todas as ações
+- agentes_catalogo: Prateleira de templates de agentes reutilizáveis
+- agentes_atribuidos: Vínculo catálogo → usuário
+- solicitacoes_agente: Pedidos de novos agentes por usuários
 """
 
 from datetime import datetime
@@ -304,3 +307,107 @@ class UsageTrackingDB(Base):
 
     def __repr__(self):
         return f"<Usage {self.provider_id}: {self.tokens_total} tokens, ${self.custo_usd:.4f}>"
+
+
+class AgenteCatalogoDB(Base):
+    """
+    Prateleira de agentes — templates reutilizáveis.
+
+    Admin cria templates aqui e depois atribui aos usuários.
+    Cada agente tem papel, objetivo, história e perfil do SmartRouter.
+    """
+    __tablename__ = "agentes_catalogo"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Identidade do agente
+    nome_exibicao = Column(String(255), nullable=False)  # "Tech Lead / Arquiteto de Software"
+    papel = Column(String(255), nullable=False)  # Role do CrewAI
+    objetivo = Column(Text, nullable=False)  # Goal do CrewAI
+    historia = Column(Text, nullable=False)  # Backstory do CrewAI
+
+    # Configuração técnica
+    perfil_agente = Column(String(50), nullable=False)  # tech_lead, backend_dev, etc.
+    categoria = Column(String(50), default="geral")  # desenvolvimento, gestao, seguranca, ia, operacional
+    icone = Column(String(50), default="Bot")  # Nome do ícone lucide-react
+    regras_extras = Column(Text, default="")  # Regras anti-alucinação injetadas no backstory
+    allow_delegation = Column(Boolean, default=False)
+
+    # Metadata
+    ativo = Column(Boolean, default=True)
+    company_id = Column(Integer, default=1)
+    criado_por_id = Column(Integer, nullable=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<AgenteCatalogo {self.id}: {self.nome_exibicao} ({self.perfil_agente})>"
+
+
+class AgenteAtribuidoDB(Base):
+    """
+    Vínculo catálogo → usuário.
+
+    Admin atribui agentes do catálogo aos usuários.
+    Cada atribuição pode ter customizações (objetivo/história override).
+    """
+    __tablename__ = "agentes_atribuidos"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Vínculo
+    agente_catalogo_id = Column(Integer, nullable=False, index=True)
+    usuario_id = Column(Integer, nullable=False, index=True)
+    atribuido_por_id = Column(Integer, nullable=False)
+
+    # Customização
+    ordem = Column(Integer, default=0)  # Posição no squad do usuário
+    objetivo_custom = Column(Text, nullable=True)  # Override do objetivo
+    historia_custom = Column(Text, nullable=True)  # Override da história
+
+    # Status
+    ativo = Column(Boolean, default=True)
+    company_id = Column(Integer, default=1)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<AgenteAtribuido {self.id}: catalogo={self.agente_catalogo_id} → usuario={self.usuario_id}>"
+
+
+class SolicitacaoAgenteDB(Base):
+    """
+    Solicitações de agentes por usuários.
+
+    Fluxo:
+    1. Usuário pede um agente (do catálogo ou novo)
+    2. Admin (CEO/Jonatas) aprova ou rejeita
+    3. Se aprovado, agente é atribuído automaticamente
+    """
+    __tablename__ = "solicitacoes_agente"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Quem solicitou
+    usuario_id = Column(Integer, nullable=False)
+    usuario_nome = Column(String(255), nullable=False)
+
+    # O que pediu
+    agente_catalogo_id = Column(Integer, nullable=True)  # Se pediu um específico do catálogo
+    descricao = Column(Text, nullable=False)  # Justificativa
+    perfil_sugerido = Column(String(50), default="")
+
+    # Decisão
+    status = Column(String(20), default="pendente")  # pendente, aprovado, rejeitado
+    aprovado_por_id = Column(Integer, nullable=True)
+    aprovado_por_nome = Column(String(255), default="")
+    comentario = Column(Text, default="")  # Resposta do admin
+
+    # Multi-tenant
+    company_id = Column(Integer, default=1)
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<SolicitacaoAgente {self.id}: user={self.usuario_nome} [{self.status}]>"

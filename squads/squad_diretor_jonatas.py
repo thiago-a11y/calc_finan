@@ -8,7 +8,7 @@ Todos com regras anti-alucinação rígidas.
 
 from crewai import Agent
 from squads.squad_template import SquadPessoal
-from squads.squad_ceo_thiago import REGRAS_ANTI_ALUCINACAO
+from squads.regras import REGRAS_ANTI_ALUCINACAO
 from tools.registry import skill_registry
 
 

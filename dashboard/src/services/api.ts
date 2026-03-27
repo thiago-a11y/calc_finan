@@ -15,6 +15,12 @@ import type {
   CriarUsuarioPayload,
   AtualizarPermissoesPayload,
   TarefaResultado,
+  AgenteCatalogo,
+  AgenteCatalogoCreate,
+  AgenteCatalogoUpdate,
+  AgenteAtribuido,
+  SolicitacaoAgente,
+  PerfilDisponivel,
 } from '../types'
 
 const BASE = '/api'
@@ -232,6 +238,54 @@ export const encerrarReuniao = (id: string) =>
 
 export const reabrirReuniao = (id: string) =>
   post<TarefaResultado>(`/tarefas/${id}/reabrir`, {})
+
+/* --- Catálogo de Agentes --- */
+
+export const buscarCatalogo = (categoria?: string) =>
+  get<AgenteCatalogo[]>(`/catalogo${categoria ? `?categoria=${categoria}` : ''}`)
+
+export const buscarAgenteCatalogo = (id: number) =>
+  get<AgenteCatalogo>(`/catalogo/${id}`)
+
+export const criarAgenteCatalogo = (dados: AgenteCatalogoCreate) =>
+  post<AgenteCatalogo>('/catalogo', dados)
+
+export const atualizarAgenteCatalogo = (id: number, dados: AgenteCatalogoUpdate) =>
+  put<AgenteCatalogo>(`/catalogo/${id}`, dados)
+
+export const desativarAgenteCatalogo = (id: number) =>
+  del<{ mensagem: string }>(`/catalogo/${id}`)
+
+export const buscarPerfisAgente = () =>
+  get<PerfilDisponivel[]>('/catalogo/perfis')
+
+/* --- Atribuições de Agentes --- */
+
+export const buscarMeusAgentes = () =>
+  get<AgenteAtribuido[]>('/atribuicoes/meus')
+
+export const buscarAgentesUsuario = (usuarioId: number) =>
+  get<AgenteAtribuido[]>(`/atribuicoes/usuario/${usuarioId}`)
+
+export const atribuirAgente = (agente_catalogo_id: number, usuario_id: number) =>
+  post<AgenteAtribuido>('/atribuicoes', { agente_catalogo_id, usuario_id })
+
+export const removerAtribuicao = (id: number) =>
+  del<{ mensagem: string }>(`/atribuicoes/${id}`)
+
+/* --- Solicitações de Agentes --- */
+
+export const buscarSolicitacoesAgente = () =>
+  get<SolicitacaoAgente[]>('/solicitacoes-agente')
+
+export const criarSolicitacaoAgente = (dados: {
+  agente_catalogo_id?: number
+  descricao: string
+  perfil_sugerido?: string
+}) => post<SolicitacaoAgente>('/solicitacoes-agente', dados)
+
+export const acaoSolicitacaoAgente = (id: number, aprovado: boolean, comentario = '') =>
+  post<SolicitacaoAgente>(`/solicitacoes-agente/${id}/acao`, { aprovado, comentario })
 
 /* --- Upload de Arquivos --- */
 
