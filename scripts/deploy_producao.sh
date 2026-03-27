@@ -15,7 +15,8 @@
 set -e  # Parar no primeiro erro
 
 # Configurações
-SERVER_IP="${SYNERIUM_SERVER_IP:-3.223.92.171}"
+SERVER_HOST="${SYNERIUM_SERVER_HOST:-synerium-aws}"  # Alias SSH do ~/.ssh/config
+SERVER_IP="3.223.92.171"
 SERVER_USER="ubuntu"
 SERVER_DIR="/opt/synerium-factory"
 DOMAIN="synerium-factory.objetivasolucao.com.br"
@@ -49,11 +50,11 @@ success() {
 # ----- Verificações Pré-Deploy -----
 
 echo -e "\n${GREEN}SYNERIUM FACTORY — Deploy Produção${NC}"
-echo -e "Servidor: ${SERVER_USER}@${SERVER_IP} (${DOMAIN})\n"
+echo -e "Servidor: ${SERVER_HOST} (${DOMAIN})\n"
 
 # Verificar SSH
 step 1 "VERIFICAR CONEXÃO SSH"
-ssh -o ConnectTimeout=5 -o BatchMode=yes ${SERVER_USER}@${SERVER_IP} "echo 'SSH OK'" 2>/dev/null || error "Sem conexão SSH com ${SERVER_IP}. Verifique sua chave SSH."
+ssh -o ConnectTimeout=5 -o BatchMode=yes ${SERVER_HOST} "echo 'SSH OK'" 2>/dev/null || error "Sem conexão SSH com ${SERVER_IP}. Verifique sua chave SSH."
 success "Conexão SSH funcionando"
 
 # ----- Sync Vaults Obsidian -----
@@ -65,11 +66,11 @@ VAULT_SF="$HOME/Documents/SyneriumFactory-notes"
 REMOTE_VAULTS="${SERVER_DIR}/data/vaults"
 
 # Criar diretórios remotos
-ssh ${SERVER_USER}@${SERVER_IP} "sudo mkdir -p ${REMOTE_VAULTS}/SyneriumX-notes ${REMOTE_VAULTS}/SyneriumFactory-notes && sudo chown -R ${SERVER_USER}:${SERVER_USER} ${REMOTE_VAULTS}"
+ssh ${SERVER_HOST} "sudo mkdir -p ${REMOTE_VAULTS}/SyneriumX-notes ${REMOTE_VAULTS}/SyneriumFactory-notes && sudo chown -R ${SERVER_USER}:${SERVER_USER} ${REMOTE_VAULTS}"
 
 if [ -d "$VAULT_SX" ]; then
     echo "Sincronizando SyneriumX-notes..."
-    rsync -avz --delete --exclude='.obsidian' --exclude='.trash' "$VAULT_SX/" "${SERVER_USER}@${SERVER_IP}:${REMOTE_VAULTS}/SyneriumX-notes/"
+    rsync -avz --delete --exclude='.obsidian' --exclude='.trash' "$VAULT_SX/" "${SERVER_HOST}:${REMOTE_VAULTS}/SyneriumX-notes/"
     success "SyneriumX-notes sincronizado"
 else
     warn "SyneriumX-notes não encontrado em $VAULT_SX"
@@ -77,7 +78,7 @@ fi
 
 if [ -d "$VAULT_SF" ]; then
     echo "Sincronizando SyneriumFactory-notes..."
-    rsync -avz --delete --exclude='.obsidian' --exclude='.trash' "$VAULT_SF/" "${SERVER_USER}@${SERVER_IP}:${REMOTE_VAULTS}/SyneriumFactory-notes/"
+    rsync -avz --delete --exclude='.obsidian' --exclude='.trash' "$VAULT_SF/" "${SERVER_HOST}:${REMOTE_VAULTS}/SyneriumFactory-notes/"
     success "SyneriumFactory-notes sincronizado"
 else
     warn "SyneriumFactory-notes não encontrado em $VAULT_SF"
@@ -87,7 +88,7 @@ fi
 
 step 3 "ATUALIZAR CÓDIGO NO SERVIDOR"
 
-ssh ${SERVER_USER}@${SERVER_IP} << 'REMOTE_PULL'
+ssh ${SERVER_HOST} << 'REMOTE_PULL'
 cd /opt/synerium-factory
 echo "Branch atual: $(git branch --show-current)"
 git pull origin main 2>&1
@@ -100,7 +101,7 @@ success "Código atualizado"
 
 step 4 "INSTALAR DEPENDÊNCIAS"
 
-ssh ${SERVER_USER}@${SERVER_IP} << 'REMOTE_DEPS'
+ssh ${SERVER_HOST} << 'REMOTE_DEPS'
 cd /opt/synerium-factory
 
 # Python
@@ -124,7 +125,7 @@ success "Dependências atualizadas"
 
 step 5 "EXECUTAR BOOTSTRAP"
 
-ssh ${SERVER_USER}@${SERVER_IP} << 'REMOTE_BOOTSTRAP'
+ssh ${SERVER_HOST} << 'REMOTE_BOOTSTRAP'
 cd /opt/synerium-factory
 source .venv/bin/activate
 python -m scripts.bootstrap_aws 2>&1
@@ -136,7 +137,7 @@ success "Bootstrap executado"
 
 step 6 "REINICIAR SERVIÇO"
 
-ssh ${SERVER_USER}@${SERVER_IP} << 'REMOTE_RESTART'
+ssh ${SERVER_HOST} << 'REMOTE_RESTART'
 sudo systemctl restart synerium-factory 2>/dev/null || echo "Serviço não configurado ainda"
 sleep 2
 sudo systemctl status synerium-factory --no-pager 2>/dev/null || echo "Verificar configuração do systemd"
@@ -152,6 +153,6 @@ echo "Acesse: https://${DOMAIN}"
 echo "Login: thiago@objetivasolucao.com.br / SyneriumFactory@2026"
 echo ""
 echo "Comandos úteis:"
-echo "  ssh ${SERVER_USER}@${SERVER_IP}                     # Acessar servidor"
-echo "  ssh ${SERVER_USER}@${SERVER_IP} 'journalctl -u synerium-factory -f'  # Ver logs"
+echo "  ssh ${SERVER_HOST}                     # Acessar servidor"
+echo "  ssh ${SERVER_HOST} 'journalctl -u synerium-factory -f'  # Ver logs"
 echo ""
