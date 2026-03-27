@@ -200,6 +200,9 @@ export const atualizarPermissoes = (id: string, dados: AtualizarPermissoesPayloa
 export const desativarUsuario = (id: string) =>
   del<{ mensagem: string }>(`/usuarios/${id}`)
 
+export const excluirUsuarioPermanente = (id: string) =>
+  del<{ mensagem: string }>(`/usuarios/${id}/permanente`)
+
 export const buscarPapeisDisponiveis = () =>
   get<PapelDisponivel[]>('/usuarios/papeis-disponiveis')
 

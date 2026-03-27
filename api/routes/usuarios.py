@@ -381,6 +381,84 @@ def desativar_usuario(
     return {"mensagem": f"Usuário '{usuario.nome}' desativado com sucesso."}
 
 
+@router.delete("/{user_id}/permanente")
+def excluir_usuario_permanente(
+    user_id: int,
+    request: Request,
+    usuario_admin: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """
+    Exclui um usuário permanentemente do banco de dados.
+    Remove também convites e conversas Luna associadas.
+    Somente proprietários (CEO/Operations Lead) podem executar.
+    Após exclusão, o email fica livre para ser convidado novamente.
+    """
+    # Apenas CEO ou Operations Lead — mais restritivo que admin
+    papeis = usuario_admin.papeis or []
+    if not any(p in papeis for p in ["ceo", "operations_lead"]):
+        raise HTTPException(
+            status_code=403,
+            detail="Apenas proprietários (CEO/Operations Lead) podem excluir usuários permanentemente."
+        )
+
+    if usuario_admin.id == user_id:
+        raise HTTPException(status_code=400, detail="Você não pode excluir sua própria conta.")
+
+    usuario = db.query(UsuarioDB).filter_by(id=user_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+    # Proteger outros proprietários (CEO/Operations Lead não podem se excluir mutuamente)
+    papeis_alvo = usuario.papeis or []
+    if any(p in papeis_alvo for p in ["ceo", "operations_lead"]):
+        raise HTTPException(
+            status_code=403,
+            detail="Não é possível excluir outro proprietário do sistema."
+        )
+
+    # Salvar dados para log antes de apagar
+    nome_excluido = usuario.nome
+    email_excluido = usuario.email
+
+    # 1. Remover convites associados ao email
+    from database.models import ConviteDB
+    db.query(ConviteDB).filter_by(email=email_excluido).delete()
+
+    # 2. Remover conversas e mensagens Luna do usuário
+    from database.models import LunaConversaDB, LunaMensagemDB
+    conversas_ids = [
+        c.id for c in
+        db.query(LunaConversaDB.id).filter_by(usuario_id=user_id).all()
+    ]
+    if conversas_ids:
+        db.query(LunaMensagemDB).filter(
+            LunaMensagemDB.conversa_id.in_(conversas_ids)
+        ).delete(synchronize_session=False)
+        db.query(LunaConversaDB).filter_by(usuario_id=user_id).delete()
+
+    # 3. Remover o usuário
+    db.delete(usuario)
+
+    # 4. Audit log (LGPD — registrar que houve exclusão)
+    db.add(AuditLogDB(
+        user_id=usuario_admin.id,
+        email=usuario_admin.email,
+        acao="EXCLUIR_USUARIO_PERMANENTE",
+        descricao=f"Excluiu permanentemente: {nome_excluido} ({email_excluido}) — ID {user_id}",
+        ip=request.client.host if request.client else "",
+        company_id=usuario_admin.company_id,
+    ))
+
+    db.commit()
+
+    logger.info(f"[USUARIO] Excluído permanentemente: {nome_excluido} ({email_excluido}) por {usuario_admin.nome}")
+
+    return {
+        "mensagem": f"Usuário '{nome_excluido}' excluído permanentemente. O email {email_excluido} está livre para novo convite."
+    }
+
+
 @router.get("/{user_id}")
 def perfil(user_id: int, db: Session = Depends(get_db)):
     """Retorna o perfil de um usuário específico."""

@@ -5,13 +5,13 @@ import { useAuth } from '../contexts/AuthContext'
 import PermissoesGranulares from '../components/PermissoesGranulares'
 import {
   buscarUsuarios, editarUsuario, atualizarPermissoes,
-  desativarUsuario, buscarPapeisDisponiveis, buscarAreasAprovacao,
+  desativarUsuario, excluirUsuarioPermanente, buscarPapeisDisponiveis, buscarAreasAprovacao,
   enviarConvite, listarConvites,
 } from '../services/api'
 import type { ConvitePendente } from '../services/api'
 import type { Usuario, PapelDisponivel, AreaAprovacaoDisponivel } from '../types'
 import {
-  Users, ShieldCheck, Settings, X, Pencil, UserX,
+  Users, ShieldCheck, Settings, X, Pencil, UserX, Trash2,
   CheckCircle2, Crown, Briefcase, Shield, Target,
   Rocket, Megaphone, AlertTriangle, Lock,
   Server, Cpu, Globe, Mail, Copy, Clock, Send, UserPlus,
@@ -114,7 +114,7 @@ export default function Configuracoes() {
       </div>
 
       {aba === 'usuarios' && (
-        <AbaUsuarios usuarios={usuarios} papeis={papeis}
+        <AbaUsuarios usuarios={usuarios} papeis={papeis} usuarioAtual={eu}
           onRecarregar={carregarDados} setMensagem={setMensagem} setErro={setErro} />
       )}
       {aba === 'permissoes' && (
@@ -131,10 +131,11 @@ export default function Configuracoes() {
 /* ABA: USUÁRIOS                                                     */
 /* ================================================================ */
 
-function AbaUsuarios({ usuarios, papeis, onRecarregar, setMensagem, setErro }: {
-  usuarios: Usuario[]; papeis: PapelDisponivel[]
+function AbaUsuarios({ usuarios, papeis, usuarioAtual, onRecarregar, setMensagem, setErro }: {
+  usuarios: Usuario[]; papeis: PapelDisponivel[]; usuarioAtual: { papeis?: string[] } | null
   onRecarregar: () => void; setMensagem: (m: string) => void; setErro: (e: string) => void
 }) {
+  const ehProprietario = usuarioAtual?.papeis?.some(p => ['ceo', 'operations_lead'].includes(p)) ?? false
   const [mostrarForm, setMostrarForm] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -200,6 +201,17 @@ function AbaUsuarios({ usuarios, papeis, onRecarregar, setMensagem, setErro }: {
     if (!confirm(`Desativar "${u.nome}"?`)) return
     try { await desativarUsuario(u.id); setMensagem(`"${u.nome}" desativado.`); onRecarregar() }
     catch (e: unknown) { setErro(e instanceof Error ? e.message : 'Erro.') }
+  }
+
+  const confirmarExcluirPermanente = async (u: Usuario) => {
+    const msg = `ATENÇÃO: Isso vai EXCLUIR PERMANENTEMENTE "${u.nome}" (${u.email}) e todas as conversas Luna dele.\n\nO email ficará livre para ser convidado novamente.\n\nTem certeza?`
+    if (!confirm(msg)) return
+    if (!confirm(`Última confirmação: excluir "${u.nome}" permanentemente?`)) return
+    try {
+      const res = await excluirUsuarioPermanente(u.id)
+      setMensagem(res.mensagem)
+      onRecarregar()
+    } catch (e: unknown) { setErro(e instanceof Error ? e.message : 'Erro ao excluir.') }
   }
 
   const papelLabel = (id: string) => papeis.find(p => p.id === id)?.nome || id
@@ -415,6 +427,14 @@ function AbaUsuarios({ usuarios, papeis, onRecarregar, setMensagem, setErro }: {
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-xs hover:bg-red-500/20 transition-all">
                       <UserX size={11} /> Desativar
                     </button>
+                    {ehProprietario && !u.papeis?.some((p: string) => ['ceo', 'operations_lead'].includes(p)) && (
+                      <button
+                        onClick={() => confirmarExcluirPermanente(u)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-700/15 border border-red-600/30 text-red-300 rounded-lg text-xs hover:bg-red-700/25 transition-all"
+                        title="Exclui permanentemente — libera o email para novo convite">
+                        <Trash2 size={11} /> Excluir
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
