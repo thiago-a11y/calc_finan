@@ -19,9 +19,15 @@ Uso:
 import os
 import sys
 import logging
+import platform
 
 # Adicionar raiz do projeto ao path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, PROJECT_ROOT)
+
+# Detectar ambiente: servidor (/opt/synerium-factory) ou local (Mac)
+IS_SERVER = os.path.exists("/opt/synerium-factory") or platform.system() == "Linux"
+BASE_DIR = "/opt/synerium-factory" if IS_SERVER else PROJECT_ROOT
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -67,6 +73,10 @@ def step2_usuarios():
             "nome": "Thiago",
             "cargo": "CEO",
             "papeis": ["ceo"],
+            "areas_aprovacao": [
+                "deploy_producao", "gasto_ia", "mudanca_arquitetura",
+                "campanha_marketing", "outreach_massa",
+            ],
             "pode_aprovar": True,
         },
         {
@@ -74,20 +84,26 @@ def step2_usuarios():
             "nome": "Jonatas",
             "cargo": "Diretor Técnico e Operations Lead",
             "papeis": ["diretor_tecnico", "operations_lead"],
+            "areas_aprovacao": [
+                "deploy_producao", "gasto_ia", "mudanca_arquitetura",
+                "campanha_marketing", "outreach_massa",
+            ],
             "pode_aprovar": True,
         },
         {
             "email": "rhammon@objetivasolucao.com.br",
             "nome": "Rhammon Eller",
-            "cargo": "Desenvolvedor",
-            "papeis": ["desenvolvedor"],
-            "pode_aprovar": False,
+            "cargo": "Diretor Comercial",
+            "papeis": ["diretor_tecnico"],
+            "areas_aprovacao": [],
+            "pode_aprovar": True,
         },
         {
             "email": "marcos.judsson@objetivasolucao.com.br",
             "nome": "Marcos Judsson",
-            "cargo": "Líder Técnico",
-            "papeis": ["lider", "desenvolvedor"],
+            "cargo": "Especialista IA",
+            "papeis": ["operations_lead", "lider", "desenvolvedor", "membro"],
+            "areas_aprovacao": [],
             "pode_aprovar": False,
         },
     ]
@@ -97,10 +113,11 @@ def step2_usuarios():
     for u_data in usuarios_seed:
         existente = db.query(UsuarioDB).filter_by(email=u_data["email"]).first()
         if existente:
-            # Atualizar papéis e cargo se necessário
+            # Atualizar papéis, cargo e áreas se necessário
             existente.papeis = u_data["papeis"]
             existente.cargo = u_data["cargo"]
             existente.pode_aprovar = u_data["pode_aprovar"]
+            existente.areas_aprovacao = u_data.get("areas_aprovacao", [])
             log.info(f"  Atualizado: {u_data['nome']} ({u_data['email']})")
         else:
             novo = UsuarioDB(
@@ -109,6 +126,7 @@ def step2_usuarios():
                 cargo=u_data["cargo"],
                 papeis=u_data["papeis"],
                 pode_aprovar=u_data["pode_aprovar"],
+                areas_aprovacao=u_data.get("areas_aprovacao", []),
                 password_hash=senha_padrao,
                 company_id=1,
             )
@@ -125,20 +143,35 @@ def step3_vaults():
     """Corrigir paths dos vaults e copiar se necessário."""
     step(3, "VAULTS OBSIDIAN")
 
-    vault_dir = "/opt/synerium-factory/data/vaults"
+    vault_dir = os.path.join(BASE_DIR, "data", "vaults")
     os.makedirs(vault_dir, exist_ok=True)
 
     vault_sx = os.path.join(vault_dir, "SyneriumX-notes")
     vault_sf = os.path.join(vault_dir, "SyneriumFactory-notes")
 
-    # Verificar se vaults existem
+    # No ambiente local (Mac), usar vaults Obsidian diretamente
+    if not IS_SERVER:
+        vault_sx_local = os.path.expanduser("~/Documents/SyneriumX-notes")
+        vault_sf_local = os.path.expanduser("~/Documents/SyneriumFactory-notes")
+        if os.path.isdir(vault_sx_local):
+            vault_sx = vault_sx_local
+        if os.path.isdir(vault_sf_local):
+            vault_sf = vault_sf_local
+        log.info(f"Ambiente local — usando vaults Obsidian diretamente")
+        log.info(f"  SyneriumX: {vault_sx}")
+        log.info(f"  Factory: {vault_sf}")
+        return
+
+    # No servidor, verificar se vaults foram copiados
+    server_ip = os.getenv("SYNERIUM_SERVER_IP", "3.223.92.171")
+
     if os.path.isdir(vault_sx):
         n = len([f for f in os.listdir(vault_sx) if f.endswith('.md')])
         log.info(f"SyneriumX-notes: {n} arquivos .md")
     else:
         os.makedirs(vault_sx, exist_ok=True)
         log.warning(f"SyneriumX-notes VAZIO — copie com:")
-        log.warning(f"  rsync -avz ~/Documents/SyneriumX-notes/ ubuntu@3.223.92.171:{vault_sx}/")
+        log.warning(f"  rsync -avz ~/Documents/SyneriumX-notes/ ubuntu@{server_ip}:{vault_sx}/")
 
     if os.path.isdir(vault_sf):
         n = len([f for f in os.listdir(vault_sf) if f.endswith('.md')])
@@ -146,27 +179,27 @@ def step3_vaults():
     else:
         os.makedirs(vault_sf, exist_ok=True)
         log.warning(f"SyneriumFactory-notes VAZIO — copie com:")
-        log.warning(f"  rsync -avz ~/Documents/SyneriumFactory-notes/ ubuntu@3.223.92.171:{vault_sf}/")
+        log.warning(f"  rsync -avz ~/Documents/SyneriumFactory-notes/ ubuntu@{server_ip}:{vault_sf}/")
 
-    # Atualizar .env com paths corretos
-    env_path = "/opt/synerium-factory/.env"
-    with open(env_path, "r") as f:
-        env_content = f.read()
+    # Atualizar .env com paths corretos (apenas no servidor)
+    env_path = os.path.join(BASE_DIR, ".env")
+    if os.path.exists(env_path):
+        with open(env_path, "r") as f:
+            env_content = f.read()
 
-    # Substituir paths do Mac por paths do servidor
-    env_content = env_content.replace(
-        "/Users/thiagoxavier/Documents/SyneriumX-notes",
-        vault_sx,
-    )
-    env_content = env_content.replace(
-        "/Users/thiagoxavier/Documents/SyneriumFactory-notes",
-        vault_sf,
-    )
+        env_content = env_content.replace(
+            "/Users/thiagoxavier/Documents/SyneriumX-notes",
+            vault_sx,
+        )
+        env_content = env_content.replace(
+            "/Users/thiagoxavier/Documents/SyneriumFactory-notes",
+            vault_sf,
+        )
 
-    with open(env_path, "w") as f:
-        f.write(env_content)
+        with open(env_path, "w") as f:
+            f.write(env_content)
 
-    log.info("Paths do .env atualizados para o servidor.")
+        log.info("Paths do .env atualizados para o servidor.")
 
 
 def step4_rag():
@@ -176,15 +209,27 @@ def step4_rag():
     from config.settings import SyneriumSettings
     settings = SyneriumSettings()
 
-    vault_dir = "/opt/synerium-factory/data/vaults"
-    vaults = {}
-    for nome, var in [("syneriumx", "SyneriumX-notes"), ("factory", "SyneriumFactory-notes")]:
-        path = os.path.join(vault_dir, var)
-        if os.path.isdir(path) and len(os.listdir(path)) > 0:
-            vaults[nome] = path
-            log.info(f"Vault {nome}: {path}")
-        else:
-            log.warning(f"Vault {nome}: VAZIO ou não existe em {path}")
+    # No ambiente local, usar vaults Obsidian diretamente
+    if not IS_SERVER:
+        vaults = {}
+        vault_sx = os.path.expanduser("~/Documents/SyneriumX-notes")
+        vault_sf = os.path.expanduser("~/Documents/SyneriumFactory-notes")
+        if os.path.isdir(vault_sx):
+            vaults["syneriumx"] = vault_sx
+        if os.path.isdir(vault_sf):
+            vaults["factory"] = vault_sf
+    else:
+        vault_dir = os.path.join(BASE_DIR, "data", "vaults")
+        vaults = {}
+        for nome, var in [("syneriumx", "SyneriumX-notes"), ("factory", "SyneriumFactory-notes")]:
+            path = os.path.join(vault_dir, var)
+            if os.path.isdir(path) and len(os.listdir(path)) > 0:
+                vaults[nome] = path
+            else:
+                log.warning(f"Vault {nome}: VAZIO ou não existe em {path}")
+
+    for nome, path in vaults.items():
+        log.info(f"Vault {nome}: {path}")
 
     if not vaults:
         log.warning("Nenhum vault com dados — pulando indexação.")
