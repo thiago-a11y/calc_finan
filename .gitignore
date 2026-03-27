@@ -1,0 +1,44 @@
+# Segredos — NUNCA commitar
+.env
+.env.*
+*.pem
+*.key
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Dados locais
+data/
+logs/*.log
+*.db
+
+# Build
+dist/
+build/
+
+# Node
+dashboard/node_modules/
+dashboard/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code (configs locais)
+.claude/
+
+# Outputs e atas geradas por agentes
+output/
+ATA_*.txt
+ATA_*.zip
+Ata_*.txt
+Ata_*.md
+ata_*.md

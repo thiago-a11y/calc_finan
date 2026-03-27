@@ -1,0 +1,260 @@
+# ============================================================
+# Synerium Factory — Workflow Principal (BMAD-Adaptado)
+# ============================================================
+# Baseado no BMAD Method (Breakthrough Method of Agile AI-Driven Development)
+# Adaptado para a realidade da Objetiva Solução e do SyneriumX.
+#
+# Fluxo: Análise → Planejamento → Solução → Implementação
+# Cada fase tem gates obrigatórios antes de avançar.
+# ============================================================
+
+nome: Workflow Principal — Synerium Factory
+versao: "1.0.0"
+idioma: pt-BR
+criado_em: "2026-03-25"
+
+# ==============================================================
+# FASE 1: ANÁLISE (Opcional para melhorias pequenas)
+# ==============================================================
+fase_1_analise:
+  nome: "Análise"
+  obrigatoria: false  # Pode pular para melhorias pequenas
+  descricao: >
+    Entender o problema, pesquisar o mercado e documentar o contexto.
+    Usa os agentes: Analista de Negócios (Mary) + Tech Writer (Paige).
+
+  agentes_responsaveis:
+    - papel: "Product Manager (Marco)"
+      acao: "Brainstorming e pesquisa de mercado"
+    - papel: "Tech Lead (Kenji)"
+      acao: "Pesquisa técnica e viabilidade"
+
+  etapas:
+    - id: "1.1"
+      nome: "Brainstorming"
+      descricao: "Sessão estruturada de ideias usando técnicas nomeadas (First Principles, Red Team, Pre-mortem)"
+      output: "brainstorming-report.md"
+
+    - id: "1.2"
+      nome: "Pesquisa de Mercado/Domínio"
+      descricao: "Análise competitiva, dores do cliente, tendências técnicas"
+      output: "pesquisa-mercado.md"
+
+    - id: "1.3"
+      nome: "Product Brief"
+      descricao: "Documento resumo do produto/feature com escopo inicial"
+      output: "product-brief.md"
+
+  gate_saida:
+    nome: "Análise Completa?"
+    criterios:
+      - "Product brief aprovado pelo CEO ou Operations Lead"
+      - "Pesquisa de mercado documenta pelo menos 3 concorrentes"
+      - "Viabilidade técnica confirmada"
+    aprovador: "CEO ou Operations Lead"
+    tipo: "soft"  # Pode pular se for melhoria pequena
+
+# ==============================================================
+# FASE 2: PLANEJAMENTO
+# ==============================================================
+fase_2_planejamento:
+  nome: "Planejamento"
+  obrigatoria: true
+  descricao: >
+    Criar o PRD (Product Requirements Document) e o design UX.
+    Usa os agentes: Product Manager (Marco) + Frontend (Carlos).
+
+  agentes_responsaveis:
+    - papel: "Product Manager (Marco)"
+      acao: "Criar PRD com 12 etapas estruturadas"
+    - papel: "Frontend Developer (Carlos)"
+      acao: "UX Design e fluxos de usuário"
+
+  etapas:
+    - id: "2.1"
+      nome: "Criar PRD"
+      descricao: "PRD completo com 12 etapas (ver templates/PRD.md)"
+      output: "state/prd-{nome-projeto}.md"
+      template: "templates/PRD.md"
+
+    - id: "2.2"
+      nome: "Validar PRD"
+      descricao: "Validação por checklist (densidade, métricas SMART, rastreabilidade, compliance)"
+      output: "prd-validacao.md"
+
+    - id: "2.3"
+      nome: "UX Design"
+      descricao: "Fluxos de usuário, wireframes textuais, design system"
+      output: "ux-spec.md"
+      condicional: true  # Só se tiver interface
+
+  gate_saida:
+    nome: "PRD Aprovado?"
+    criterios:
+      - "PRD completo com todas as 12 etapas"
+      - "Validação passa em pelo menos 10 dos 13 critérios"
+      - "Aprovação formal do CEO ou Operations Lead"
+    aprovador: "CEO ou Operations Lead"
+    tipo: "hard"  # Obrigatório — não pode pular
+
+# ==============================================================
+# FASE 3: SOLUÇÃO (Arquitetura)
+# ==============================================================
+fase_3_solucao:
+  nome: "Solução"
+  obrigatoria: true
+  descricao: >
+    Definir a arquitetura técnica, criar épicos/stories e verificar
+    que tudo está pronto para implementação.
+    Usa os agentes: Tech Lead (Kenji) + Product Manager (Marco).
+
+  agentes_responsaveis:
+    - papel: "Tech Lead (Kenji)"
+      acao: "Criar arquitetura e ADRs (Architecture Decision Records)"
+    - papel: "Product Manager (Marco)"
+      acao: "Quebrar em épicos e stories com BDD"
+    - papel: "QA (Fatima)"
+      acao: "Definir critérios de teste por story"
+
+  etapas:
+    - id: "3.1"
+      nome: "Criar Arquitetura"
+      descricao: "Decisões técnicas, stack, patterns, diagramas"
+      output: "state/arquitetura-{nome-projeto}.md"
+
+    - id: "3.2"
+      nome: "Criar Épicos e Stories"
+      descricao: "Quebrar PRD em épicos → stories com BDD (Given/When/Then)"
+      output: "state/epicos-{nome-projeto}.md"
+      template: "templates/story.md"
+
+    - id: "3.3"
+      nome: "Gerar Contexto do Projeto"
+      descricao: "Documento 'constituição IA' — regras que todos os agentes devem seguir"
+      output: "state/project-context-{nome-projeto}.md"
+
+    - id: "3.4"
+      nome: "Implementation Readiness Check"
+      descricao: "Gate formal PASS/FAIL antes de escrever qualquer código"
+      output: "state/readiness-report-{nome-projeto}.md"
+
+  gate_saida:
+    nome: "Implementation Readiness Check"
+    criterios:
+      - "PRD 100% coberto por épicos/stories"
+      - "Arquitetura documentada com ADRs"
+      - "Cada story tem critérios de aceitação BDD"
+      - "Cada story tem Dev Notes com guardrails"
+      - "UX alinhado com stories (se aplicável)"
+      - "Nenhum risco técnico não-mitigado"
+    aprovador: "CEO ou Operations Lead + Tech Lead"
+    tipo: "hard"  # PASS ou FAIL — não existe meio-termo
+    resultado:
+      PASS: "Pode começar a implementar"
+      CONCERNS: "Pode implementar com ressalvas documentadas"
+      FAIL: "Volta para Fase 2 ou 3 para corrigir"
+
+# ==============================================================
+# FASE 4: IMPLEMENTAÇÃO
+# ==============================================================
+fase_4_implementacao:
+  nome: "Implementação"
+  obrigatoria: true
+  descricao: >
+    Sprint planning, development (TDD), code review e deploy.
+    Usa todos os agentes do squad conforme a story.
+
+  agentes_responsaveis:
+    - papel: "Sofia (Secretária Executiva)"
+      acao: "Sprint planning — monta sprint-status.yaml"
+    - papel: "Backend (Amara) / Frontend (Carlos)"
+      acao: "Desenvolvimento TDD (red-green-refactor)"
+    - papel: "QA (Fatima)"
+      acao: "Testes E2E e validação"
+    - papel: "Tech Lead (Kenji)"
+      acao: "Code review adversarial"
+    - papel: "DevOps (Hans)"
+      acao: "Deploy e monitoramento"
+
+  ciclo_por_story:
+    - id: "4.1"
+      nome: "Sprint Planning"
+      descricao: "Montar sprint-status.yaml com todas as stories priorizadas"
+      output: "state/sprint-status.yaml"
+
+    - id: "4.2"
+      nome: "Preparar Story"
+      descricao: "Ler PRD + arquitetura + UX, pesquisar libs atualizadas, escrever Dev Notes"
+      output: "state/stories/{story-key}.md"
+
+    - id: "4.3"
+      nome: "Desenvolver (TDD)"
+      descricao: "Red-Green-Refactor por task. Nunca pular testes."
+      status_durante: "in-progress"
+
+    - id: "4.4"
+      nome: "Code Review"
+      descricao: "Review adversarial paralelo — tenta quebrar o código"
+      status_durante: "review"
+
+    - id: "4.5"
+      nome: "QA / Testes E2E"
+      descricao: "Testes automatizados + manuais no browser"
+
+    - id: "4.6"
+      nome: "Deploy"
+      descricao: "Deploy com aprovação do Operations Lead"
+      gate: "Approval Gate — Deploy em Produção"
+
+    - id: "4.7"
+      nome: "Retrospectiva"
+      descricao: "Lições aprendidas por épico — documentar no Obsidian"
+      output: "state/retro-{epic-key}.md"
+
+  gate_saida_story:
+    nome: "Story Completa?"
+    criterios:
+      - "Todos os critérios de aceitação BDD passando"
+      - "Code review aprovado"
+      - "Testes automatizados escritos e passando"
+      - "Nenhum bug bloqueante"
+    status_final: "done"
+
+# ==============================================================
+# QUICK FLOW (Atalho para tarefas pequenas)
+# ==============================================================
+quick_flow:
+  nome: "Quick Flow"
+  descricao: >
+    Atalho para tarefas pequenas e bem definidas que não precisam
+    de PRD completo. Pula Fases 1-3, vai direto para implementação
+    com um mini-spec.
+
+  criterios_uso:
+    - "Bug fix simples"
+    - "Melhoria de UI menor que 1 dia"
+    - "Refatoração localizada"
+    - "Documentação"
+
+  etapas:
+    - "Clarificar objetivo"
+    - "Criar mini-spec (máx 500 tokens)"
+    - "Implementar com TDD"
+    - "Review"
+    - "Deploy"
+
+  gate: "Aprovação do Tech Lead ou PM Central"
+
+# ==============================================================
+# MAPEAMENTO: Agentes BMAD → Squad Synerium Factory
+# ==============================================================
+mapeamento_agentes:
+  bmad_mary_analyst: "Marco (Product Manager) — absorve papel de analista"
+  bmad_paige_tech_writer: "Sofia (Secretária Executiva) — documentação"
+  bmad_john_pm: "Marco (Product Manager) — PRD e épicos"
+  bmad_sally_ux: "Carlos (Frontend Developer) — UX design"
+  bmad_winston_architect: "Kenji (Tech Lead) — arquitetura e ADRs"
+  bmad_bob_scrum_master: "Alex (PM Central) — sprint planning via Sofia"
+  bmad_amelia_dev: "Amara (Backend) + Carlos (Frontend) — desenvolvimento"
+  bmad_quinn_qa: "Fatima (QA) — testes e segurança"
+  bmad_barry_quick_flow: "Qualquer agente do squad — quick flow"

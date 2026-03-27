@@ -1,0 +1,174 @@
+# ============================================================
+# Sprint Status — Kanban Central do Synerium Factory
+# ============================================================
+# Arquivo central de estado. Todos os agentes consultam e atualizam.
+# Formato BMAD-adaptado.
+#
+# Status de Story: backlog → ready-for-dev → in-progress → review → done
+# Status de Epic: backlog → in-progress → done
+# ============================================================
+
+metadata:
+  projeto: "Synerium Factory"
+  sprint: 1
+  inicio: "2026-03-25"
+  fim: "2026-04-08"
+  gerado_em: "2026-03-25T00:00:00"
+  atualizado_em: "2026-03-25T00:00:00"
+  gerado_por: "Sofia (Secretária Executiva)"
+
+# ==============================================================
+# ÉPICOS
+# ==============================================================
+epics:
+
+  epic-1:
+    titulo: "BMAD Workflow Engine"
+    descricao: "Implementar workflow de 4 fases com gates de aprovação"
+    status: "in-progress"
+    proprietario: "Marco (PM)"
+    stories:
+
+      1-1-workflow-yaml:
+        titulo: "Criar main-workflow.yaml com 4 fases"
+        status: "done"
+        assignee: "Marco (PM)"
+        prioridade: "must"
+
+      1-2-prd-template:
+        titulo: "Criar template PRD com 12 etapas"
+        status: "done"
+        assignee: "Marco (PM)"
+        prioridade: "must"
+
+      1-3-sprint-status:
+        titulo: "Criar sprint-status.yaml (kanban central)"
+        status: "done"
+        assignee: "Sofia (Secretária)"
+        prioridade: "must"
+
+      1-4-story-template:
+        titulo: "Criar template de story com BDD + Dev Notes"
+        status: "done"
+        assignee: "Marco (PM)"
+        prioridade: "must"
+
+      1-5-readiness-gate:
+        titulo: "Implementar Implementation Readiness Gate"
+        status: "done"
+        assignee: "Kenji (Tech Lead)"
+        prioridade: "must"
+
+      1-6-theme-toggle-header:
+        titulo: "Toggle de Tema no Header (BMAD test drive)"
+        status: "done"
+        assignee: "Carlos (Frontend)"
+        prioridade: "must"
+        prd: "state/prd-theme-toggle-header.md"
+        arquitetura: "state/arquitetura-theme-toggle.md"
+        readiness: "PASS (8/8)"
+
+  epic-2:
+    titulo: "Dashboard Redesign Premium"
+    descricao: "Redesign completo dark mode + light mode"
+    status: "done"
+    proprietario: "Carlos (Frontend)"
+    stories:
+
+      2-1-dark-mode:
+        titulo: "Dark mode verdadeiro em todas as páginas"
+        status: "done"
+        assignee: "Carlos (Frontend)"
+        prioridade: "must"
+
+      2-2-lucide-icons:
+        titulo: "Substituir emojis por lucide-react"
+        status: "done"
+        assignee: "Carlos (Frontend)"
+        prioridade: "must"
+
+      2-3-light-mode:
+        titulo: "Light mode funcional em todas as páginas"
+        status: "done"
+        assignee: "Carlos (Frontend)"
+        prioridade: "should"
+
+  epic-3:
+    titulo: "Testes Automatizados"
+    descricao: "Pytest + GitHub Actions para CI/CD"
+    status: "done"
+    proprietario: "Fatima (QA)"
+    stories:
+
+      3-1-pytest-setup:
+        titulo: "Configurar pytest + fixtures + conftest"
+        status: "done"
+        assignee: "Fatima (QA)"
+        prioridade: "must"
+
+      3-2-unit-tests:
+        titulo: "Testes unitários (approval gates, auth, permissões)"
+        status: "done"
+        assignee: "Fatima (QA)"
+        prioridade: "must"
+
+      3-3-github-actions:
+        titulo: "CI/CD com GitHub Actions"
+        status: "done"
+        assignee: "Hans (DevOps)"
+        prioridade: "should"
+
+# ==============================================================
+# PRÓXIMOS (Backlog)
+# ==============================================================
+
+  epic-4:
+    titulo: "Multi-Tenant"
+    descricao: "Preparar arquitetura para licenciamento"
+    status: "backlog"
+    proprietario: "Kenji (Tech Lead)"
+    stories:
+
+      4-1-tenant-model:
+        titulo: "Modelo de tenant no banco"
+        status: "backlog"
+        prioridade: "must"
+
+      4-2-tenant-middleware:
+        titulo: "Middleware de isolamento por tenant"
+        status: "backlog"
+        prioridade: "must"
+
+  epic-5:
+    titulo: "Mapear 45 Funcionários"
+    descricao: "Criar squads pessoais para cada funcionário da Objetiva"
+    status: "backlog"
+    proprietario: "Marco (PM)"
+    stories:
+
+      5-1-listar-funcionarios:
+        titulo: "Obter lista completa dos 45 funcionários"
+        status: "backlog"
+        prioridade: "must"
+
+      5-2-squad-creator:
+        titulo: "Automatizar criação de squads por perfil"
+        status: "backlog"
+        prioridade: "should"
+
+  epic-6:
+    titulo: "Deploy em Servidor"
+    descricao: "Sair da rede local — acesso permanente"
+    status: "backlog"
+    proprietario: "Hans (DevOps)"
+    stories:
+
+      6-1-docker:
+        titulo: "Dockerizar API + Dashboard"
+        status: "backlog"
+        prioridade: "must"
+
+      6-2-cloud-deploy:
+        titulo: "Deploy em VPS/AWS"
+        status: "backlog"
+        prioridade: "must"
