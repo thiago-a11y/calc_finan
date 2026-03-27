@@ -144,7 +144,8 @@ export const indexarRAG = (vault?: string) =>
 
 export const gerarStandup = () => post<StandupRelatorio>('/standup')
 
-export const buscarUsuarios = () => get<Usuario[]>('/usuarios')
+export const buscarUsuarios = (incluirInativos = false) =>
+  get<Usuario[]>(`/usuarios${incluirInativos ? '?incluir_inativos=true' : ''}`)
 
 export const buscarUsuario = (id: string) => get<Usuario>(`/usuarios/${id}`)
 

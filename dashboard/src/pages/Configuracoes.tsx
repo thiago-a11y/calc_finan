@@ -18,7 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-type Aba = 'usuarios' | 'permissoes' | 'sistema'
+type Aba = 'usuarios' | 'desativados' | 'permissoes' | 'sistema'
 
 const avatarCores = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', '#6366f1', '#ef4444', '#14b8a6']
 
@@ -41,7 +41,7 @@ export default function Configuracoes() {
   const carregarDados = useCallback(async () => {
     try {
       const [u, p, a] = await Promise.all([
-        buscarUsuarios(), buscarPapeisDisponiveis(), buscarAreasAprovacao(),
+        buscarUsuarios(true), buscarPapeisDisponiveis(), buscarAreasAprovacao(),
       ])
       setUsuarios(u); setPapeis(p); setAreas(a)
     } catch { setErro('Erro ao carregar dados.') }
@@ -62,8 +62,11 @@ export default function Configuracoes() {
     )
   }
 
-  const abas: { id: Aba; label: string; icon: LucideIcon }[] = [
+  const usuariosInativos = usuarios.filter(u => !u.ativo)
+
+  const abas: { id: Aba; label: string; icon: LucideIcon; badge?: number }[] = [
     { id: 'usuarios', label: 'Usuários', icon: Users },
+    { id: 'desativados', label: 'Desativados', icon: UserX, badge: usuariosInativos.length || undefined },
     { id: 'permissoes', label: 'Permissões', icon: ShieldCheck },
     { id: 'sistema', label: 'Sistema', icon: Settings },
   ]
@@ -108,13 +111,22 @@ export default function Configuracoes() {
             >
               <Icon size={14} strokeWidth={2} />
               {a.label}
+              {a.badge ? (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-400">
+                  {a.badge}
+                </span>
+              ) : null}
             </button>
           )
         })}
       </div>
 
       {aba === 'usuarios' && (
-        <AbaUsuarios usuarios={usuarios} papeis={papeis} usuarioAtual={eu}
+        <AbaUsuarios usuarios={usuarios.filter(u => u.ativo)} papeis={papeis} usuarioAtual={eu}
+          onRecarregar={carregarDados} setMensagem={setMensagem} setErro={setErro} />
+      )}
+      {aba === 'desativados' && (
+        <AbaDesativados usuarios={usuariosInativos} usuarioAtual={eu}
           onRecarregar={carregarDados} setMensagem={setMensagem} setErro={setErro} />
       )}
       {aba === 'permissoes' && (
@@ -438,6 +450,97 @@ function AbaUsuarios({ usuarios, papeis, usuarioAtual, onRecarregar, setMensagem
                   </div>
                 </div>
               )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+
+/* ================================================================ */
+/* ABA: DESATIVADOS                                                  */
+/* ================================================================ */
+
+function AbaDesativados({ usuarios, usuarioAtual, onRecarregar, setMensagem, setErro }: {
+  usuarios: Usuario[]; usuarioAtual: { papeis?: string[] } | null
+  onRecarregar: () => void; setMensagem: (m: string) => void; setErro: (e: string) => void
+}) {
+  const ehProprietario = usuarioAtual?.papeis?.some(p => ['ceo', 'operations_lead'].includes(p)) ?? false
+
+  const reativar = async (u: Usuario) => {
+    if (!confirm(`Reativar "${u.nome}"?`)) return
+    try {
+      await editarUsuario(u.id, { ativo: true })
+      setMensagem(`"${u.nome}" reativado com sucesso!`)
+      onRecarregar()
+    } catch (e: unknown) { setErro(e instanceof Error ? e.message : 'Erro ao reativar.') }
+  }
+
+  const confirmarExcluirPermanente = async (u: Usuario) => {
+    const msg = `ATENÇÃO: Isso vai EXCLUIR PERMANENTEMENTE "${u.nome}" (${u.email}) e todas as conversas Luna dele.\n\nO email ficará livre para ser convidado novamente.\n\nTem certeza?`
+    if (!confirm(msg)) return
+    if (!confirm(`Última confirmação: excluir "${u.nome}" permanentemente?`)) return
+    try {
+      const res = await excluirUsuarioPermanente(u.id)
+      setMensagem(res.mensagem)
+      onRecarregar()
+    } catch (e: unknown) { setErro(e instanceof Error ? e.message : 'Erro ao excluir.') }
+  }
+
+  if (usuarios.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <UserX size={40} className="mx-auto mb-4 sf-text-ghost" strokeWidth={1} />
+        <p className="sf-text-dim text-sm">Nenhum usuário desativado</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-lg font-semibold sf-text-white">
+          Desativados <span className="sf-text-ghost font-normal">({usuarios.length})</span>
+        </h3>
+      </div>
+
+      <div className="space-y-2">
+        {usuarios.map((u) => {
+          const cor = avatarCores[u.nome.charCodeAt(0) % avatarCores.length]
+          return (
+            <div key={u.id} className="group sf-glass border sf-border rounded-xl p-4 transition-all duration-300 hover:border-white/15 opacity-70 hover:opacity-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                    style={{ background: cor }}>
+                    {u.nome.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium sf-text-white flex items-center gap-2">
+                      {u.nome}
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/15 text-red-400">DESATIVADO</span>
+                    </p>
+                    <p className="text-xs sf-text-ghost">{u.email} · {u.cargo || 'Sem cargo'}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => reativar(u)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-xs hover:bg-emerald-500/20 transition-all">
+                    <CheckCircle2 size={11} /> Reativar
+                  </button>
+                  {ehProprietario && (
+                    <button
+                      onClick={() => confirmarExcluirPermanente(u)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-700/15 border border-red-600/30 text-red-300 rounded-lg text-xs hover:bg-red-700/25 transition-all"
+                      title="Exclui permanentemente — libera o email para novo convite">
+                      <Trash2 size={11} /> Excluir permanente
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           )
         })}
