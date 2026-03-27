@@ -289,6 +289,8 @@ export interface LunaConversa {
   usuario_nome: string
   titulo: string
   modelo_preferido: 'auto' | 'sonnet' | 'opus'
+  excluida_pelo_usuario?: boolean
+  excluida_em?: string | null
   criado_em: string
   atualizado_em: string
   ultima_mensagem?: string

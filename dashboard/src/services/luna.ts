@@ -257,3 +257,23 @@ export const listarConversasFuncionario = (usuarioId: number) =>
 
 export const verConversaFuncionario = (usuarioId: number, conversaId: string) =>
   get<LunaConversaAdmin>(`/admin/conversas/${usuarioId}/${conversaId}`)
+
+/* --- Lixeira (Proprietários) --- */
+
+export interface LunaConversaLixeira extends LunaConversa {
+  usuario_email: string
+  usuario_cargo: string
+  total_mensagens: number
+}
+
+export const listarLixeira = () =>
+  get<LunaConversaLixeira[]>('/admin/lixeira')
+
+export const verConversaLixeira = (conversaId: string) =>
+  get<LunaConversaAdmin>(`/admin/lixeira/${conversaId}`)
+
+export const restaurarConversa = (conversaId: string) =>
+  post<{ mensagem: string }>(`/admin/lixeira/${conversaId}/restaurar`)
+
+export const excluirPermanente = (conversaId: string) =>
+  del<{ mensagem: string }>(`/admin/lixeira/${conversaId}`)

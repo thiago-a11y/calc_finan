@@ -72,6 +72,8 @@ def _serializar_conversa(c: LunaConversaDB, ultima_msg: str = "") -> dict:
         "usuario_nome": c.usuario_nome,
         "titulo": c.titulo,
         "modelo_preferido": c.modelo_preferido,
+        "excluida_pelo_usuario": c.excluida_pelo_usuario or False,
+        "excluida_em": c.excluida_em.isoformat() if c.excluida_em else None,
         "criado_em": c.criado_em.isoformat() if c.criado_em else None,
         "atualizado_em": c.atualizado_em.isoformat() if c.atualizado_em else None,
         "ultima_mensagem": ultima_msg,
@@ -109,7 +111,10 @@ def listar_conversas(
     """Lista as conversas do usuário autenticado, ordenadas por última atualização."""
     conversas = (
         db.query(LunaConversaDB)
-        .filter(LunaConversaDB.usuario_id == usuario.id)
+        .filter(
+            LunaConversaDB.usuario_id == usuario.id,
+            LunaConversaDB.excluida_pelo_usuario == False,  # noqa: E712
+        )
         .order_by(desc(LunaConversaDB.atualizado_em))
         .offset(offset)
         .limit(limite)
@@ -162,6 +167,7 @@ def buscar_conversa(
     conversa = db.query(LunaConversaDB).filter(
         LunaConversaDB.id == conversa_id,
         LunaConversaDB.usuario_id == usuario.id,
+        LunaConversaDB.excluida_pelo_usuario == False,  # noqa: E712
     ).first()
 
     if not conversa:
@@ -218,7 +224,13 @@ def excluir_conversa(
     usuario: UsuarioDB = Depends(obter_usuario_atual),
     db: Session = Depends(get_db),
 ):
-    """Exclui uma conversa e todas as suas mensagens."""
+    """
+    Exclui uma conversa da visão do usuário (soft delete).
+
+    Para o usuário, a experiência é idêntica a uma exclusão real.
+    A conversa vai para a lixeira do proprietário, invisível ao usuário.
+    Somente o proprietário pode excluir permanentemente.
+    """
     conversa = db.query(LunaConversaDB).filter(
         LunaConversaDB.id == conversa_id,
         LunaConversaDB.usuario_id == usuario.id,
@@ -227,13 +239,9 @@ def excluir_conversa(
     if not conversa:
         raise HTTPException(status_code=404, detail="Conversa não encontrada")
 
-    # Excluir mensagens
-    db.query(LunaMensagemDB).filter(
-        LunaMensagemDB.conversa_id == conversa_id
-    ).delete()
-
-    # Excluir conversa
-    db.delete(conversa)
+    # Soft delete — marca como excluída mas preserva dados
+    conversa.excluida_pelo_usuario = True
+    conversa.excluida_em = datetime.utcnow()
     db.commit()
 
     return {"mensagem": "Conversa excluída com sucesso"}
@@ -477,3 +485,189 @@ def ver_conversa_funcionario(
         },
         "modo_supervisao": True,
     }
+
+
+# =====================================================================
+# Endpoints — Lixeira (Proprietários)
+# =====================================================================
+
+
+@router.get("/admin/lixeira")
+def listar_lixeira(
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """
+    Lista todas as conversas excluídas pelos usuários (lixeira).
+    Somente proprietários. Estas conversas foram removidas da visão do
+    usuário mas ainda existem no banco para análise do proprietário.
+    """
+    _verificar_proprietario(usuario)
+
+    conversas = (
+        db.query(LunaConversaDB)
+        .filter(
+            LunaConversaDB.excluida_pelo_usuario == True,  # noqa: E712
+            LunaConversaDB.excluida_permanente == False,  # noqa: E712
+        )
+        .order_by(desc(LunaConversaDB.excluida_em))
+        .all()
+    )
+
+    resultado = []
+    for c in conversas:
+        # Buscar info do usuário que excluiu
+        user_db = db.query(UsuarioDB).filter(UsuarioDB.id == c.usuario_id).first()
+
+        # Contar mensagens
+        total_msgs = db.query(func.count(LunaMensagemDB.id)).filter(
+            LunaMensagemDB.conversa_id == c.id
+        ).scalar()
+
+        # Preview da última mensagem
+        ultima = (
+            db.query(LunaMensagemDB)
+            .filter(LunaMensagemDB.conversa_id == c.id)
+            .order_by(desc(LunaMensagemDB.id))
+            .first()
+        )
+        preview = ""
+        if ultima:
+            preview = ultima.conteudo[:100] + ("..." if len(ultima.conteudo) > 100 else "")
+
+        resultado.append({
+            **_serializar_conversa(c, preview),
+            "usuario_email": user_db.email if user_db else "",
+            "usuario_cargo": user_db.cargo if user_db else "",
+            "total_mensagens": total_msgs or 0,
+        })
+
+    return resultado
+
+
+@router.get("/admin/lixeira/{conversa_id}")
+def ver_conversa_lixeira(
+    conversa_id: str,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
+    """
+    Visualiza uma conversa da lixeira (somente leitura).
+    Somente proprietários. Registra auditoria LGPD.
+    """
+    _verificar_proprietario(usuario)
+
+    conversa = db.query(LunaConversaDB).filter(
+        LunaConversaDB.id == conversa_id,
+        LunaConversaDB.excluida_pelo_usuario == True,  # noqa: E712
+        LunaConversaDB.excluida_permanente == False,  # noqa: E712
+    ).first()
+
+    if not conversa:
+        raise HTTPException(status_code=404, detail="Conversa não encontrada na lixeira")
+
+    mensagens = (
+        db.query(LunaMensagemDB)
+        .filter(LunaMensagemDB.conversa_id == conversa_id)
+        .order_by(LunaMensagemDB.id.asc())
+        .all()
+    )
+
+    # Registrar auditoria LGPD
+    ip = request.client.host if request and request.client else ""
+    luna_engine.registrar_auditoria_supervisao(
+        db=db,
+        proprietario_id=usuario.id,
+        proprietario_email=usuario.email,
+        funcionario_id=conversa.usuario_id,
+        conversa_id=conversa_id,
+        ip=ip,
+    )
+
+    funcionario = db.query(UsuarioDB).filter(UsuarioDB.id == conversa.usuario_id).first()
+
+    return {
+        "conversa": _serializar_conversa(conversa),
+        "mensagens": [_serializar_mensagem(m) for m in mensagens],
+        "funcionario": {
+            "id": funcionario.id if funcionario else conversa.usuario_id,
+            "nome": funcionario.nome if funcionario else conversa.usuario_nome,
+            "email": funcionario.email if funcionario else "",
+            "cargo": funcionario.cargo if funcionario else "",
+        },
+        "modo_supervisao": True,
+        "da_lixeira": True,
+    }
+
+
+@router.post("/admin/lixeira/{conversa_id}/restaurar")
+def restaurar_conversa(
+    conversa_id: str,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """
+    Restaura uma conversa da lixeira — volta a ser visível para o usuário.
+    Somente proprietários.
+    """
+    _verificar_proprietario(usuario)
+
+    conversa = db.query(LunaConversaDB).filter(
+        LunaConversaDB.id == conversa_id,
+        LunaConversaDB.excluida_pelo_usuario == True,  # noqa: E712
+        LunaConversaDB.excluida_permanente == False,  # noqa: E712
+    ).first()
+
+    if not conversa:
+        raise HTTPException(status_code=404, detail="Conversa não encontrada na lixeira")
+
+    conversa.excluida_pelo_usuario = False
+    conversa.excluida_em = None
+    db.commit()
+
+    return {"mensagem": "Conversa restaurada com sucesso"}
+
+
+@router.delete("/admin/lixeira/{conversa_id}")
+def excluir_permanente(
+    conversa_id: str,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
+    """
+    Exclui permanentemente uma conversa e todas as suas mensagens.
+    Somente proprietários. Ação irreversível. Registra auditoria LGPD.
+    """
+    _verificar_proprietario(usuario)
+
+    conversa = db.query(LunaConversaDB).filter(
+        LunaConversaDB.id == conversa_id,
+        LunaConversaDB.excluida_pelo_usuario == True,  # noqa: E712
+    ).first()
+
+    if not conversa:
+        raise HTTPException(status_code=404, detail="Conversa não encontrada na lixeira")
+
+    # Registrar auditoria LGPD antes de excluir
+    ip = request.client.host if request and request.client else ""
+    luna_engine.registrar_auditoria_supervisao(
+        db=db,
+        proprietario_id=usuario.id,
+        proprietario_email=usuario.email,
+        funcionario_id=conversa.usuario_id,
+        conversa_id=conversa_id,
+        ip=ip,
+    )
+
+    # Excluir mensagens permanentemente
+    db.query(LunaMensagemDB).filter(
+        LunaMensagemDB.conversa_id == conversa_id
+    ).delete()
+
+    # Excluir conversa permanentemente
+    db.delete(conversa)
+    db.commit()
+
+    return {"mensagem": "Conversa excluída permanentemente"}

@@ -389,6 +389,11 @@ class LunaConversaDB(Base):
     titulo = Column(String(500), default="Nova conversa")
     modelo_preferido = Column(String(50), default="auto")  # auto, sonnet, opus
 
+    # Soft delete — quando usuário exclui, conversa vai para lixeira do proprietário
+    excluida_pelo_usuario = Column(Boolean, default=False)
+    excluida_em = Column(DateTime, nullable=True)  # Quando o usuário excluiu
+    excluida_permanente = Column(Boolean, default=False)  # Só proprietário pode excluir de vez
+
     # Multi-tenant
     company_id = Column(Integer, default=1)
 
