@@ -41,10 +41,15 @@ class SquadPessoal:
         self.tarefas: list[Task] = []
 
     def criar_agente_principal(self, perfil_agente: str = "general") -> Agent:
-        """Cria o agente principal do squad com LLM do Smart Router."""
-        llm = smart_router.obter_llm_para_agente(perfil_agente)
+        """Cria o agente principal do squad com LLM do Smart Router (tracking automático)."""
+        nome_agente = f"Agente Principal do Squad {self.nome_membro}"
+        llm = smart_router.obter_llm_para_agente(
+            perfil_agente,
+            agente_nome=nome_agente,
+            squad_nome=self.nome_membro,
+        )
         agente = Agent(
-            role=f"Agente Principal do Squad {self.nome_membro}",
+            role=nome_agente,
             goal=(
                 f"Auxiliar {self.nome_membro} em todas as tarefas relacionadas a "
                 f"{self.especialidade}. Executar com qualidade e reportar ao PM Central."
@@ -65,8 +70,12 @@ class SquadPessoal:
 
     def criar_agente_auxiliar(self, papel: str, objetivo: str, historia: str,
                               perfil_agente: str = "general") -> Agent:
-        """Cria um agente auxiliar com LLM do Smart Router."""
-        llm = smart_router.obter_llm_para_agente(perfil_agente)
+        """Cria um agente auxiliar com LLM do Smart Router (tracking automático)."""
+        llm = smart_router.obter_llm_para_agente(
+            perfil_agente,
+            agente_nome=papel,
+            squad_nome=self.nome_membro,
+        )
         agente = Agent(
             role=papel,
             goal=objetivo,

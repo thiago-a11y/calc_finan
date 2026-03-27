@@ -250,19 +250,29 @@ class SmartRouter:
         prompt: str = "",
         perfil_agente: str | None = None,
         forcar: str | None = None,
+        agente_nome: str = "",
+        squad_nome: str = "",
+        tipo: str = "chat",
+        usuario_id: int | None = None,
+        usuario_nome: str = "",
     ):
         """
-        Decide o modelo e retorna uma instância LLM do CrewAI.
+        Decide o modelo e retorna uma instância LLMTracked (com tracking automático).
 
         Args:
             prompt: Texto do prompt.
             perfil_agente: Perfil do agente.
             forcar: "opus" ou "sonnet" para override.
+            agente_nome: Nome do agente (para tracking).
+            squad_nome: Nome do squad (para tracking).
+            tipo: Tipo de operação — chat, reuniao, rag, etc.
+            usuario_id: ID do usuário.
+            usuario_nome: Nome do usuário.
 
         Returns:
-            Instância crewai.LLM configurada com o modelo correto.
+            Instância LLMTracked configurada com o modelo correto e tracking ativo.
         """
-        from crewai import LLM
+        from core.llm_tracked import criar_llm_tracked
 
         tier, motivo = self.decidir(prompt, perfil_agente, forcar)
         config = MODELOS_CLAUDE[tier]
@@ -300,30 +310,49 @@ class SmartRouter:
             f"Custo: ${config['custo_por_1k_input']}/1k in"
         )
 
-        # Criar instância LLM
-        llm = LLM(
-            model=f"anthropic/{config['modelo']}",
+        # Criar instância LLM COM tracking automático
+        llm = criar_llm_tracked(
+            modelo=f"anthropic/{config['modelo']}",
             api_key=api_key,
             max_tokens=config["max_tokens"],
+            agente_nome=agente_nome,
+            squad_nome=squad_nome,
+            perfil_agente=perfil_agente or "",
+            tipo=tipo,
+            usuario_id=usuario_id,
+            usuario_nome=usuario_nome,
         )
 
         return llm
 
-    def obter_llm_para_agente(self, perfil_agente: str):
+    def obter_llm_para_agente(
+        self,
+        perfil_agente: str,
+        agente_nome: str = "",
+        squad_nome: str = "",
+    ):
         """
-        Retorna um LLM pré-configurado para um agente específico.
+        Retorna um LLMTracked pré-configurado para um agente específico.
 
         Usado na criação do agente (sem prompt ainda).
         Agentes de alto nível recebem Opus; demais recebem Sonnet.
-        A decisão final é refinada quando o prompt chega via rotear().
+        Todas as chamadas são automaticamente registradas no tracker.
         """
         peso = self._peso_perfil(perfil_agente)
         if peso >= 0.6:
-            # Agentes seniores começam com Opus
-            return self.rotear(forcar="opus")
+            return self.rotear(
+                forcar="opus",
+                agente_nome=agente_nome,
+                squad_nome=squad_nome,
+                perfil_agente=perfil_agente,
+            )
         else:
-            # Demais começam com Sonnet
-            return self.rotear(forcar="sonnet")
+            return self.rotear(
+                forcar="sonnet",
+                agente_nome=agente_nome,
+                squad_nome=squad_nome,
+                perfil_agente=perfil_agente,
+            )
 
     def obter_status(self) -> dict:
         """Retorna status completo do router para a API/dashboard."""

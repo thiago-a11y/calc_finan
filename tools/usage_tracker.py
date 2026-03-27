@@ -18,7 +18,8 @@ logger = logging.getLogger("synerium.usage")
 
 # Custos por provider (USD por 1k tokens ou por request)
 CUSTOS = {
-    "anthropic": {"input": 0.003, "output": 0.015},
+    # Anthropic — custos diferenciados por modelo
+    "anthropic": {"input": 0.003, "output": 0.015},  # Default (Sonnet)
     "openai": {"input": 0.0001, "output": 0.0001},
     "groq": {"input": 0.00059, "output": 0.00079},
     "fireworks": {"input": 0.0009, "output": 0.0009},
@@ -32,6 +33,15 @@ CUSTOS = {
     "e2b": {"por_request": 0.0001},
     "aws_ses": {"por_request": 0.0001},
     "livekit": {"por_minuto": 0.004},
+}
+
+# Custos específicos por modelo (mais preciso que por provider)
+CUSTOS_POR_MODELO = {
+    "claude-opus-4-20250514": {"input": 0.015, "output": 0.075},
+    "claude-sonnet-4-20250514": {"input": 0.003, "output": 0.015},
+    "llama-3.3-70b-versatile": {"input": 0.00059, "output": 0.00079},
+    "llama-v3p3-70b-instruct": {"input": 0.0009, "output": 0.0009},
+    "Llama-3.3-70B-Instruct-Turbo": {"input": 0.00088, "output": 0.00088},
 }
 
 
@@ -68,7 +78,7 @@ class UsageTracker:
         """
         try:
             tokens_total = tokens_input + tokens_output
-            custo = self._calcular_custo(provider_id, tokens_input, tokens_output)
+            custo = self._calcular_custo(provider_id, tokens_input, tokens_output, modelo)
 
             db = SessionLocal()
             try:
@@ -102,16 +112,22 @@ class UsageTracker:
         except Exception as e:
             logger.error(f"[USAGE] Erro ao registrar: {e}")
 
-    def _calcular_custo(self, provider_id: str, tokens_in: int, tokens_out: int) -> float:
-        """Calcula custo baseado no provider."""
-        custos = CUSTOS.get(provider_id, {})
+    def _calcular_custo(self, provider_id: str, tokens_in: int, tokens_out: int,
+                         modelo: str = "") -> float:
+        """Calcula custo baseado no modelo (mais preciso) ou no provider (fallback)."""
+        # Primeiro tenta custo por modelo (mais preciso)
+        if modelo and modelo in CUSTOS_POR_MODELO:
+            custos = CUSTOS_POR_MODELO[modelo]
+            return (tokens_in / 1000) * custos["input"] + (tokens_out / 1000) * custos["output"]
 
+        # Fallback: custo por provider
+        custos = CUSTOS.get(provider_id, {})
         if "input" in custos and "output" in custos:
             return (tokens_in / 1000) * custos["input"] + (tokens_out / 1000) * custos["output"]
         elif "por_request" in custos:
             return custos["por_request"]
         elif "por_minuto" in custos:
-            return custos["por_minuto"] * 5  # Estimar 5 min por chamada
+            return custos["por_minuto"] * 5
         return 0.0
 
     def _nome_provider(self, provider_id: str) -> str:
