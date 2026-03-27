@@ -6,6 +6,7 @@ import {
   LayoutDashboard, ShieldCheck, Users, Building2, FolderKanban,
   BookOpen, ClipboardList, FileText, Coins, Brain, Wrench,
   UserCircle, Settings, LogOut, ChevronRight, Rocket, Bot, UserCog,
+  Moon,
 } from 'lucide-react'
 
 const links = [
@@ -57,6 +58,44 @@ export default function Sidebar() {
         </div>
 
         {/* Theme toggle movido para o Header (App.tsx) */}
+      </div>
+
+      {/* Luna — Destaque especial */}
+      <div className="px-2 pt-2 pb-1">
+        <NavLink
+          to="/luna"
+          className="group flex items-center gap-2.5 px-2.5 py-[9px] rounded-lg text-[13px] transition-all duration-200"
+          style={({ isActive }) => ({
+            background: isActive
+              ? 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(99,102,241,0.1))'
+              : 'linear-gradient(135deg, rgba(16,185,129,0.06), rgba(99,102,241,0.04))',
+            color: isActive ? '#10b981' : 'var(--sf-text-1)',
+            fontWeight: 500,
+            border: isActive
+              ? '1px solid rgba(16,185,129,0.3)'
+              : '1px solid rgba(16,185,129,0.1)',
+          })}
+        >
+          {({ isActive }) => (
+            <>
+              <Moon
+                size={16}
+                strokeWidth={isActive ? 2 : 1.5}
+                style={{ color: '#10b981' }}
+              />
+              <span>Luna</span>
+              <span
+                className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-bold"
+                style={{
+                  background: 'linear-gradient(135deg, #10b981, #6366f1)',
+                  color: '#fff',
+                }}
+              >
+                IA
+              </span>
+            </>
+          )}
+        </NavLink>
       </div>
 
       {/* Navigation */}

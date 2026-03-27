@@ -374,6 +374,60 @@ class AgenteAtribuidoDB(Base):
         return f"<AgenteAtribuido {self.id}: catalogo={self.agente_catalogo_id} → usuario={self.usuario_id}>"
 
 
+class LunaConversaDB(Base):
+    """
+    Tabela de conversas da Luna — assistente inteligente.
+
+    Cada usuário pode ter múltiplas conversas persistentes.
+    Proprietários (CEO/Operations Lead) podem visualizar conversas de outros.
+    """
+    __tablename__ = "luna_conversas"
+
+    id = Column(String(12), primary_key=True)  # nanoid curto
+    usuario_id = Column(Integer, nullable=False, index=True)
+    usuario_nome = Column(String(255), default="")
+    titulo = Column(String(500), default="Nova conversa")
+    modelo_preferido = Column(String(50), default="auto")  # auto, sonnet, opus
+
+    # Multi-tenant
+    company_id = Column(Integer, default=1)
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<LunaConversa {self.id}: '{self.titulo}' (user={self.usuario_id})>"
+
+
+class LunaMensagemDB(Base):
+    """
+    Tabela de mensagens da Luna — histórico completo de cada conversa.
+
+    Persistência infinita: todas as mensagens são salvas para contexto futuro.
+    Inclui métricas de uso (tokens, custo, modelo) para tracking.
+    """
+    __tablename__ = "luna_mensagens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    conversa_id = Column(String(12), nullable=False, index=True)
+    papel = Column(String(20), nullable=False)  # "user" ou "assistant"
+    conteudo = Column(Text, nullable=False)
+
+    # Métricas de uso (preenchidas na resposta da IA)
+    modelo_usado = Column(String(100), default="")  # ex: "claude-sonnet-4", "llama-3.3-70b"
+    provider_usado = Column(String(50), default="")  # ex: "anthropic", "groq", "fireworks"
+    tokens_input = Column(Integer, default=0)
+    tokens_output = Column(Integer, default=0)
+    custo_usd = Column(Float, default=0.0)
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<LunaMensagem {self.id}: {self.papel} em conversa={self.conversa_id}>"
+
+
 class SolicitacaoAgenteDB(Base):
     """
     Solicitações de agentes por usuários.

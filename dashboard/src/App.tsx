@@ -26,6 +26,7 @@ import Deploy from './pages/Deploy'
 import LLMProviders from './pages/LLMProviders'
 import Catalogo from './pages/Catalogo'
 import Atribuicoes from './pages/Atribuicoes'
+import Luna from './pages/Luna'
 
 /* Rota protegida — redireciona para /login se não autenticado */
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -212,6 +213,14 @@ function AppRoutes() {
         element={
           <RotaProtegida>
             <LayoutPrincipal><Skills /></LayoutPrincipal>
+          </RotaProtegida>
+        }
+      />
+      <Route
+        path="/luna"
+        element={
+          <RotaProtegida>
+            <LayoutPrincipal><Luna /></LayoutPrincipal>
           </RotaProtegida>
         }
       />

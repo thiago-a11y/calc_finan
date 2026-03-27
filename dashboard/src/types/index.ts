@@ -280,3 +280,66 @@ export interface FileAttachment {
   enviado_em: string
   erro?: string
 }
+
+// --- Luna — Assistente Inteligente ---
+
+export interface LunaConversa {
+  id: string
+  usuario_id: number
+  usuario_nome: string
+  titulo: string
+  modelo_preferido: 'auto' | 'sonnet' | 'opus'
+  criado_em: string
+  atualizado_em: string
+  ultima_mensagem?: string
+}
+
+export interface LunaMensagem {
+  id: number
+  conversa_id: string
+  papel: 'user' | 'assistant'
+  conteudo: string
+  modelo_usado: string
+  provider_usado: string
+  tokens_input: number
+  tokens_output: number
+  custo_usd: number
+  criado_em: string
+}
+
+export interface LunaConversaCompleta {
+  conversa: LunaConversa
+  mensagens: LunaMensagem[]
+  total_mensagens: number
+  tem_mais: boolean
+}
+
+export interface LunaArtefato {
+  id: string
+  tipo: 'codigo' | 'html' | 'markdown' | 'tabela'
+  linguagem: string
+  conteudo: string
+  titulo: string
+}
+
+export interface LunaUsuarioResumo {
+  usuario_id: number
+  nome: string
+  email: string
+  cargo: string
+  total_conversas: number
+  total_mensagens: number
+  ultimo_uso: string | null
+}
+
+export interface LunaConversaAdmin {
+  conversa: LunaConversa
+  mensagens: LunaMensagem[]
+  funcionario: {
+    id: number
+    nome: string
+    email: string
+    cargo: string
+  }
+  modo_supervisao: boolean
+}

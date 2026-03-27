@@ -123,6 +123,7 @@ PERFIS_ALTO_NIVEL = {
     "devops": 0.3,
     "integracao": 0.2,
     "secretaria_executiva": 0.0,
+    "consultora_estrategica": 0.4,  # Luna — padrão Sonnet, Opus para tarefas complexas
 }
 
 

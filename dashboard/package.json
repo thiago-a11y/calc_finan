@@ -12,12 +12,16 @@
   "dependencies": {
     "@livekit/components-react": "^2.9.20",
     "@livekit/components-styles": "^1.2.0",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "framer-motion": "^12.38.0",
     "livekit-client": "^2.18.0",
     "lucide-react": "^1.6.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "recharts": "^3.8.0"
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.1",
+    "recharts": "^3.8.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
