@@ -22,6 +22,9 @@ logger = logging.getLogger("synerium.uploads")
 router = APIRouter(tags=["Uploads"])
 
 UPLOAD_DIR = os.path.expanduser("~/synerium-factory/data/uploads/chat")
+# No servidor AWS o projeto fica em /opt/
+if os.path.exists("/opt/synerium-factory"):
+    UPLOAD_DIR = "/opt/synerium-factory/data/uploads/chat"
 
 # Extensões permitidas
 EXTENSOES_PERMITIDAS = {
