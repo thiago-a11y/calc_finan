@@ -46,15 +46,99 @@ def step(num, title):
     print(f"{'='*60}\n")
 
 
+def _migrar_colunas_faltantes():
+    """
+    Detecta e adiciona colunas faltantes nas tabelas existentes.
+
+    SQLAlchemy create_all() só cria tabelas novas — NÃO adiciona colunas
+    em tabelas existentes. Esta função compara o schema do modelo com o
+    banco real e faz ALTER TABLE para adicionar o que falta.
+
+    SEGURO: Nunca apaga dados, nunca remove colunas, apenas ADICIONA.
+    """
+    import sqlite3
+    from database.models import Base
+    from database.session import engine
+
+    db_path = str(engine.url).replace("sqlite:///", "")
+    if not os.path.exists(db_path):
+        return  # Banco ainda não existe, create_all vai criar tudo
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Mapeamento SQLAlchemy type → SQLite type
+    type_map = {
+        "VARCHAR": "TEXT",
+        "TEXT": "TEXT",
+        "INTEGER": "INTEGER",
+        "FLOAT": "REAL",
+        "BOOLEAN": "BOOLEAN",
+        "DATETIME": "DATETIME",
+        "JSON": "JSON",
+        "STRING": "TEXT",
+    }
+
+    alteracoes = 0
+
+    for table_name, table in Base.metadata.tables.items():
+        # Verificar se tabela existe
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (table_name,)
+        )
+        if not cursor.fetchone():
+            continue  # Tabela não existe, create_all vai criar
+
+        # Buscar colunas existentes
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        colunas_existentes = {row[1] for row in cursor.fetchall()}
+
+        # Comparar com o modelo
+        for coluna in table.columns:
+            if coluna.name not in colunas_existentes:
+                # Determinar tipo SQLite
+                col_type = type(coluna.type).__name__.upper()
+                sqlite_type = type_map.get(col_type, "TEXT")
+
+                # Determinar default
+                default = ""
+                if coluna.default is not None and coluna.default.arg is not None:
+                    val = coluna.default.arg
+                    if isinstance(val, bool):
+                        default = f" DEFAULT {1 if val else 0}"
+                    elif isinstance(val, (int, float)):
+                        default = f" DEFAULT {val}"
+                    elif isinstance(val, str):
+                        default = f" DEFAULT '{val}'"
+
+                sql = f"ALTER TABLE {table_name} ADD COLUMN {coluna.name} {sqlite_type}{default}"
+                cursor.execute(sql)
+                alteracoes += 1
+                log.info(f"  [MIGRATION] + {table_name}.{coluna.name} ({sqlite_type})")
+
+    conn.commit()
+    conn.close()
+
+    if alteracoes > 0:
+        log.info(f"Migration: {alteracoes} coluna(s) adicionada(s).")
+    else:
+        log.info("Migration: banco atualizado, nenhuma coluna faltante.")
+
+
 def step1_banco():
-    """Criar tabelas do banco."""
+    """Criar tabelas do banco e migrar colunas faltantes."""
     step(1, "BANCO DE DADOS")
 
     from database.models import Base
     from database.session import engine
 
+    # 1. Criar tabelas novas (se houver)
     Base.metadata.create_all(bind=engine)
     log.info("Tabelas criadas/verificadas com sucesso.")
+
+    # 2. Adicionar colunas faltantes em tabelas existentes (SEGURO — só adiciona)
+    _migrar_colunas_faltantes()
 
 
 def step2_usuarios():
