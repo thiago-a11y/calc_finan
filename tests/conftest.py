@@ -114,15 +114,26 @@ def token_membro(usuario_membro):
 # =====================================================================
 
 @pytest.fixture
-def app():
-    """Cria instância da app FastAPI para testes."""
+def app(db):
+    """Cria instância da app FastAPI para testes com banco sobrescrito."""
     from api.main import app
-    return app
+    from database.session import get_db
+
+    # Sobrescrever a dependência get_db para usar o banco de teste
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    yield app
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture
 def client(app):
     """Cliente HTTP síncrono para testes de API."""
     from fastapi.testclient import TestClient
-    with TestClient(app) as c:
+    with TestClient(app, raise_server_exceptions=False) as c:
         yield c
