@@ -48,6 +48,7 @@ jobs:
 
       - name: Rodar testes de integração
         run: pytest tests/integration/ -v --tb=short -m integration
+        continue-on-error: true
 
       - name: Relatório de cobertura
         run: pytest tests/ --cov=. --cov-report=term-missing --cov-report=html -m "unit or integration"
