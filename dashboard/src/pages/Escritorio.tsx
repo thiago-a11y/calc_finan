@@ -1246,7 +1246,7 @@ export default function Escritorio() {
                     animate={{
                       x: tp.x + 38,
                       y: tp.y - 32,
-                      scale: isH && !isV && !emReuniao ? 1.15 : 1,
+                      scale: isH && !isV && !emReuniao ? 1.08 : 1,
                     }}
                     transition={{
                       type: 'spring', stiffness: emReuniao ? 60 : 80, damping: emReuniao ? 20 : 16, mass: emReuniao ? 1 : .7,
@@ -1255,31 +1255,85 @@ export default function Escritorio() {
                     onMouseEnter={() => setHovered(i)}
                     onMouseLeave={() => setHovered(null)}
                     onClick={() => handleClick(i)}>
-                    {/* Foto real flutuante acima do boneco */}
-                    {buscarAgente(a.nome) && (
-                      <div className="absolute -top-10 left-1/2 -translate-x-1/2" style={{ zIndex: 2 }}>
-                        <AgentAvatarPhoto agentName={a.nome} size="lg"
-                          showStatus status={st === 'trabalhando' ? 'ocupado' : st === 'reuniao' ? 'ocupado' : 'online'}
-                          noHover />
-                      </div>
-                    )}
-                    <AgentAvatar cor={a.cor} skin={a.skin} hair={a.hair}
-                      status={st === 'trabalhando' && !isV && !emReuniao ? 'typing' : emReuniao ? 'idle' : 'idle'} />
-                    {/* Tooltip hover */}
-                    <AnimatePresence>
-                      {isH && !isV && !emReuniao && (
-                        <motion.div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap"
-                          initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}>
-                          <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg" style={{
-                            background: 'var(--of-wall)', border: '1px solid var(--of-glass-edge)',
-                            boxShadow: '0 6px 20px rgba(0,0,0,.12)',
+
+                    {buscarAgente(a.nome) ? (
+                      /* Avatar foto — posicionado centralizado na cadeira */
+                      <div className="relative flex flex-col items-center" style={{ marginTop: -18 }}>
+                        {/* Foto circular com breathing animation */}
+                        <motion.div
+                          animate={{ y: [0, -2, 0] }}
+                          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: i * 0.4 }}
+                          className="relative"
+                        >
+                          <div style={{
+                            width: 52, height: 52, borderRadius: '50%', overflow: 'hidden',
+                            border: isH ? `2.5px solid ${a.cor}` : '2px solid rgba(255,255,255,0.15)',
+                            boxShadow: isH
+                              ? `0 0 16px ${a.cor}40, 0 4px 12px rgba(0,0,0,0.3)`
+                              : st === 'trabalhando'
+                                ? `0 0 10px ${a.cor}30, 0 2px 8px rgba(0,0,0,0.2)`
+                                : '0 2px 8px rgba(0,0,0,0.2)',
+                            transition: 'all 0.3s ease',
                           }}>
-                            <MessageSquare size={8} className="text-emerald-400" />
-                            <span className="text-[8px] text-emerald-400 font-semibold">Chamar</span>
+                            <img
+                              src={buscarAgente(a.nome)?.avatarUrl}
+                              alt={a.nome}
+                              className="w-full h-full object-cover"
+                              draggable={false}
+                              loading="lazy"
+                            />
                           </div>
+                          {/* Status indicator */}
+                          <div style={{
+                            position: 'absolute', bottom: 1, right: 1,
+                            width: 10, height: 10, borderRadius: '50%',
+                            backgroundColor: sc,
+                            border: '2px solid var(--of-wall, #e8dcc8)',
+                            boxShadow: st !== 'livre' ? `0 0 6px ${sc}80` : 'none',
+                          }} />
                         </motion.div>
-                      )}
-                    </AnimatePresence>
+
+                        {/* Tooltip hover premium */}
+                        <AnimatePresence>
+                          {isH && !isV && !emReuniao && (
+                            <motion.div className="absolute -top-11 whitespace-nowrap"
+                              initial={{ opacity: 0, y: 6, scale: 0.9 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: 6, scale: 0.9 }}
+                              transition={{ duration: 0.15 }}>
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{
+                                background: 'rgba(15,15,18,0.9)', backdropFilter: 'blur(8px)',
+                                border: `1px solid ${a.cor}30`,
+                                boxShadow: `0 8px 24px rgba(0,0,0,.3), 0 0 0 1px ${a.cor}15`,
+                              }}>
+                                <MessageSquare size={9} style={{ color: a.cor }} />
+                                <span className="text-[9px] font-semibold" style={{ color: a.cor }}>Chamar</span>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    ) : (
+                      /* Fallback: boneco SVG (caso não tenha avatar) */
+                      <>
+                        <AgentAvatar cor={a.cor} skin={a.skin} hair={a.hair}
+                          status={st === 'trabalhando' && !isV && !emReuniao ? 'typing' : 'idle'} />
+                        <AnimatePresence>
+                          {isH && !isV && !emReuniao && (
+                            <motion.div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap"
+                              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}>
+                              <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg" style={{
+                                background: 'var(--of-wall)', border: '1px solid var(--of-glass-edge)',
+                                boxShadow: '0 6px 20px rgba(0,0,0,.12)',
+                              }}>
+                                <MessageSquare size={8} className="text-emerald-400" />
+                                <span className="text-[8px] text-emerald-400 font-semibold">Chamar</span>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </>
+                    )}
                   </motion.div>
                 </div>
               )
