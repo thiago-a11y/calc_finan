@@ -20,3 +20,4 @@ openpyxl
 python-docx
 python-pptx
 reportlab
+pypdf

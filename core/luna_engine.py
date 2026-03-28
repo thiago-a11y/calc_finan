@@ -237,20 +237,36 @@ class LunaEngine:
 
     def _formatar_conteudo_com_anexos(self, conteudo: str, anexos: list | None) -> str:
         """
-        Formata o conteúdo da mensagem incluindo referência aos anexos.
-        Assim o LLM sabe que o usuário enviou arquivos.
+        Formata o conteúdo da mensagem incluindo o CONTEÚDO REAL dos anexos.
+        Extrai texto de XLSX, DOCX, PDF, CSV, TXT, etc. para que o LLM
+        possa analisar os dados reais do arquivo.
         """
         if not anexos:
             return conteudo
 
+        from core.luna_file_reader import extrair_conteudo_arquivo
+
         partes = [conteudo]
-        partes.append("\n\n📎 Arquivos anexados:")
+
         for a in anexos:
             nome = a.get("nome_original", a.get("nome", "arquivo"))
+            url = a.get("url", "")
             tipo = a.get("tipo", "documento")
-            tamanho = a.get("tamanho", 0)
-            tamanho_str = f"{tamanho / 1024:.0f}KB" if tamanho > 0 else ""
-            partes.append(f"  - {nome} ({tipo}) {tamanho_str}")
+
+            # Extrair conteúdo REAL do arquivo
+            conteudo_arquivo = extrair_conteudo_arquivo(url, nome, tipo)
+
+            if conteudo_arquivo:
+                partes.append(f"\n\n📎 Conteúdo do arquivo '{nome}':")
+                partes.append("=" * 60)
+                partes.append(conteudo_arquivo)
+                partes.append("=" * 60)
+            else:
+                # Fallback: pelo menos informar que o arquivo foi anexado
+                tamanho = a.get("tamanho", 0)
+                tamanho_str = f"{tamanho / 1024:.0f}KB" if tamanho > 0 else ""
+                partes.append(f"\n\n📎 Arquivo anexado: {nome} ({tipo}) {tamanho_str}")
+                partes.append("[⚠️ Não foi possível extrair o conteúdo deste arquivo]")
 
         return "\n".join(partes)
 
