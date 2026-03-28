@@ -1,10 +1,10 @@
 /* LunaPreview — Painel de preview de artefatos com sistema de comentários */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { X, ExternalLink, Copy, Check, MessageCircle, Send, Trash2 } from 'lucide-react'
+import { X, ExternalLink, Copy, Check, MessageCircle, Send, Trash2, Pencil, Eye, Download } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import MarkdownRenderer from './MarkdownRenderer'
-import { listarComentarios, criarComentario, excluirComentario } from '../../services/luna'
+import { listarComentarios, criarComentario, excluirComentario, gerarArquivo } from '../../services/luna'
 import type { LunaArtefato, LunaComentario } from '../../types'
 
 interface LunaPreviewProps {
@@ -46,6 +46,9 @@ export default function LunaPreview({
   usuarioAtual,
 }: LunaPreviewProps) {
   const [copiado, setCopiado] = useState(false)
+  const [modoEdicao, setModoEdicao] = useState(false)
+  const [conteudoEditado, setConteudoEditado] = useState('')
+  const [baixando, setBaixando] = useState(false)
   const [mostrarComentarios, setMostrarComentarios] = useState(false)
   const [comentarios, setComentarios] = useState<LunaComentario[]>([])
   const [novoComentario, setNovoComentario] = useState('')
@@ -55,6 +58,47 @@ export default function LunaPreview({
   const ehProprietario = usuarioAtual?.papeis?.some(
     p => ['ceo', 'operations_lead'].includes(p)
   ) ?? false
+
+  // Conteúdo é editável? (não é upload de arquivo)
+  const ehEditavel = artefato ? !artefato.conteudo.startsWith('/uploads/') : false
+
+  // Resetar estado de edição quando artefato muda
+  useEffect(() => {
+    if (artefato && ehEditavel) {
+      setConteudoEditado(artefato.conteudo)
+    }
+    setModoEdicao(false)
+  }, [artefato?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Baixar arquivo com conteúdo editado
+  const handleBaixarEditado = useCallback(async () => {
+    if (!artefato || baixando) return
+    setBaixando(true)
+    try {
+      const conteudo = modoEdicao ? conteudoEditado : artefato.conteudo
+      const formato = artefato.linguagem === 'markdown' || artefato.linguagem === 'md' ? 'pdf'
+        : artefato.tipo === 'html' ? 'html'
+        : artefato.linguagem || 'txt'
+      const nomeBase = artefato.titulo.replace(/\.[^.]+$/, '') || 'documento'
+
+      const resultado = await gerarArquivo({
+        formato,
+        conteudo,
+        nome: nomeBase,
+        titulo: artefato.titulo,
+      })
+
+      // Trigger download
+      const a = document.createElement('a')
+      a.href = resultado.url
+      a.download = resultado.nome
+      a.click()
+    } catch {
+      // erro silencioso
+    } finally {
+      setBaixando(false)
+    }
+  }, [artefato, conteudoEditado, modoEdicao, baixando])
 
   // Carregar comentários quando o artefato muda
   useEffect(() => {
@@ -159,6 +203,20 @@ export default function LunaPreview({
                 </span>
               </div>
               <div className="flex items-center gap-1">
+                {/* Toggle edição */}
+                {ehEditavel && (
+                  <button
+                    onClick={() => setModoEdicao(!modoEdicao)}
+                    className="p-1.5 rounded-lg transition-colors hover:brightness-125"
+                    style={{
+                      color: modoEdicao ? '#f59e0b' : 'var(--sf-text-3)',
+                      background: modoEdicao ? 'rgba(245,158,11,0.1)' : 'transparent',
+                    }}
+                    title={modoEdicao ? 'Ver preview' : 'Editar conteúdo'}
+                  >
+                    {modoEdicao ? <Eye size={18} /> : <Pencil size={18} />}
+                  </button>
+                )}
                 {/* Toggle comentários */}
                 {conversaId && (
                   <button
@@ -231,7 +289,28 @@ export default function LunaPreview({
             <div className="flex-1 flex overflow-hidden">
               {/* Conteúdo do artefato */}
               <div className="flex-1 overflow-auto" style={{ scrollbarWidth: 'thin' }}>
-                {artefato.conteudo.startsWith('/uploads/') && artefato.linguagem === 'pdf' ? (
+                {/* Modo edição — textarea com o conteúdo fonte */}
+                {modoEdicao && ehEditavel ? (
+                  <div className="h-full flex flex-col">
+                    <div className="px-4 py-2 flex items-center gap-2 flex-shrink-0"
+                      style={{ borderBottom: '1px solid var(--sf-border-subtle)', background: 'rgba(245,158,11,0.05)' }}>
+                      <Pencil size={12} style={{ color: '#f59e0b' }} />
+                      <span className="text-[11px] font-semibold" style={{ color: '#f59e0b' }}>
+                        Modo Edição — altere o conteúdo e baixe com suas alterações
+                      </span>
+                    </div>
+                    <textarea
+                      value={conteudoEditado}
+                      onChange={e => setConteudoEditado(e.target.value)}
+                      className="flex-1 w-full bg-transparent px-6 py-4 text-[13px] leading-relaxed outline-none resize-none font-mono"
+                      style={{
+                        color: 'var(--sf-text-0)',
+                        scrollbarWidth: 'thin',
+                      }}
+                      spellCheck={false}
+                    />
+                  </div>
+                ) : artefato.conteudo.startsWith('/uploads/') && artefato.linguagem === 'pdf' ? (
                   <iframe
                     src={`${artefato.conteudo}#toolbar=0&navpanes=0`}
                     className="w-full h-full border-0"
@@ -263,7 +342,7 @@ export default function LunaPreview({
                   </div>
                 ) : artefato.tipo === 'html' ? (
                   <iframe
-                    srcDoc={artefato.conteudo}
+                    srcDoc={modoEdicao ? conteudoEditado : artefato.conteudo}
                     sandbox="allow-scripts allow-same-origin"
                     className="w-full h-full border-0"
                     title={artefato.titulo}
@@ -406,19 +485,37 @@ export default function LunaPreview({
                 </button>
               </div>
 
-              {artefato.tipo === 'html' && (
-                <button
-                  onClick={() => abrirEmNovaAba(artefato.conteudo)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all hover:scale-105"
-                  style={{
-                    background: 'var(--sf-accent)',
-                    color: '#fff',
-                  }}
-                >
-                  <ExternalLink size={12} />
-                  Abrir em nova aba
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {/* Baixar com edições */}
+                {ehEditavel && (
+                  <button
+                    onClick={handleBaixarEditado}
+                    disabled={baixando}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all hover:scale-105 disabled:opacity-50"
+                    style={{
+                      background: modoEdicao ? '#f59e0b' : 'var(--sf-accent)',
+                      color: '#fff',
+                    }}
+                  >
+                    <Download size={12} />
+                    {baixando ? 'Gerando...' : modoEdicao ? 'Baixar com edições' : 'Baixar PDF'}
+                  </button>
+                )}
+
+                {artefato.tipo === 'html' && (
+                  <button
+                    onClick={() => abrirEmNovaAba(modoEdicao ? conteudoEditado : artefato.conteudo)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all hover:scale-105"
+                    style={{
+                      background: 'var(--sf-accent)',
+                      color: '#fff',
+                    }}
+                  >
+                    <ExternalLink size={12} />
+                    Abrir em nova aba
+                  </button>
+                )}
+              </div>
             </div>
           </motion.div>
         </>
