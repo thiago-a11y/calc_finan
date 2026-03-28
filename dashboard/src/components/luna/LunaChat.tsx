@@ -1,7 +1,8 @@
 /* LunaChat — Area de mensagens do chat com auto-scroll e acoes */
 
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
-import { Moon, Copy, Check, RefreshCw, ChevronUp, Play } from 'lucide-react'
+import { Copy, Check, RefreshCw, ChevronUp, Play } from 'lucide-react'
+import AgentAvatar from '../AgentAvatar'
 import { motion, AnimatePresence } from 'framer-motion'
 import MarkdownRenderer from './MarkdownRenderer'
 import LunaFileBlock, { extrairBlocosArquivo } from './LunaFileBlock'
@@ -167,13 +168,8 @@ export default function LunaChat({
             >
               {/* Avatar da Luna */}
               {!isUser && (
-                <div
-                  className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mr-2 mt-1"
-                  style={{
-                    background: 'linear-gradient(135deg, var(--sf-accent), #059669)',
-                  }}
-                >
-                  <Moon size={14} color="#fff" />
+                <div className="flex-shrink-0 mr-2 mt-1">
+                  <AgentAvatar agentName="luna" size="md" noHover />
                 </div>
               )}
 
@@ -309,13 +305,8 @@ export default function LunaChat({
           className="flex justify-start"
         >
           {/* Avatar */}
-          <div
-            className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mr-2 mt-1"
-            style={{
-              background: 'linear-gradient(135deg, var(--sf-accent), #059669)',
-            }}
-          >
-            <Moon size={14} color="#fff" />
+          <div className="flex-shrink-0 mr-2 mt-1">
+            <AgentAvatar agentName="luna" size="md" showStatus status="pensando" noHover />
           </div>
 
           <div className="max-w-[75%] flex-1">

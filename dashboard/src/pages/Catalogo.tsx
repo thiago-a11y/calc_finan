@@ -3,6 +3,8 @@
 import { useState, useCallback } from 'react'
 import { usePolling } from '../hooks/usePolling'
 import { useAuth } from '../contexts/AuthContext'
+import AgentAvatar from '../components/AgentAvatar'
+import { buscarAgente } from '../config/agents'
 import {
   buscarCatalogo, criarAgenteCatalogo, buscarPerfisAgente,
   atribuirAgente, buscarUsuarios,
@@ -219,11 +221,15 @@ export default function Catalogo() {
                 className="sf-glass border rounded-2xl p-5 transition-all duration-300 hover:border-white/15 hover:shadow-lg group"
                 style={{ borderColor: 'var(--sf-border-subtle)' }}
               >
-                {/* Topo: ícone + categoria */}
+                {/* Topo: avatar/ícone + categoria */}
                 <div className="flex items-start justify-between mb-4">
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${cor.bg} border ${cor.border}`}>
-                    <IconeDinamico nome={agente.icone} size={20} className={cor.text} />
-                  </div>
+                  {buscarAgente(agente.nome_exibicao) ? (
+                    <AgentAvatar agentName={agente.nome_exibicao} size="lg" showFlag />
+                  ) : (
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${cor.bg} border ${cor.border}`}>
+                      <IconeDinamico nome={agente.icone} size={20} className={cor.text} />
+                    </div>
+                  )}
                   <span className={`text-[10px] font-medium px-2.5 py-0.5 rounded-full border ${cor.bg} ${cor.text} ${cor.border}`}>
                     {agente.categoria}
                   </span>

@@ -5,6 +5,7 @@ import { executarTarefa, buscarTarefa, buscarHistoricoTarefas } from '../service
 import { FileUploadArea } from './FileUpload'
 import type { TarefaResultado, FileAttachment } from '../types'
 import { Maximize2, Minimize2, Minus, X, Send, Bot, Loader2, Paperclip } from 'lucide-react'
+import AgentAvatar from './AgentAvatar'
 
 interface Props {
   squadNome: string
@@ -89,7 +90,7 @@ export default function ChatFloating({
     return (
       <div style={{ right: 16 + posicao * 340 }} className="fixed bottom-4 z-50 cursor-pointer" onClick={onMaximizar}>
         <div className="flex items-center gap-2 px-4 py-2 rounded-full shadow-lg transition-all" style={{ background: 'var(--sf-bg-1)', border: '1px solid var(--sf-border-default)' }}>
-          <Bot size={14} className="text-emerald-400" />
+          <AgentAvatar agentName={nomeAbreviado} size="sm" noHover />
           <span className="text-xs font-medium sf-text-white max-w-[120px] truncate">{nomeAbreviado}</span>
           {historico.some(t => t.status === 'executando') && (
             <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
@@ -113,9 +114,7 @@ export default function ChatFloating({
     >
       {/* Header */}
       <div className="px-4 py-3 flex items-center gap-3 shrink-0" style={{ borderBottom: '1px solid var(--sf-border-default)', background: 'var(--sf-accent-dim)' }}>
-        <div className="w-7 h-7 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-          <Bot size={14} className="text-emerald-400" />
-        </div>
+        <AgentAvatar agentName={nomeAbreviado} size="md" showStatus status={historico.some(t => t.status === 'executando') ? 'ocupado' : 'online'} noHover />
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold sf-text-white truncate">{agenteNome}</p>
           <p className="text-[10px] sf-text-dim">{squadNome}</p>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { executarReuniao, buscarTarefa, continuarReuniao, encerrarReuniao } from '../services/api'
 import { FileUploadArea } from './FileUpload'
+import AgentAvatar from './AgentAvatar'
 import type { TarefaResultado, RodadaItem } from '../types'
 
 interface Props {
@@ -155,6 +156,7 @@ export default function ReuniaoModal({ squadNome, agentes, onFechar }: Props) {
                   >
                     <input type="checkbox" checked={selecionados.includes(agente.idx)}
                       onChange={() => toggleAgente(agente.idx)} className="accent-emerald-500" />
+                    <AgentAvatar agentName={agente.nome} size="sm" noHover />
                     <span className="text-xs sf-text-dim">{agente.nome}</span>
                   </label>
                 ))}
@@ -197,8 +199,9 @@ export default function ReuniaoModal({ squadNome, agentes, onFechar }: Props) {
                   {items.map((item, i) => {
                     const isCeo = item.agente.includes('CEO')
                     return (
-                      <div key={`${rodNum}-${i}`} className={`flex ${isCeo ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`rounded-xl px-4 py-2 max-w-[80%] ${
+                      <div key={`${rodNum}-${i}`} className={`flex ${isCeo ? 'justify-end' : 'justify-start'} gap-2`}>
+                        {!isCeo && <AgentAvatar agentName={item.agente} size="sm" className="mt-1 shrink-0" noHover />}
+                        <div className={`rounded-xl px-4 py-2 max-w-[75%] ${
                           isCeo
                             ? 'bg-emerald-500/20 border border-emerald-500/25 rounded-br-sm'
                             : 'rounded-bl-sm'

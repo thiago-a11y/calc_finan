@@ -14,6 +14,8 @@ import type { TarefaResultado } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 import { Users, MessageSquare, Crown, X, User, Eye, ChevronDown, Video, Zap } from 'lucide-react'
 import ReuniaoVideo from '../components/ReuniaoVideo'
+import AgentAvatarPhoto from '../components/AgentAvatar'
+import { buscarAgente } from '../config/agents'
 import { motion, AnimatePresence } from 'framer-motion'
 
 /* =====================================================================
@@ -927,9 +929,14 @@ export default function Escritorio() {
                 <div className="flex flex-wrap gap-2">
                   {sq.nomes_agentes.map((n, i) => {
                     const a = agCfg(i, n)
+                    const agentCfg = buscarAgente(a.nome)
                     return (
                       <div key={i} className="flex flex-col items-center">
-                        <AgentAvatar cor={a.cor} skin={a.skin} hair={a.hair} size={.55} />
+                        {agentCfg ? (
+                          <AgentAvatarPhoto agentName={a.nome} size="sm" noHover />
+                        ) : (
+                          <AgentAvatar cor={a.cor} skin={a.skin} hair={a.hair} size={.55} />
+                        )}
                         <p className="text-[6px] mt-0.5" style={{ color: 'var(--of-text-dim)' }}>{a.nome}</p>
                       </div>
                     )
@@ -1245,6 +1252,14 @@ export default function Escritorio() {
                     onMouseEnter={() => setHovered(i)}
                     onMouseLeave={() => setHovered(null)}
                     onClick={() => handleClick(i)}>
+                    {/* Foto real flutuante acima do boneco */}
+                    {buscarAgente(a.nome) && (
+                      <div className="absolute -top-10 left-1/2 -translate-x-1/2" style={{ zIndex: 2 }}>
+                        <AgentAvatarPhoto agentName={a.nome} size="lg"
+                          showStatus status={st === 'trabalhando' ? 'ocupado' : st === 'reuniao' ? 'ocupado' : 'online'}
+                          noHover />
+                      </div>
+                    )}
                     <AgentAvatar cor={a.cor} skin={a.skin} hair={a.hair}
                       status={st === 'trabalhando' && !isV && !emReuniao ? 'typing' : emReuniao ? 'idle' : 'idle'} />
                     {/* Tooltip hover */}

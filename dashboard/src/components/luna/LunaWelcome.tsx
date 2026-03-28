@@ -1,7 +1,7 @@
 /* LunaWelcome — Tela de boas-vindas da Luna (quando nenhuma conversa esta selecionada) */
 
-import { Moon } from 'lucide-react'
 import { motion } from 'framer-motion'
+import AgentAvatar from '../AgentAvatar'
 
 interface LunaWelcomeProps {
   onSugestao: (texto: string) => void
@@ -28,14 +28,8 @@ export default function LunaWelcome({ onSugestao }: LunaWelcomeProps) {
           className="absolute inset-0 rounded-full blur-2xl opacity-30"
           style={{ background: 'var(--sf-accent)', transform: 'scale(1.8)' }}
         />
-        <div
-          className="relative w-20 h-20 rounded-full flex items-center justify-center"
-          style={{
-            background: 'linear-gradient(135deg, var(--sf-accent), #059669)',
-            boxShadow: '0 0 40px rgba(16,185,129,0.3)',
-          }}
-        >
-          <Moon size={36} color="#fff" strokeWidth={1.5} />
+        <div className="relative">
+          <AgentAvatar agentName="luna" size="2xl" noHover />
         </div>
       </motion.div>
 
