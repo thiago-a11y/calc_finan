@@ -33,6 +33,8 @@ class ProviderID(str, Enum):
     ANTHROPIC_OPUS = "anthropic_opus"
     ANTHROPIC_SONNET = "anthropic_sonnet"
     ANTHROPIC = "anthropic"  # Alias legado → redireciona para Sonnet
+    OPENAI = "openai"
+    GEMINI = "gemini"
     GROQ = "groq"
     FIREWORKS = "fireworks"
     TOGETHER = "together"
@@ -98,6 +100,29 @@ PROVIDERS: list[ProviderConfig] = [
         prioridade=1,  # Padrão — rápido e eficiente
     ),
     ProviderConfig(
+        id=ProviderID.OPENAI,
+        nome="GPT-4o (OpenAI)",
+        icone="🤖",
+        modelo="gpt-4o",
+        api_key_env="OPENAI_API_KEY",
+        custo_por_1k_input=0.0025,
+        custo_por_1k_output=0.01,
+        max_tokens=4096,
+        prioridade=2,
+    ),
+    ProviderConfig(
+        id=ProviderID.GEMINI,
+        nome="Gemini 2.0 Flash (Google)",
+        icone="💎",
+        modelo="gemini-2.0-flash",
+        api_key_env="GOOGLE_API_KEY",
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        custo_por_1k_input=0.00015,
+        custo_por_1k_output=0.0006,
+        max_tokens=8192,
+        prioridade=3,
+    ),
+    ProviderConfig(
         id=ProviderID.GROQ,
         nome="Llama via Groq",
         icone="⚡",
@@ -107,7 +132,7 @@ PROVIDERS: list[ProviderConfig] = [
         custo_por_1k_input=0.00059,
         custo_por_1k_output=0.00079,
         max_tokens=8192,
-        prioridade=2,
+        prioridade=4,
     ),
     ProviderConfig(
         id=ProviderID.FIREWORKS,
@@ -119,7 +144,7 @@ PROVIDERS: list[ProviderConfig] = [
         custo_por_1k_input=0.0009,
         custo_por_1k_output=0.0009,
         max_tokens=4096,
-        prioridade=3,
+        prioridade=5,
     ),
     ProviderConfig(
         id=ProviderID.TOGETHER,
@@ -131,7 +156,7 @@ PROVIDERS: list[ProviderConfig] = [
         custo_por_1k_input=0.00088,
         custo_por_1k_output=0.00088,
         max_tokens=8192,
-        prioridade=4,
+        prioridade=6,
     ),
 ]
 
@@ -204,6 +229,18 @@ class LLMProviderManager:
                 if p.id in (ProviderID.ANTHROPIC_OPUS, ProviderID.ANTHROPIC_SONNET, ProviderID.ANTHROPIC):
                     llm = LLM(
                         model=f"anthropic/{p.modelo}",
+                        api_key=api_key,
+                        max_tokens=p.max_tokens,
+                    )
+                elif p.id == ProviderID.OPENAI:
+                    llm = LLM(
+                        model=f"openai/{p.modelo}",
+                        api_key=api_key,
+                        max_tokens=p.max_tokens,
+                    )
+                elif p.id == ProviderID.GEMINI:
+                    llm = LLM(
+                        model=f"gemini/{p.modelo}",
                         api_key=api_key,
                         max_tokens=p.max_tokens,
                     )

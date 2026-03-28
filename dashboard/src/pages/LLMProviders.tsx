@@ -1,6 +1,6 @@
 /* LLM Providers — Premium dark dashboard inspired by Linear/Vercel */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { usePolling } from '../hooks/usePolling'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -33,9 +33,11 @@ const providerConfig: Record<string, {
   Icon: typeof Brain; cor: string; label: string; num: number
 }> = {
   anthropic: { Icon: Brain, cor: '#d97706', label: 'Principal', num: 1 },
-  groq: { Icon: Zap, cor: '#10b981', label: 'Fallback 1', num: 2 },
-  fireworks: { Icon: Flame, cor: '#ef4444', label: 'Fallback 2', num: 3 },
-  together: { Icon: Network, cor: '#8b5cf6', label: 'Fallback 3', num: 4 },
+  openai: { Icon: Star, cor: '#10b981', label: 'GPT', num: 2 },
+  gemini: { Icon: Hash, cor: '#4285f4', label: 'Gemini', num: 3 },
+  groq: { Icon: Zap, cor: '#10b981', label: 'Fallback 1', num: 4 },
+  fireworks: { Icon: Flame, cor: '#ef4444', label: 'Fallback 2', num: 5 },
+  together: { Icon: Network, cor: '#8b5cf6', label: 'Fallback 3', num: 6 },
 }
 
 export default function LLMProviders() {
@@ -43,6 +45,8 @@ export default function LLMProviders() {
   const [testando, setTestando] = useState<string | null>(null)
   const [resultadoTeste, setResultadoTeste] = useState<TesteResult | null>(null)
   const [trocando, setTrocando] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [routerGlobal, setRouterGlobal] = useState<any>(null)
 
   const fetcher = useCallback(async () => {
     const res = await fetch('/api/llm/status', {
@@ -53,6 +57,19 @@ export default function LLMProviders() {
   }, [token])
 
   const { dados, carregando, recarregar } = usePolling(fetcher, 30000)
+
+  // Buscar status do Smart Router Global
+  const fetchRouterGlobal = useCallback(async () => {
+    try {
+      const res = await fetch('/api/llm/router-global/status', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) setRouterGlobal(await res.json())
+    } catch { /* silencioso */ }
+  }, [token])
+
+  // Carregar na inicialização
+  useEffect(() => { fetchRouterGlobal() }, [fetchRouterGlobal])
 
   const testarProvider = async (providerId: string) => {
     setTestando(providerId)
@@ -356,6 +373,113 @@ export default function LLMProviders() {
           ))}
         </div>
       </div>
+
+      {/* ============================================================ */}
+      {/* Smart Router Global — Cadeia de Decisão                      */}
+      {/* ============================================================ */}
+      {routerGlobal && (
+        <div className="mt-8">
+          <div className="sf-glass sf-border rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-semibold" style={{ color: 'var(--sf-text-0)' }}>
+                  ⚡ Smart Router Global
+                </h2>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--sf-text-3)' }}>
+                  Roteamento inteligente multi-provider + ferramentas · {routerGlobal.total_chamadas || 0} decisões
+                  {routerGlobal.tempo_medio_decisao_ms > 0 && ` · ${routerGlobal.tempo_medio_decisao_ms}ms médio`}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${routerGlobal.ativo ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                  {routerGlobal.ativo ? 'ATIVO' : 'INATIVO'}
+                </span>
+              </div>
+            </div>
+
+            {/* Providers disponíveis */}
+            <div className="mb-4">
+              <p className="text-[11px] font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--sf-text-3)' }}>
+                Cadeia de Providers
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(routerGlobal.providers_disponiveis || {}).map(([key, disponivel]) => (
+                  <div key={key}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium"
+                    style={{
+                      background: disponivel ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                      border: `1px solid ${disponivel ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
+                      color: disponivel ? '#10b981' : '#ef4444',
+                    }}
+                  >
+                    {disponivel ? <Check size={10} /> : <X size={10} />}
+                    {key.replace('_', ' ')}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Ferramentas disponíveis */}
+            <div className="mb-4">
+              <p className="text-[11px] font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--sf-text-3)' }}>
+                Ferramentas Externas
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(routerGlobal.ferramentas_disponiveis || {}).map(([key, disponivel]) => (
+                  <div key={key}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium"
+                    style={{
+                      background: disponivel ? 'rgba(59,130,246,0.08)' : 'rgba(107,114,128,0.08)',
+                      border: `1px solid ${disponivel ? 'rgba(59,130,246,0.2)' : 'rgba(107,114,128,0.2)'}`,
+                      color: disponivel ? '#3b82f6' : '#6b7280',
+                    }}
+                  >
+                    {disponivel ? <Check size={10} /> : <X size={10} />}
+                    {key}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Estatísticas por provider */}
+            {routerGlobal.por_provider && Object.keys(routerGlobal.por_provider).length > 0 && (
+              <div className="mb-4">
+                <p className="text-[11px] font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--sf-text-3)' }}>
+                  Uso por Provider
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {Object.entries(routerGlobal.por_provider).sort(([,a],[,b]) => (b as number) - (a as number)).map(([key, count]) => (
+                    <div key={key} className="sf-glass sf-border rounded-lg px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--sf-text-3)' }}>{key.replace('_', ' ')}</p>
+                      <p className="text-lg font-bold sf-mono" style={{ color: 'var(--sf-text-0)' }}>{count as number}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Histórico recente */}
+            {routerGlobal.historico_recente?.length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--sf-text-3)' }}>
+                  Últimas Decisões
+                </p>
+                <div className="space-y-1 max-h-48 overflow-auto" style={{ scrollbarWidth: 'thin' }}>
+                  {[...routerGlobal.historico_recente].reverse().map((h: Record<string, string>, i: number) => (
+                    <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px]"
+                      style={{ background: 'var(--sf-bg-1)' }}>
+                      <span className="font-semibold" style={{ color: '#10b981' }}>{h.provider?.replace('_', ' ')}</span>
+                      <ArrowRight size={10} style={{ color: 'var(--sf-text-3)' }} />
+                      <span style={{ color: 'var(--sf-text-2)' }}>{h.motivo}</span>
+                      <span className="ml-auto sf-mono text-[10px]" style={{ color: 'var(--sf-text-3)' }}>{h.tempo_ms}ms</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
