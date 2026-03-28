@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from api.dependencias import obter_usuario_atual
 from config.llm_providers import llm_manager, ProviderID
 from core.llm_router import smart_router
+from core.smart_router_global import router_global
 from database.models import UsuarioDB
 
 logger = logging.getLogger("synerium.llm.api")
@@ -198,3 +199,59 @@ def testar_provider(
             "erro": str(e),
             "status": "erro",
         }
+
+
+# =====================================================================
+# Smart Router GLOBAL — Endpoints
+# =====================================================================
+
+@router.get("/router-global/status")
+def status_router_global(usuario: UsuarioDB = Depends(obter_usuario_atual)):
+    """Retorna status completo do Smart Router Global (multi-provider + ferramentas)."""
+    return router_global.obter_status()
+
+
+class RotearGlobalRequest(BaseModel):
+    prompt: str = "Pesquise as últimas tendências de IA para ERP"
+    perfil_agente: str | None = None
+    forcar: str | None = None
+    contexto: dict | None = None
+
+
+@router.post("/router-global/rotear")
+def simular_roteamento_global(
+    req: RotearGlobalRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+):
+    """
+    Simula uma decisão do Smart Router Global (multi-provider + ferramentas).
+    Útil para debug e para entender como o router decide.
+    """
+    resultado = router_global.rotear(
+        prompt=req.prompt,
+        perfil_agente=req.perfil_agente,
+        forcar=req.forcar,
+        contexto=req.contexto or {},
+    )
+    return resultado.to_dict()
+
+
+@router.post("/router-global/toggle")
+def toggle_router_global(
+    req: ToggleRouterRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+):
+    """Ativa ou desativa o Smart Router Global."""
+    papeis = usuario.papeis or []
+    if not any(p in papeis for p in ["ceo", "diretor_tecnico", "operations_lead"]):
+        raise HTTPException(status_code=403, detail="Apenas CEO/Diretor pode alterar o router.")
+
+    if req.ativo:
+        router_global.ativar()
+    else:
+        router_global.desativar()
+
+    return {
+        "ativo": router_global._ativo,
+        "mensagem": "Router Global ativado" if req.ativo else "Router Global desativado",
+    }
