@@ -22,12 +22,14 @@ logger = logging.getLogger("synerium.consumo")
 
 router = APIRouter(prefix="/api", tags=["Consumo"])
 
-# Configuração dos 14 providers monitorados
+# Configuração dos 15 providers monitorados
 APIS_MONITORADAS = [
     {"id": "anthropic", "nome": "Anthropic (Claude)", "icone": "🧠", "cor": "#d97706",
      "modelo": "claude-sonnet-4-20250514", "plano": "Team (Pay-as-you-go)"},
-    {"id": "openai", "nome": "OpenAI", "icone": "🤖", "cor": "#10b981",
-     "modelo": "text-embedding-3-small", "plano": "Pay-as-you-go"},
+    {"id": "openai", "nome": "OpenAI (GPT-4o)", "icone": "🤖", "cor": "#10b981",
+     "modelo": "gpt-4o", "plano": "Pay-as-you-go"},
+    {"id": "gemini", "nome": "Google Gemini", "icone": "💎", "cor": "#4285f4",
+     "modelo": "gemini-2.0-flash", "plano": "Free tier (1.5M tokens/dia)"},
     {"id": "langsmith", "nome": "LangSmith", "icone": "🔍", "cor": "#3b82f6",
      "plano": "Gratuito (5k traces/mês)"},
     {"id": "tavily", "nome": "Tavily", "icone": "🌐", "cor": "#8b5cf6",
