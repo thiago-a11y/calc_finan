@@ -404,6 +404,113 @@ def endpoint_gerar_arquivo(
 
 
 # =====================================================================
+# Endpoints — Comentários em Artefatos
+# =====================================================================
+
+
+class CriarComentarioRequest(BaseModel):
+    artefato_id: str
+    conteudo: str
+
+
+@router.get("/conversas/{conversa_id}/comentarios/{artefato_id}")
+def listar_comentarios(
+    conversa_id: str,
+    artefato_id: str,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Lista comentários de um artefato específico."""
+    from database.models import LunaComentarioDB
+
+    comentarios = db.query(LunaComentarioDB).filter(
+        LunaComentarioDB.conversa_id == conversa_id,
+        LunaComentarioDB.artefato_id == artefato_id,
+    ).order_by(LunaComentarioDB.criado_em.asc()).all()
+
+    return [
+        {
+            "id": c.id,
+            "artefato_id": c.artefato_id,
+            "usuario_id": c.usuario_id,
+            "usuario_nome": c.usuario_nome,
+            "conteudo": c.conteudo,
+            "criado_em": c.criado_em.isoformat() if c.criado_em else None,
+        }
+        for c in comentarios
+    ]
+
+
+@router.post("/conversas/{conversa_id}/comentarios")
+def criar_comentario(
+    conversa_id: str,
+    dados: CriarComentarioRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Cria um comentário em um artefato."""
+    from database.models import LunaComentarioDB
+
+    if not dados.conteudo.strip():
+        raise HTTPException(status_code=400, detail="Comentário não pode ser vazio.")
+
+    comentario = LunaComentarioDB(
+        conversa_id=conversa_id,
+        artefato_id=dados.artefato_id,
+        usuario_id=usuario.id,
+        usuario_nome=usuario.nome,
+        conteudo=dados.conteudo.strip(),
+        company_id=getattr(usuario, "company_id", 1),
+    )
+    db.add(comentario)
+    db.commit()
+    db.refresh(comentario)
+
+    logger.info(f"[Luna] Comentário #{comentario.id} criado por {usuario.nome} em {dados.artefato_id}")
+
+    return {
+        "id": comentario.id,
+        "artefato_id": comentario.artefato_id,
+        "usuario_id": comentario.usuario_id,
+        "usuario_nome": comentario.usuario_nome,
+        "conteudo": comentario.conteudo,
+        "criado_em": comentario.criado_em.isoformat() if comentario.criado_em else None,
+    }
+
+
+@router.delete("/conversas/{conversa_id}/comentarios/{comentario_id}")
+def excluir_comentario(
+    conversa_id: str,
+    comentario_id: int,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Exclui um comentário. Só o autor ou proprietário pode excluir."""
+    from database.models import LunaComentarioDB
+
+    comentario = db.query(LunaComentarioDB).filter(
+        LunaComentarioDB.id == comentario_id,
+        LunaComentarioDB.conversa_id == conversa_id,
+    ).first()
+
+    if not comentario:
+        raise HTTPException(status_code=404, detail="Comentário não encontrado.")
+
+    # Verificar permissão: autor ou proprietário
+    eh_autor = comentario.usuario_id == usuario.id
+    eh_proprietario = any(p in (usuario.papeis or []) for p in ["ceo", "operations_lead"])
+
+    if not eh_autor and not eh_proprietario:
+        raise HTTPException(status_code=403, detail="Sem permissão para excluir este comentário.")
+
+    db.delete(comentario)
+    db.commit()
+
+    logger.info(f"[Luna] Comentário #{comentario_id} excluído por {usuario.nome}")
+    return {"ok": True, "mensagem": "Comentário excluído."}
+
+
+# =====================================================================
 # Endpoints — Supervisão (Proprietários)
 # =====================================================================
 

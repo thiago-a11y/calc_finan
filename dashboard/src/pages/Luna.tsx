@@ -481,6 +481,8 @@ export default function Luna() {
             artefatos={artefatos}
             onFechar={handleFecharPreview}
             onSelecionarArtefato={handleSelecionarArtefato}
+            conversaId={conversaAtiva || undefined}
+            usuarioAtual={usuario ? { id: usuario.id, nome: usuario.nome, papeis: usuario.papeis } : null}
           />
         )}
       </div>

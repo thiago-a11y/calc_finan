@@ -436,6 +436,27 @@ class LunaMensagemDB(Base):
         return f"<LunaMensagem {self.id}: {self.papel} em conversa={self.conversa_id}>"
 
 
+class LunaComentarioDB(Base):
+    """
+    Comentários/anotações em artefatos da Luna.
+    Permite que usuários comentem em PDFs, planilhas, código etc.
+    Proprietários veem comentários de todos os funcionários.
+    """
+    __tablename__ = "luna_comentarios"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    conversa_id = Column(String(12), nullable=False, index=True)
+    artefato_id = Column(String(100), nullable=False, index=True)
+    usuario_id = Column(Integer, nullable=False, index=True)
+    usuario_nome = Column(String(255), nullable=False)
+    conteudo = Column(Text, nullable=False)
+    company_id = Column(Integer, default=1)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<LunaComentario {self.id}: {self.usuario_nome} em {self.artefato_id}>"
+
+
 class SolicitacaoAgenteDB(Base):
     """
     Solicitações de agentes por usuários.

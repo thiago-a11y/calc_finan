@@ -332,6 +332,15 @@ export interface LunaArtefato {
   titulo: string
 }
 
+export interface LunaComentario {
+  id: number
+  artefato_id: string
+  usuario_id: number
+  usuario_nome: string
+  conteudo: string
+  criado_em: string
+}
+
 export interface LunaUsuarioResumo {
   usuario_id: number
   nome: string

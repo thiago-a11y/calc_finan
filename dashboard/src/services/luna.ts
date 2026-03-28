@@ -6,6 +6,7 @@ import type {
   LunaUsuarioResumo,
   LunaConversaAdmin,
   LunaAnexo,
+  LunaComentario,
 } from '../types'
 
 const BASE = '/api/luna'
@@ -280,6 +281,17 @@ export const gerarArquivo = (dados: {
   titulo?: string
   conversa_id?: string
 }) => post<LunaArquivoGerado>('/gerar-arquivo', dados)
+
+/* --- Comentários em Artefatos --- */
+
+export const listarComentarios = (conversaId: string, artefatoId: string) =>
+  get<LunaComentario[]>(`/conversas/${conversaId}/comentarios/${encodeURIComponent(artefatoId)}`)
+
+export const criarComentario = (conversaId: string, dados: { artefato_id: string; conteudo: string }) =>
+  post<LunaComentario>(`/conversas/${conversaId}/comentarios`, dados)
+
+export const excluirComentario = (conversaId: string, comentarioId: number) =>
+  del<{ ok: boolean; mensagem: string }>(`/conversas/${conversaId}/comentarios/${comentarioId}`)
 
 /* --- Lixeira (Proprietários) --- */
 
