@@ -160,13 +160,69 @@ export const AGENTES_MAP: Record<string, AgentConfig> = Object.fromEntries(
 )
 
 /**
- * Busca agente pelo nome (case-insensitive, parcial).
+ * Mapeamento de papéis (como vêm do backend) → ID do agente.
+ * Os squads enviam nomes como "Tech Lead / Arquiteto de Software",
+ * "Desenvolvedor Backend PHP/Python", etc.
+ */
+const PAPEL_PARA_AGENTE: Record<string, string> = {
+  'tech lead': 'kenji',
+  'arquiteto': 'kenji',
+  'backend': 'amara',
+  'backend php': 'amara',
+  'php': 'amara',
+  'frontend': 'carlos',
+  'frontend react': 'carlos',
+  'react': 'carlos',
+  'inteligência artificial': 'yuki',
+  'inteligencia artificial': 'yuki',
+  'especialista ia': 'yuki',
+  'ia': 'yuki',
+  'integrações': 'rafael',
+  'integracoes': 'rafael',
+  'apis': 'rafael',
+  'devops': 'hans',
+  'infra': 'hans',
+  'infraestrutura': 'hans',
+  'qa': 'fatima',
+  'segurança': 'fatima',
+  'seguranca': 'fatima',
+  'qualidade': 'fatima',
+  'product manager': 'marco',
+  'product': 'marco',
+  'pm': 'marco',
+  'analista': 'marco',
+  'secretária': 'sofia',
+  'secretaria': 'sofia',
+  'executiva': 'sofia',
+  'luna': 'luna',
+  'assistente': 'luna',
+  'consultora': 'luna',
+}
+
+/**
+ * Busca agente pelo nome ou papel (case-insensitive, parcial).
  * Ex: buscarAgente("kenji") → AgentConfig
  * Ex: buscarAgente("Kenji/Tech Lead") → AgentConfig
+ * Ex: buscarAgente("Tech Lead / Arquiteto de Software") → Kenji
+ * Ex: buscarAgente("Desenvolvedor Backend PHP/Python") → Amara
  */
 export function buscarAgente(nome: string): AgentConfig | undefined {
   const lower = nome.toLowerCase().split('/')[0].trim()
-  return AGENTES.find(a => a.id === lower || a.nome.toLowerCase() === lower)
+
+  // Busca direta por ID ou nome
+  const direto = AGENTES.find(a => a.id === lower || a.nome.toLowerCase() === lower)
+  if (direto) return direto
+
+  // Busca por papel/keyword no mapeamento
+  for (const [keyword, agId] of Object.entries(PAPEL_PARA_AGENTE)) {
+    if (lower.includes(keyword) || keyword.includes(lower)) {
+      return AGENTES_MAP[agId]
+    }
+  }
+
+  // Busca por role parcial
+  const fullLower = nome.toLowerCase()
+  return AGENTES.find(a => fullLower.includes(a.role.toLowerCase()) || a.role.toLowerCase().includes(fullLower))
 }
 
 /**
