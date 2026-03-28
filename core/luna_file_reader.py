@@ -28,8 +28,10 @@ logger = logging.getLogger("luna.file_reader")
 # Limite de caracteres por arquivo no contexto do LLM
 LIMITE_CARACTERES = 15_000
 
-# Diretório base de uploads
-UPLOAD_DIR = Path(__file__).parent.parent / "uploads" / "chat"
+# Diretório base de uploads — DEVE bater com api/routes/uploads.py
+UPLOAD_DIR = Path(__file__).parent.parent / "data" / "uploads" / "chat"
+if os.path.exists("/opt/synerium-factory"):
+    UPLOAD_DIR = Path("/opt/synerium-factory/data/uploads/chat")
 
 
 def extrair_conteudo_arquivo(url: str, nome_original: str, tipo: str) -> str | None:
