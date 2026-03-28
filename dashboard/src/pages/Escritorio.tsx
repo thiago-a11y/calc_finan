@@ -36,8 +36,11 @@ const DESK_ITEMS = ['frame','book','trophy','cactus','globe','mug2','headphones'
 
 function agCfg(i: number, name: string) {
   const label = name.split('/')[0]?.trim() || name
+  // Usa o nome completo para buscar o agente correto (ex: "Desenvolvedor Backend PHP" → Amara)
+  const agente = buscarAgente(name)
   return {
-    nome: label.split(' ')[0] || `Ag${i+1}`,
+    nome: agente?.nome || label.split(' ')[0] || `Ag${i+1}`,
+    nomeCompleto: name,
     label,
     cor: CORES[i % CORES.length],
     skin: SKINS[i % SKINS.length],

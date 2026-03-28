@@ -207,22 +207,35 @@ const PAPEL_PARA_AGENTE: Record<string, string> = {
  * Ex: buscarAgente("Desenvolvedor Backend PHP/Python") → Amara
  */
 export function buscarAgente(nome: string): AgentConfig | undefined {
-  const lower = nome.toLowerCase().split('/')[0].trim()
+  const fullLower = nome.toLowerCase().trim()
+  const firstPart = fullLower.split('/')[0].trim()
 
-  // Busca direta por ID ou nome
-  const direto = AGENTES.find(a => a.id === lower || a.nome.toLowerCase() === lower)
+  // 1. Busca direta por ID ou nome exato
+  const direto = AGENTES.find(a => a.id === firstPart || a.nome.toLowerCase() === firstPart)
   if (direto) return direto
 
-  // Busca por papel/keyword no mapeamento
-  for (const [keyword, agId] of Object.entries(PAPEL_PARA_AGENTE)) {
-    if (lower.includes(keyword) || keyword.includes(lower)) {
+  // 2. Busca pelo nome completo (inclui tudo após a barra) contra os roles
+  //    Ex: "Desenvolvedor Backend PHP/Python" deve bater com role "Backend PHP/Python"
+  const porRole = AGENTES.find(a => fullLower.includes(a.role.toLowerCase()) || a.role.toLowerCase().includes(fullLower))
+  if (porRole) return porRole
+
+  // 3. Busca por keywords no mapeamento — usa o nome COMPLETO para melhor match
+  //    Ordena por tamanho da keyword (maior = mais específico primeiro)
+  const keywords = Object.entries(PAPEL_PARA_AGENTE).sort((a, b) => b[0].length - a[0].length)
+  for (const [keyword, agId] of keywords) {
+    if (fullLower.includes(keyword)) {
       return AGENTES_MAP[agId]
     }
   }
 
-  // Busca por role parcial
-  const fullLower = nome.toLowerCase()
-  return AGENTES.find(a => fullLower.includes(a.role.toLowerCase()) || a.role.toLowerCase().includes(fullLower))
+  // 4. Fallback com primeira parte
+  for (const [keyword, agId] of keywords) {
+    if (firstPart.includes(keyword) || keyword.includes(firstPart)) {
+      return AGENTES_MAP[agId]
+    }
+  }
+
+  return undefined
 }
 
 /**

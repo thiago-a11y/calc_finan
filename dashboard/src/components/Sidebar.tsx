@@ -6,7 +6,6 @@ import {
   LayoutDashboard, ShieldCheck, Users, Building2, FolderKanban,
   BookOpen, ClipboardList, FileText, Coins, Brain, Wrench,
   UserCircle, Settings, LogOut, ChevronRight, Rocket, Bot, UserCog,
-  Moon,
 } from 'lucide-react'
 
 const links = [
@@ -78,10 +77,14 @@ export default function Sidebar() {
         >
           {({ isActive }) => (
             <>
-              <Moon
-                size={16}
-                strokeWidth={isActive ? 2 : 1.5}
-                style={{ color: '#10b981' }}
+              <img
+                src="/avatars/luna.jpg"
+                alt="Luna"
+                className="w-5 h-5 rounded-full object-cover"
+                style={{
+                  border: isActive ? '2px solid #10b981' : '1.5px solid rgba(16,185,129,0.4)',
+                  boxShadow: isActive ? '0 0 8px rgba(16,185,129,0.3)' : 'none',
+                }}
               />
               <span>Luna</span>
               <span
