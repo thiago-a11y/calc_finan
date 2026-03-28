@@ -81,6 +81,22 @@ O Syncthing foi instalado inicialmente para sincronizar arquivos entre o Mac e o
 
 O path de uploads (`data/uploads/`) foi inicialmente configurado como `~/synerium` no desenvolvimento local. No servidor AWS, o projeto fica em `/opt/synerium-factory`, então o path não existia e downloads retornavam 404. A solução foi usar path relativo ao diretório do projeto (`Path(__file__).parent / ...` ou variável de ambiente), garantindo funcionamento tanto local quanto em produção.
 
+## Por que config centralizada de agentes em `src/config/agents.ts`?
+
+Antes, os dados dos agentes (nome, cargo, avatar, cor) estavam espalhados em vários componentes. Centralizar em um único arquivo `agents.ts` resolve duplicação, facilita manutenção e garante consistência visual. Qualquer componente importa `getAgentConfig("kenji")` e recebe tudo pronto — avatar, cor, cargo, especialidade. Adicionar um novo agente é alterar um único arquivo.
+
+## Por que avatares em JPG local (não gerados por IA em tempo real)?
+
+Avatares gerados por IA (DALL-E, Midjourney) a cada renderização seriam caros, lentos e inconsistentes (rosto diferente a cada chamada). Avatares estáticos em JPG são instantâneos, gratuitos, consistentes e funcionam offline. Ficam em `public/avatars/` e são servidos pelo Vite/nginx sem custo de API.
+
+## Por que migrar o vault Obsidian para dentro do repo Git?
+
+O vault Obsidian ficava em `/Users/thiagoxavier/Documents/SyneriumFactory-notes/`, separado do código. Isso causava problemas: não era versionado junto com o projeto, não ia para o servidor no deploy, e dificultava a referência em CI/CD. Migrar para `docs/obsidian/` dentro do repo garante que documentação e código andam juntos, com histórico Git unificado.
+
+## Por que `token_hex` ao invés de `token_urlsafe` para convites?
+
+`token_urlsafe` gera tokens com caracteres visualmente ambíguos (l/I/1, 0/O), causando problemas quando o usuário precisa copiar manualmente o token de um email. `token_hex` usa apenas hexadecimais (0-9, a-f), eliminando ambiguidade visual sem perder segurança.
+
 ---
 
-> Última atualização: 2026-03-27
+> Última atualização: 2026-03-28

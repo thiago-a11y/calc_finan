@@ -94,6 +94,46 @@ cd dashboard && npm run dev
 
 Acessar: `http://localhost:5173`
 
+## Sistema de Avatares dos Agentes
+
+### Arquitetura
+
+```
+dashboard/src/config/agents.ts       # Config centralizada de todos os agentes
+dashboard/src/components/AgentAvatar.tsx  # Componente reutilizável de avatar
+dashboard/public/avatars/            # Imagens JPG dos 10 agentes
+```
+
+### `agents.ts` — Config Centralizada
+
+Arquivo único com dados de todos os agentes IA do sistema:
+- **id** — Identificador único (ex: `kenji`, `luna`)
+- **nome** — Nome completo do agente
+- **cargo** — Função no sistema (ex: "Arquiteto de Soluções")
+- **avatar** — Path do JPG em `public/avatars/`
+- **cor** — Cor temática do agente (para badges e bordas)
+- **especialidade** — Área de atuação
+
+Função exportada: `getAgentConfig(id)` retorna a config completa do agente.
+
+### `AgentAvatar.tsx` — Componente Reutilizável
+
+Props principais:
+- **agentId** — ID do agente para buscar config automaticamente
+- **size** — `sm` (32px), `md` (40px), `lg` (48px), `xl` (64px), `2xl` (80px)
+- **showStatus** — Indicador de online/offline
+- **fallback** — Iniciais do nome quando imagem não carrega
+
+Componente auxiliar `AgentAvatarGroup` empilha múltiplos avatares com sobreposição (estilo participantes de reunião).
+
+### Telas que usam AgentAvatar
+- **ChatFloating** — Avatar do agente no cabeçalho do chat
+- **ReuniaoModal** — Grupo de avatares dos participantes
+- **Escritório Virtual** — Avatares nos assentos de cada agente
+- **Catálogo de Agentes** — Cards com avatar grande
+- **Luna Chat** — Avatar da Luna nas mensagens
+- **Luna Welcome** — Avatar destaque na tela inicial
+
 ---
 
-> Última atualização: 2026-03-23
+> Última atualização: 2026-03-28

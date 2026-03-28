@@ -4,6 +4,24 @@
 
 ---
 
+## v0.32.0 — Avatares Reais dos Agentes (2026-03-28)
+
+### Funcionalidades
+- **10 avatares oficiais em JPG** — Kenji, Amara, Carlos, Yuki, Rafael, Hans, Fatima, Marco, Sofia, Luna
+- **Config centralizada** — `src/config/agents.ts` com dados de todos os agentes (nome, cargo, avatar, cor, especialidade)
+- **Componente `AgentAvatar.tsx` reutilizável** — Tamanhos sm/md/lg/xl/2xl, fallback com iniciais, indicador de status online/offline, efeito hover
+- **`AgentAvatarGroup`** — Empilhamento de avatares com sobreposição (ex: participantes de reunião)
+- **Integração em múltiplas telas** — ChatFloating, ReuniaoModal, Escritório Virtual, Catálogo de Agentes, Luna Chat, Luna Welcome
+
+### Correções
+- **Token de convite** — Agora usa `token_hex` ao invés de `token_urlsafe` (evita ambiguidade visual entre l/I/1/0/O)
+
+### Melhorias
+- **Aba "Desativados" em Configurações** — Proprietários podem reativar ou excluir permanentemente usuários desativados
+- **Vault Obsidian migrado para dentro do repo Git** — `docs/obsidian/` agora é versionado junto com o código
+
+---
+
 ## v0.16.5 — Exclusão Permanente de Usuários (2026-03-27)
 
 ### Funcionalidades
