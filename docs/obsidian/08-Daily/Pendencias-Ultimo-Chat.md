@@ -1,8 +1,19 @@
 # Pendências do Último Chat — 28/Mar/2026
 
-> Atualizado em 28/Mar/2026 (sessão 8)
+> Atualizado em 28/Mar/2026 (sessão 9)
 
 ## Concluído nesta sessão
+
+### v0.33.0 — Smart Router Global Multi-Provider + Multi-Ferramenta
+- [x] Router Global (`core/smart_router_global.py`) com 7 providers de LLM e 8 ferramentas externas
+- [x] 13 categorias de intenção detectadas por regex (tempo médio 0.12ms)
+- [x] Override manual via prefixo no prompt (@opus, @groq, @exa, etc.)
+- [x] Cadeia de fallback multi-provider (Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together)
+- [x] Coexistência com SmartRouter antigo (llm_router.py continua para CrewAI)
+- [x] Endpoints da API: /api/router/decidir, /providers, /ferramentas, /categorias
+- [x] Documentação: Changelog, Decisões Técnicas, Arquitetura Smart-Router-Global.md
+
+### Sessão anterior (sessão 8)
 
 ### v0.32.0 — Avatares Reais dos Agentes
 - [x] 10 avatares oficiais em JPG (Kenji, Amara, Carlos, Yuki, Rafael, Hans, Fatima, Marco, Sofia, Luna)

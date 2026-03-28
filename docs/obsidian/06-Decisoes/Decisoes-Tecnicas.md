@@ -99,4 +99,41 @@ O vault Obsidian ficava em `/Users/thiagoxavier/Documents/SyneriumFactory-notes/
 
 ---
 
+## Por que Router Global separado do SmartRouter antigo?
+
+O SmartRouter antigo (`llm_router.py`) foi projetado para decidir entre Opus e Sonnet dentro do CrewAI. Funciona bem para esse escopo e continua ativo. O Router Global (`smart_router_global.py`) é uma camada acima: roteia para **qualquer** provider (7 LLMs) e **qualquer** ferramenta externa (8 integrações). Separar os dois evita regressão no roteamento CrewAI existente e permite evolução independente.
+
+### Coexistência
+- `llm_router.py` — Roteamento Opus/Sonnet para agentes CrewAI (escopo interno)
+- `smart_router_global.py` — Roteamento global multi-provider + multi-ferramenta (escopo externo)
+
+### Por que regex e não ML para detecção de intenção?
+
+O router precisa decidir em tempo real (< 1ms). Um modelo de ML adicionaria latência, dependência de inferência e complexidade de treinamento. Regex com 13 categorias de intenção resolve o problema com tempo médio de 0.12ms, zero dependência externa e manutenção trivial (adicionar/editar padrões). Se no futuro a acurácia for insuficiente, migrar para um classificador leve (fasttext, regex + embeddings) é possível sem mudar a interface.
+
+### Providers escolhidos
+| Provider | Modelo | Uso principal |
+|----------|--------|--------------|
+| Anthropic | Opus | Tarefas complexas, arquitetura, decisões |
+| Anthropic | Sonnet | Tarefas do dia-a-dia, chat, execução |
+| OpenAI | GPT-4o | Fallback, visão, análise multimodal |
+| Google | Gemini | Contexto longo, análise de documentos |
+| Groq | Llama | Resposta ultra-rápida, fallback primário |
+| Fireworks | Mixtral/Llama | Fallback secundário, custo baixo |
+| Together | Llama/Mistral | Fallback terciário, última linha |
+
+### Ferramentas externas integradas
+| Ferramenta | Categoria | Uso |
+|-----------|-----------|-----|
+| Exa | Busca semântica | Pesquisa web com entendimento de contexto |
+| Tavily | Busca web | Pesquisa rápida e estruturada |
+| Firecrawl | Scraping | Extração de dados de páginas web |
+| Scrapingdog | Scraping | Scraping com proxy e anti-bloqueio |
+| Composio | Integrações | Conexão com 100+ apps (Slack, GitHub, etc.) |
+| E2B | Sandbox | Execução segura de código em sandbox |
+| LiveKit | Voz/Vídeo | Comunicação em tempo real |
+| SES | Email | Envio de emails transacionais (Amazon SES) |
+
+---
+
 > Última atualização: 2026-03-28

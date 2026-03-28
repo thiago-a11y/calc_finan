@@ -4,6 +4,24 @@
 
 ---
 
+## v0.33.0 — Smart Router Global Multi-Provider + Multi-Ferramenta (2026-03-28)
+
+### Funcionalidades
+- **Smart Router Global** — Novo roteador inteligente (`core/smart_router_global.py`) que expande o roteamento para todos os providers e ferramentas externas
+- **7 providers de LLM** — Opus, Sonnet, GPT-4o, Gemini, Groq, Fireworks, Together
+- **8 ferramentas externas** — Exa, Tavily, Firecrawl, Scrapingdog, Composio, E2B, LiveKit, SES
+- **13 categorias de intenção** — Detecção automática por regex (sem ML) para roteamento preciso
+- **Override manual** — Prefixo no prompt permite forçar provider/ferramenta específica
+- **Tempo de decisão** — Média de 0.12ms por roteamento (regex puro, sem overhead de ML)
+
+### Arquitetura
+- Coexiste com o SmartRouter antigo (`llm_router.py`) que continua roteando Opus/Sonnet para CrewAI
+- Router Global é o ponto único de decisão para qualquer provider ou ferramenta do ecossistema
+- Cadeia de fallback multi-provider para alta disponibilidade
+- Endpoints da API para consulta e override de roteamento
+
+---
+
 ## v0.32.0 — Avatares Reais dos Agentes (2026-03-28)
 
 ### Funcionalidades
