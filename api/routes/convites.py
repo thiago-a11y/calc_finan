@@ -67,8 +67,8 @@ def criar_convite(
     if pendente:
         raise HTTPException(status_code=409, detail="Já existe um convite pendente para este email.")
 
-    # Gerar token seguro
-    token = secrets.token_urlsafe(32)
+    # Gerar token seguro (hex para evitar ambiguidade visual l/I/1/O/0)
+    token = secrets.token_hex(32)
 
     convite = ConviteDB(
         email=req.email,
