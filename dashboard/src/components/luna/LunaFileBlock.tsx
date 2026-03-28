@@ -1,6 +1,6 @@
 /* LunaFileBlock — Detecta e renderiza blocos :::arquivo[...] nas respostas da Luna */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { FileDown, FileSpreadsheet, FileText, Presentation, File, Loader2, Eye, ExternalLink } from 'lucide-react'
 import { gerarArquivo } from '../../services/luna'
 import type { LunaArquivoGerado } from '../../services/luna'
@@ -52,7 +52,6 @@ export default function LunaFileBlock({ nome, conteudo, conversaId, onPreview }:
   const [gerando, setGerando] = useState(false)
   const [arquivo, setArquivo] = useState<LunaArquivoGerado | null>(null)
   const [erro, setErro] = useState('')
-
   // Extrair formato do nome
   const partes = nome.split('.')
   const formato = partes.length > 1 ? partes[partes.length - 1].toLowerCase() : 'txt'
@@ -80,6 +79,16 @@ export default function LunaFileBlock({ nome, conteudo, conversaId, onPreview }:
       setGerando(false)
     }
   }, [formato, conteudo, nomeBase, conversaId])
+
+  // Auto-gerar o arquivo assim que o componente montar
+  // Assim o usuário já vê o botão de download pronto
+  const autoGeradoRef = useRef(false)
+  useEffect(() => {
+    if (!autoGeradoRef.current && !arquivo && conteudo) {
+      autoGeradoRef.current = true
+      handleGerar()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDownload = useCallback(() => {
     if (arquivo?.url) {
@@ -134,19 +143,19 @@ export default function LunaFileBlock({ nome, conteudo, conversaId, onPreview }:
             disabled={gerando}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-semibold transition-all hover:brightness-110 disabled:opacity-50"
             style={{
-              background: cor,
+              background: gerando ? `${cor}80` : cor,
               color: '#fff',
             }}
           >
             {gerando ? (
               <>
                 <Loader2 size={14} className="animate-spin" />
-                Gerando...
+                Preparando arquivo...
               </>
             ) : (
               <>
                 <FileDown size={14} />
-                Gerar e Baixar
+                Baixar {formato.toUpperCase()}
               </>
             )}
           </button>
