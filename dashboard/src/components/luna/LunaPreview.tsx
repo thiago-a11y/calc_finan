@@ -139,7 +139,39 @@ export default function LunaPreview({
 
             {/* Conteudo */}
             <div className="flex-1 overflow-auto" style={{ scrollbarWidth: 'thin' }}>
-              {artefato.tipo === 'html' ? (
+              {artefato.conteudo.startsWith('/uploads/') && artefato.linguagem === 'pdf' ? (
+                /* PDF renderizado em iframe */
+                <iframe
+                  src={artefato.conteudo}
+                  className="w-full h-full border-0"
+                  title={artefato.titulo}
+                  style={{ background: '#fff' }}
+                />
+              ) : artefato.conteudo.startsWith('/uploads/') ? (
+                /* Arquivo para download — mostrar info + botão */
+                <div className="flex flex-col items-center justify-center h-full gap-4 px-6">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                    style={{ background: 'rgba(16,185,129,0.1)' }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--sf-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--sf-text-0)' }}>{artefato.titulo}</p>
+                  <p className="text-xs" style={{ color: 'var(--sf-text-3)' }}>
+                    {artefato.linguagem.toUpperCase()} · Pronto para download
+                  </p>
+                  <a
+                    href={artefato.conteudo}
+                    download={artefato.titulo}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110"
+                    style={{ background: 'var(--sf-accent)', color: '#fff' }}
+                  >
+                    Baixar {artefato.linguagem.toUpperCase()}
+                  </a>
+                </div>
+              ) : artefato.tipo === 'html' ? (
                 /* HTML renderizado em iframe sandboxed */
                 <iframe
                   srcDoc={artefato.conteudo}
