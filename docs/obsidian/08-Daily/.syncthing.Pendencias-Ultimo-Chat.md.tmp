@@ -1,0 +1,46 @@
+# Pendências do Último Chat — 27/Mar/2026
+
+> Atualizado em 27/Mar/2026
+
+## Concluído nesta sessão
+
+### v0.29.0 — Catálogo de Agentes + Atribuição Dinâmica
+- [x] Modelos DB: AgenteCatalogoDB, AgenteAtribuidoDB, SolicitacaoAgenteDB
+- [x] Seed dos 12 agentes existentes no catálogo
+- [x] API routes: CRUD catálogo, atribuições, solicitações (13 endpoints)
+- [x] Carregamento dinâmico de squads do banco (removido hardcoded)
+- [x] Dashboard: páginas Catálogo, Atribuições, aba Agentes em Aprovações
+- [x] Build do frontend verificado e OK
+- [x] Commit + push v0.29.0
+
+### v0.28.0 — Bootstrap AWS (sessão anterior)
+- [x] SSH configurado do Mac para Lightsail (alias `synerium-aws`)
+- [x] Git inicializado no servidor e conectado ao GitHub
+- [x] Vaults sincronizados: 53 arquivos .md via rsync
+- [x] Bootstrap executado com sucesso
+- [x] Dashboard rebuildado no servidor
+- [x] API reiniciada — produção 100% operacional
+
+## v0.30.0 — Escritório Virtual Revolucionário
+- [x] Rewrite completo do Escritorio.tsx (632 → ~1050 linhas)
+- [x] Canvas 1600×750, janelas com Rio, ciclo dia/noite
+- [x] Mesas premium, sala de reunião com vidro, avatares detalhados
+- [x] Build OK, deploy produção OK
+- [x] Commit fa16658 pushado para GitHub
+
+## Deploy v0.29.0 em Produção
+- [x] Deploy executado via `scripts/deploy_producao.sh`
+- [x] Git pull no servidor: 22 arquivos atualizados (v0.26→v0.29)
+- [x] Dashboard rebuildado no servidor
+- [x] Bootstrap: 4 usuários, RAG reindexado (1.065 chunks)
+- [x] API reiniciada via systemd — `active (running)`
+- [x] Endpoint `/api/catalogo` verificado — 12 agentes retornados
+- [x] Fix CI: livekit-api no requirements, env vars no workflow, continue-on-error para integração
+- [x] GitHub Actions agora verde (workflow #11)
+
+## Pendências / Próximos passos
+- [ ] Atribuir agentes ao Marcos e Rhammon via dashboard
+- [ ] Testar solicitação de agente por um usuário comum
+- [ ] Ajustar permissões granulares para a página de Atribuições (só admin vê)
+- [ ] Mapear os 45 funcionários da Objetiva e criar squads
+- [ ] Corrigir testes de integração (mock do lifespan para CI)

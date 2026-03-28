@@ -62,12 +62,12 @@ success "Conexão SSH funcionando"
 step 2 "SINCRONIZAR VAULTS OBSIDIAN"
 
 VAULT_SX="$HOME/Documents/SyneriumX-notes"
-VAULT_SF="$HOME/Documents/SyneriumFactory-notes"
 REMOTE_VAULTS="${SERVER_DIR}/data/vaults"
 
 # Criar diretórios remotos
-ssh ${SERVER_HOST} "sudo mkdir -p ${REMOTE_VAULTS}/SyneriumX-notes ${REMOTE_VAULTS}/SyneriumFactory-notes && sudo chown -R ${SERVER_USER}:${SERVER_USER} ${REMOTE_VAULTS}"
+ssh ${SERVER_HOST} "sudo mkdir -p ${REMOTE_VAULTS}/SyneriumX-notes && sudo chown -R ${SERVER_USER}:${SERVER_USER} ${REMOTE_VAULTS}"
 
+# SyneriumX-notes ainda vem por rsync (vault externo)
 if [ -d "$VAULT_SX" ]; then
     echo "Sincronizando SyneriumX-notes..."
     rsync -avz --delete --exclude='.obsidian' --exclude='.trash' "$VAULT_SX/" "${SERVER_HOST}:${REMOTE_VAULTS}/SyneriumX-notes/"
@@ -76,13 +76,11 @@ else
     warn "SyneriumX-notes não encontrado em $VAULT_SX"
 fi
 
-if [ -d "$VAULT_SF" ]; then
-    echo "Sincronizando SyneriumFactory-notes..."
-    rsync -avz --delete --exclude='.obsidian' --exclude='.trash' "$VAULT_SF/" "${SERVER_HOST}:${REMOTE_VAULTS}/SyneriumFactory-notes/"
-    success "SyneriumFactory-notes sincronizado"
-else
-    warn "SyneriumFactory-notes não encontrado em $VAULT_SF"
-fi
+# SyneriumFactory-notes agora está DENTRO do repo (docs/obsidian/)
+# Vai automaticamente via git pull — criar symlink no servidor
+echo "Configurando symlink SyneriumFactory-notes → docs/obsidian/..."
+ssh ${SERVER_HOST} "ln -sfn ${SERVER_DIR}/docs/obsidian ${REMOTE_VAULTS}/SyneriumFactory-notes"
+success "SyneriumFactory-notes vinculado (via Git)"
 
 # ----- Pull Código no Servidor -----
 

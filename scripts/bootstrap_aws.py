@@ -297,7 +297,8 @@ def step4_rag():
     if not IS_SERVER:
         vaults = {}
         vault_sx = os.path.expanduser("~/Documents/SyneriumX-notes")
-        vault_sf = os.path.expanduser("~/Documents/SyneriumFactory-notes")
+        # Factory-notes agora está dentro do repo
+        vault_sf = os.path.join(BASE_DIR, "docs", "obsidian")
         if os.path.isdir(vault_sx):
             vaults["syneriumx"] = vault_sx
         if os.path.isdir(vault_sf):

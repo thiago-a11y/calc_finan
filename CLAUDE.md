@@ -21,41 +21,41 @@
 - Use LangSmith tracing quando aplicável.
 - Mantenha tudo limpo, organizado e documentado.
 
-## REGRA AUTOMÁTICA: Manter o Obsidian SEMPRE atualizado
-O vault `SyneriumFactory-notes` é a fonte de verdade do projeto.
+## REGRA AUTOMÁTICA: Manter a Documentação SEMPRE atualizada
+O vault de documentação está em `docs/obsidian/` dentro do repositório (versionado no Git).
 ATUALIZE os arquivos relevantes em CADA momento, NÃO apenas no final:
 
 ### Durante o chat (a cada decisão/discussão):
-- **08-Daily/Pendencias-Ultimo-Chat.md** — O que está sendo discutido, o que foi feito, o que falta
-- **06-Decisoes/Riscos-Reflexoes-Estrategicas.md** — Se houver debate de prós/contras ou risco identificado
-- **06-Decisoes/Decisoes-Tecnicas.md** — Se uma decisão técnica for tomada (escolha de lib, padrão, provider)
+- **docs/obsidian/08-Daily/Pendencias-Ultimo-Chat.md** — O que está sendo discutido, o que foi feito, o que falta
+- **docs/obsidian/06-Decisoes/Riscos-Reflexoes-Estrategicas.md** — Se houver debate de prós/contras ou risco identificado
+- **docs/obsidian/06-Decisoes/Decisoes-Tecnicas.md** — Se uma decisão técnica for tomada (escolha de lib, padrão, provider)
 
 ### Ao concluir implementação:
-- **03-Changelog/Changelog.md** — Nova versão com o que foi criado/atualizado/corrigido
-- **01-Roadmap/Roadmap.md** — Marcar itens concluídos
-- **04-Arquitetura/{arquivo}.md** — Criar/atualizar se mudança estrutural
-- **CONTEXTO-SYNERIUM-FACTORY.md** — Atualizar se houve mudança importante
+- **docs/obsidian/03-Changelog/Changelog.md** — Nova versão com o que foi criado/atualizado/corrigido
+- **docs/obsidian/01-Roadmap/Roadmap.md** — Marcar itens concluídos
+- **docs/obsidian/04-Arquitetura/{arquivo}.md** — Criar/atualizar se mudança estrutural
+- **docs/obsidian/CONTEXTO-SYNERIUM-FACTORY.md** — Atualizar se houve mudança importante
 
 ### Quando encontrar problema:
-- **07-Bugs/Bugs-Conhecidos.md** — Registrar bug com descrição, como reproduzir e status
-- **08-Daily/Pendencias-Ultimo-Chat.md** — Adicionar na seção de pendências
+- **docs/obsidian/07-Bugs/Bugs-Conhecidos.md** — Registrar bug com descrição, como reproduzir e status
+- **docs/obsidian/08-Daily/Pendencias-Ultimo-Chat.md** — Adicionar na seção de pendências
 
 ### Quando surgir nova tarefa:
-- **02-Backlog/Backlog.md** — Adicionar item com prioridade
+- **docs/obsidian/02-Backlog/Backlog.md** — Adicionar item com prioridade
 
 ### Quando criar/alterar squad:
-- **09-Squads/Mapa-Squads.md** — Atualizar mapa
-- **09-Squads/Squad-{Nome}.md** — Criar/atualizar arquivo do squad
+- **docs/obsidian/09-Squads/Mapa-Squads.md** — Atualizar mapa
+- **docs/obsidian/09-Squads/Squad-{Nome}.md** — Criar/atualizar arquivo do squad
 
 ### NÃO espere o usuário pedir. Faça automaticamente.
 ### Use agente em background para não bloquear o fluxo principal.
 
-## REGRA: Consultar Obsidian ANTES de responder
+## REGRA: Consultar documentação ANTES de responder
 - Antes de responder perguntas sobre o projeto, SEMPRE consulte:
-  1. O vault Obsidian (RAG) para contexto atualizado
-  2. O CONTEXTO-SYNERIUM-FACTORY.md para visão geral
+  1. Os arquivos em `docs/obsidian/` para contexto atualizado
+  2. O `docs/obsidian/CONTEXTO-SYNERIUM-FACTORY.md` para visão geral
   3. Os arquivos relevantes no código-fonte
 - NUNCA responda de memória sem verificar — use as ferramentas.
-- Se o usuário perguntar algo que está no Obsidian, cite a fonte.
+- Se o usuário perguntar algo que está na documentação, cite a fonte.
 
 Este arquivo é lido automaticamente em todas as sessões. Respeite-o sempre.
