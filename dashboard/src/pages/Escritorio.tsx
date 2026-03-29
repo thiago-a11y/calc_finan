@@ -12,7 +12,8 @@ import { buscarSquads, buscarHistoricoTarefas } from '../services/api'
 import { useChatManager } from '../components/ChatManager'
 import type { TarefaResultado } from '../types'
 import { useAuth } from '../contexts/AuthContext'
-import { Users, MessageSquare, Crown, X, User, Eye, ChevronDown, Video, Zap } from 'lucide-react'
+import { Users, MessageSquare, Crown, X, User, Eye, ChevronDown, Video, Zap, Code2, Bot } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import ReuniaoVideo from '../components/ReuniaoVideo'
 import AgentAvatarPhoto from '../components/AgentAvatar'
 import { buscarAgente } from '../config/agents'
@@ -789,6 +790,24 @@ export default function Escritorio() {
     if (meuSquad) abrirChat(meuSquad.nome, i, meuSquad.nomes_agentes[i] || `Agente ${i + 1}`)
   }, [emReuniao, visitando, meuSquad, abrirChat])
 
+  // Menu de contexto (clique direito)
+  const navigate = useNavigate()
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; agente: string; idx: number } | null>(null)
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, i: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const nomeAgente = meuSquad?.nomes_agentes[i] || `Agente ${i + 1}`
+    setCtxMenu({ x: e.clientX, y: e.clientY, agente: nomeAgente, idx: i })
+  }, [meuSquad])
+
+  // Fechar menu ao clicar fora
+  useEffect(() => {
+    const fechar = () => setCtxMenu(null)
+    if (ctxMenu) window.addEventListener('click', fechar)
+    return () => window.removeEventListener('click', fechar)
+  }, [ctxMenu])
+
   const handleReunir = useCallback(() => {
     if (emReuniao) { setEmReuniao(false); setVisitando(null) }
     else {
@@ -1254,7 +1273,8 @@ export default function Escritorio() {
                     }}
                     onMouseEnter={() => setHovered(i)}
                     onMouseLeave={() => setHovered(null)}
-                    onClick={() => handleClick(i)}>
+                    onClick={() => handleClick(i)}
+                    onContextMenu={(e) => handleContextMenu(e, i)}>
 
                     {buscarAgente(a.nome) ? (
                       /* Avatar foto — posicionado centralizado na cadeira */
@@ -1373,6 +1393,50 @@ export default function Escritorio() {
           </button>
         </>}
       </div>
+
+      {/* Menu de contexto (clique direito no agente) */}
+      {ctxMenu && (
+        <div
+          className="fixed z-[999] rounded-xl overflow-hidden shadow-2xl"
+          style={{
+            left: ctxMenu.x,
+            top: ctxMenu.y,
+            background: 'var(--sf-bg-0, #1a1a2e)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            minWidth: 200,
+            backdropFilter: 'blur(16px)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <p className="text-[11px] font-bold" style={{ color: 'var(--sf-text-0, #fff)' }}>{ctxMenu.agente}</p>
+            <p className="text-[9px]" style={{ color: 'var(--sf-text-3, #888)' }}>Agente IA</p>
+          </div>
+          <div className="py-1">
+            <button
+              onClick={() => { setCtxMenu(null); handleClick(ctxMenu.idx) }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition-colors hover:bg-white/5"
+              style={{ color: 'var(--sf-text-0, #fff)' }}
+            >
+              <MessageSquare size={13} /> Abrir Chat
+            </button>
+            <button
+              onClick={() => { setCtxMenu(null); navigate('/code-studio') }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition-colors hover:bg-white/5"
+              style={{ color: '#10b981' }}
+            >
+              <Code2 size={13} /> Abrir Code Studio
+            </button>
+            <button
+              onClick={() => { setCtxMenu(null); navigate(`/code-studio?agente=${encodeURIComponent(ctxMenu.agente)}`) }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition-colors hover:bg-white/5"
+              style={{ color: '#8b5cf6' }}
+            >
+              <Bot size={13} /> Code Studio com {ctxMenu.agente.split(' ')[0]}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

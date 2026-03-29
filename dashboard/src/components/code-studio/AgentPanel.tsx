@@ -1,7 +1,7 @@
 /* AgentPanel — Painel lateral com chat do agente IA */
 
 import { useState, useRef, useEffect } from 'react'
-import { Bot, Send, Sparkles, BookOpen, RefreshCw, FileCode, Loader2, X } from 'lucide-react'
+import { Bot, Send, Sparkles, BookOpen, RefreshCw, FileCode, Loader2, X, TestTube2 } from 'lucide-react'
 import MarkdownRenderer from '../luna/MarkdownRenderer'
 import { analisarCodigo } from '../../services/codeStudio'
 
@@ -19,10 +19,11 @@ interface AgentPanelProps {
 }
 
 const ACOES_RAPIDAS = [
-  { label: 'Explicar', icon: BookOpen, instrucao: 'Explique este código de forma clara e didática.' },
-  { label: 'Refatorar', icon: RefreshCw, instrucao: 'Sugira melhorias e refatorações para este código. Mostre o código melhorado.' },
-  { label: 'Documentar', icon: FileCode, instrucao: 'Adicione docstrings/comentários de documentação neste código.' },
-  { label: 'Otimizar', icon: Sparkles, instrucao: 'Identifique gargalos e sugira otimizações de performance.' },
+  { label: 'Explicar', icon: BookOpen, instrucao: 'Explique este código de forma clara e didática. Descreva o que cada parte faz, qual o propósito geral e como se encaixa no projeto.' },
+  { label: 'Refatorar', icon: RefreshCw, instrucao: 'Sugira melhorias e refatorações para este código. Mostre o código melhorado completo com explicação das mudanças.' },
+  { label: 'Documentar', icon: FileCode, instrucao: 'Adicione docstrings/JSDoc/comentários de documentação profissional neste código. Mostre o código completo com a documentação.' },
+  { label: 'Otimizar', icon: Sparkles, instrucao: 'Identifique gargalos de performance, problemas de memória e sugira otimizações. Mostre o código otimizado.' },
+  { label: 'Testar', icon: TestTube2, instrucao: 'Crie testes unitários completos para este código. Use o framework de teste adequado (pytest para Python, vitest/jest para TypeScript).' },
 ]
 
 export default function AgentPanel({ caminhoAtivo, conteudoAtivo, linguagem, onFechar }: AgentPanelProps) {
@@ -38,13 +39,18 @@ export default function AgentPanel({ caminhoAtivo, conteudoAtivo, linguagem, onF
   const enviar = async (instrucao: string) => {
     if (!caminhoAtivo || !conteudoAtivo || analisando) return
 
+    // Enriquecer instrução com contexto do arquivo
+    const nomeArquivo = caminhoAtivo.split('/').pop() || ''
+    const lang = linguagem?.toUpperCase() || 'TEXT'
+    const instrucaoComContexto = `[Arquivo: ${nomeArquivo} | Linguagem: ${lang} | Caminho: ${caminhoAtivo}]\n\n${instrucao}`
+
     const novaMensagemUser: Mensagem = { papel: 'user', conteudo: instrucao }
     setMensagens(prev => [...prev, novaMensagemUser])
     setInput('')
     setAnalisando(true)
 
     try {
-      const resultado = await analisarCodigo(caminhoAtivo, conteudoAtivo, instrucao)
+      const resultado = await analisarCodigo(caminhoAtivo, conteudoAtivo, instrucaoComContexto)
       setMensagens(prev => [...prev, {
         papel: 'assistant',
         conteudo: resultado.resposta,
