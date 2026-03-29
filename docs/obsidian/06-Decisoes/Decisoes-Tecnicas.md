@@ -136,4 +136,23 @@ O router precisa decidir em tempo real (< 1ms). Um modelo de ML adicionaria lat�
 
 ---
 
+## Por que Gemini via API OpenAI-compatible (não SDK Google)?
+
+O Gemini 2.0 Flash é acessado via `generativelanguage.googleapis.com/v1beta/openai/` usando o formato de API compatível com OpenAI. Isso permite reutilizar o mesmo cliente HTTP/LiteLLM que já funciona para GPT-4o, sem adicionar dependência do SDK Google (`google-generativeai`). Menos dependências = menos superfície de ataque e manutenção mais simples. Se no futuro precisarmos de features exclusivas do SDK (ex: multimodal avançado), a migração é trivial.
+
+### Free tier do Gemini
+- 1.5 milhão de tokens/dia sem custo
+- Ideal para fallback gratuito após Sonnet e GPT-4o
+- Sem necessidade de billing configurado para uso básico
+
+## Por que GPT-4o na cadeia de fallback?
+
+GPT-4o ocupa a posição entre Sonnet e Gemini na cadeia de fallback (Opus → Sonnet → **GPT-4o** → Gemini → Groq → Fireworks → Together). Motivos:
+1. Qualidade superior ao Gemini para tarefas de raciocínio e código
+2. Já temos a API key da OpenAI configurada (usada para embeddings)
+3. Diversifica providers — se a Anthropic inteira cair, GPT-4o assume antes dos open-source
+4. Custo moderado ($2.50/1M input, $10/1M output) — mais barato que Opus, mais caro que Groq
+
+---
+
 > Última atualização: 2026-03-28

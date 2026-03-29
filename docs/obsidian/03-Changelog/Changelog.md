@@ -4,6 +4,22 @@
 
 ---
 
+## v0.33.1 — Gemini 2.0 Flash + GPT-4o como Providers Reais (2026-03-28)
+
+### Funcionalidades
+- **Gemini 2.0 Flash adicionado** — Google Gemini integrado via API OpenAI-compatible (`generativelanguage.googleapis.com`)
+- **GPT-4o adicionado** — OpenAI GPT-4o como provider alternativo na cadeia de fallback
+- **Cadeia completa de fallback** — Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together (7 providers ativos)
+- **Smart Router Global no dashboard** — Página LLM Providers (`/llm-providers`) agora exibe e gerencia todos os providers do Router Global
+- **Gemini no Consumo de APIs** — Tela de Consumo (`/consumo`) agora inclui Gemini como provider rastreável
+
+### Detalhes
+- Gemini usa free tier: 1.5M tokens/dia sem custo
+- API do Gemini acessada via base_url OpenAI-compatible (sem SDK próprio)
+- GPT-4o complementa a cadeia entre Sonnet e Gemini para maior resiliência
+
+---
+
 ## v0.33.0 — Smart Router Global Multi-Provider + Multi-Ferramenta (2026-03-28)
 
 ### Funcionalidades

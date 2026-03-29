@@ -1,8 +1,17 @@
 # Pendências do Último Chat — 28/Mar/2026
 
-> Atualizado em 28/Mar/2026 (sessão 9)
+> Atualizado em 28/Mar/2026 (sessão 10)
 
 ## Concluído nesta sessão
+
+### v0.33.1 — Gemini 2.0 Flash + GPT-4o como Providers Reais
+- [x] Gemini 2.0 Flash adicionado como provider via API OpenAI-compatible
+- [x] GPT-4o adicionado como provider alternativo na cadeia de fallback
+- [x] Cadeia completa: Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
+- [x] Smart Router Global exposto no dashboard (página LLM Providers)
+- [x] Gemini adicionado na tela de Consumo de APIs
+
+### Sessão anterior (sessão 9)
 
 ### v0.33.0 — Smart Router Global Multi-Provider + Multi-Ferramenta
 - [x] Router Global (`core/smart_router_global.py`) com 7 providers de LLM e 8 ferramentas externas

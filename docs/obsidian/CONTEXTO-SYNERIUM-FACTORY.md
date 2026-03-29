@@ -89,11 +89,14 @@ CEO (Thiago)
 - **Recharts** — Gráficos (consumo de APIs)
 - **React Router v6** — Roteamento SPA
 
-### LLM Providers (Fallback Inteligente)
-1. 🧠 **Claude** (Anthropic) — Principal, melhor qualidade
-2. ⚡ **Llama via Groq** — Fallback 1, mais rápido
-3. 🔥 **Llama via Fireworks** — Fallback 2
-4. 🤝 **Llama via Together.ai** — Fallback 3
+### LLM Providers (Cadeia de Fallback Completa)
+1. 🧠 **Claude Opus** (Anthropic) — Principal, tarefas complexas
+2. 🧠 **Claude Sonnet** (Anthropic) — Dia-a-dia, chat, execução
+3. 🤖 **GPT-4o** (OpenAI) — Fallback 1, visão e análise multimodal
+4. 💎 **Gemini 2.0 Flash** (Google) — Fallback 2, free tier 1.5M tokens/dia
+5. ⚡ **Llama via Groq** — Fallback 3, ultra-rápido
+6. 🔥 **Mixtral/Llama via Fireworks** — Fallback 4, custo baixo
+7. 🤝 **Llama/Mistral via Together.ai** — Fallback 5, última linha
 
 ### Smart Router — Perfis de Uso
 - `consultora_estrategica` (peso 0.4) — Perfil da Luna: padrão Sonnet, Opus para tarefas complexas
@@ -384,6 +387,9 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.28.0** — Bootstrap AWS completo (RAG, seeds, providers, deploy script)
 - **v0.29.0** — **Catálogo de Agentes + Atribuição Dinâmica** — Prateleira de agentes reutilizáveis, admin atribui a usuários, hot-reload de squads, solicitações com aprovação
 - **v0.30.0** — **Escritório Virtual Revolucionário** — Canvas 1600×750, janelas com Rio de Janeiro, ciclo dia/noite real, mesas premium, sala de reunião com vidro, avatares com micro-animações, Framer Motion walk animations
+- **v0.32.0** — **Avatares Reais dos Agentes** — 10 avatares JPG, config centralizada, AgentAvatar reutilizável
+- **v0.33.0** — **Smart Router Global** — Roteamento multi-provider (7 LLMs) + multi-ferramenta (8 integrações), 13 categorias de intenção
+- **v0.33.1** — **Gemini 2.0 Flash + GPT-4o** — Cadeia completa: Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 
 ---
 
@@ -476,4 +482,4 @@ Escritório premium com imersão cinematográfica:
 
 ---
 
-> Última atualização: 2026-03-27
+> Última atualização: 2026-03-28
