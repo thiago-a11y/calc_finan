@@ -5,7 +5,7 @@
 const API = import.meta.env.VITE_API_URL || ''
 
 function headers() {
-  const token = localStorage.getItem('token')
+  const token = localStorage.getItem('sf_token')
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
