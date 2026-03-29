@@ -38,39 +38,82 @@ function getAuthHeaders(): Record<string, string> {
   return headers
 }
 
-async function get<T>(url: string): Promise<T> {
-  const res = await fetch(`${BASE}${url}`, { headers: getAuthHeaders() })
+/* --- Auto-refresh de token JWT --- */
+
+let refreshEmAndamento: Promise<boolean> | null = null
+
+async function tentarRefresh(): Promise<boolean> {
+  // Evitar multiplos refreshes simultaneos
+  if (refreshEmAndamento) return refreshEmAndamento
+
+  refreshEmAndamento = (async () => {
+    const refreshToken = localStorage.getItem('sf_refresh')
+    if (!refreshToken) return false
+
+    try {
+      const res = await fetch('/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        localStorage.setItem('sf_token', data.access_token)
+        return true
+      }
+    } catch { /* falhou */ }
+    return false
+  })()
+
+  const resultado = await refreshEmAndamento
+  refreshEmAndamento = null
+  return resultado
+}
+
+function redirecionarLogin() {
+  localStorage.removeItem('sf_token')
+  localStorage.removeItem('sf_refresh')
+  window.location.href = '/login'
+}
+
+/* --- Funcao base com auto-refresh --- */
+
+async function fetchComRefresh(url: string, options: RequestInit = {}): Promise<Response> {
+  const res = await fetch(url, { ...options, headers: { ...getAuthHeaders(), ...(options.headers || {}) } })
+
   if (res.status === 401) {
-    // Token expirado — limpar e redirecionar
-    localStorage.removeItem('sf_token')
-    localStorage.removeItem('sf_refresh')
-    window.location.href = '/login'
-    throw new Error('Sessão expirada')
+    // Tentar renovar o token automaticamente
+    const renovado = await tentarRefresh()
+    if (renovado) {
+      // Repetir a requisicao com o novo token
+      return fetch(url, { ...options, headers: { ...getAuthHeaders(), ...(options.headers || {}) } })
+    }
+    // Refresh falhou — redirecionar para login
+    redirecionarLogin()
+    throw new Error('Sessao expirada')
   }
+
+  return res
+}
+
+async function get<T>(url: string): Promise<T> {
+  const res = await fetchComRefresh(`${BASE}${url}`)
   if (!res.ok) throw new Error(`Erro ${res.status}: ${res.statusText}`)
   return res.json()
 }
 
 async function post<T>(url: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${url}`, {
+  const res = await fetchComRefresh(`${BASE}${url}`, {
     method: 'POST',
-    headers: getAuthHeaders(),
     body: body ? JSON.stringify(body) : undefined,
   })
-  if (res.status === 401) {
-    localStorage.removeItem('sf_token')
-    localStorage.removeItem('sf_refresh')
-    window.location.href = '/login'
-    throw new Error('Sessão expirada')
-  }
   if (!res.ok) throw new Error(`Erro ${res.status}: ${res.statusText}`)
   return res.json()
 }
 
 async function put<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${url}`, {
+  const res = await fetchComRefresh(`${BASE}${url}`, {
     method: 'PUT',
-    headers: getAuthHeaders(),
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(`Erro ${res.status}: ${res.statusText}`)
@@ -78,16 +121,9 @@ async function put<T>(url: string, body: unknown): Promise<T> {
 }
 
 async function del<T>(url: string): Promise<T> {
-  const res = await fetch(`${BASE}${url}`, {
+  const res = await fetchComRefresh(`${BASE}${url}`, {
     method: 'DELETE',
-    headers: getAuthHeaders(),
   })
-  if (res.status === 401) {
-    localStorage.removeItem('sf_token')
-    localStorage.removeItem('sf_refresh')
-    window.location.href = '/login'
-    throw new Error('Sessão expirada')
-  }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
     throw new Error(data.detail || `Erro ${res.status}`)

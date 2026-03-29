@@ -55,7 +55,7 @@ class SyneriumSettings(BaseSettings):
     # JWT (Autenticação)
     jwt_secret_key: str = "synerium-dev-secret-trocar-em-producao"
     jwt_algorithm: str = "HS256"
-    jwt_expiration_minutes: int = 60
+    jwt_expiration_minutes: int = 480  # 8 horas (dia de trabalho)
     jwt_refresh_expiration_days: int = 30
 
     # Amazon SES (Email)

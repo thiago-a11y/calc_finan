@@ -53,9 +53,15 @@ BLOCKED_EXTENSIONS = {
     ".pyc", ".pyo", ".db", ".sqlite", ".sqlite3",
     ".jpg", ".jpeg", ".png", ".gif", ".ico", ".svg", ".webp",
     ".woff", ".woff2", ".ttf", ".eot",
-    ".zip", ".tar", ".gz", ".bz2", ".xz",
+    ".zip", ".tar", ".gz", ".bz2", ".xz", ".7z", ".rar",
     ".exe", ".dll", ".so", ".dylib",
-    ".mp3", ".mp4", ".wav", ".avi", ".mov",
+    ".mp3", ".mp4", ".wav", ".avi", ".mov", ".mkv", ".flac",
+    # Documentos binarios (Office, PDF) — travam o editor de texto
+    ".pdf", ".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt",
+    ".odt", ".ods", ".odp", ".rtf",
+    # Imagens e outros
+    ".bmp", ".tiff", ".tif", ".psd", ".ai", ".eps",
+    ".bin", ".dat", ".lock",
 }
 
 # Mapeamento extensão → linguagem CodeMirror
