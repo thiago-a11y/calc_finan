@@ -13,6 +13,11 @@ POST /api/projetos/:id/solicitacoes         — Criar solicitação de mudança
 GET  /api/projetos/:id/solicitacoes         — Listar solicitações do projeto
 PUT  /api/solicitacoes/:id/aprovar          — Aprovar solicitação
 PUT  /api/solicitacoes/:id/rejeitar         — Rejeitar solicitação
+
+POST /api/projetos/:id/vcs                  — Cadastrar/atualizar config VCS
+GET  /api/projetos/:id/vcs                  — Buscar config VCS (sem token)
+POST /api/projetos/:id/vcs/testar           — Testar conexão VCS
+DELETE /api/projetos/:id/vcs                — Remover config VCS
 """
 
 import logging
@@ -605,3 +610,153 @@ def rejeitar_solicitacao(
     db.commit()
     logger.info(f"[SOLICITAÇÃO] Rejeitada: '{sol.titulo}' por {usuario.nome}")
     return {"mensagem": f"Solicitação rejeitada por {usuario.nome}."}
+
+
+# ============================================================
+# Version Control (VCS) — GitHub + GitBucket
+# ============================================================
+
+class VCSConfigRequest(BaseModel):
+    vcs_tipo: str  # "github" ou "gitbucket"
+    repo_url: str
+    api_token: str
+    branch_padrao: str = "main"
+
+
+@router.post("/{projeto_id}/vcs")
+async def configurar_vcs(
+    projeto_id: int,
+    dados: VCSConfigRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Cadastra ou atualiza configuração de Version Control do projeto."""
+    from database.models import ProjetoVCSDB
+    from core.vcs_service import criptografar_token
+
+    projeto = db.query(ProjetoDB).filter_by(id=projeto_id).first()
+    if not projeto:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+
+    # Só proprietário ou CEO pode configurar VCS
+    eh_dono = projeto.proprietario_id == usuario.id
+    eh_ceo = any(p in (usuario.papeis or []) for p in ["ceo", "operations_lead"])
+    if not eh_dono and not eh_ceo:
+        raise HTTPException(status_code=403, detail="Sem permissão para configurar VCS")
+
+    # Validar tipo
+    if dados.vcs_tipo not in ("github", "gitbucket"):
+        raise HTTPException(status_code=400, detail="Tipo VCS deve ser 'github' ou 'gitbucket'")
+
+    # Criptografar token
+    token_enc = criptografar_token(dados.api_token)
+
+    # Verificar se já existe config para este projeto
+    vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=projeto_id).first()
+    if vcs:
+        vcs.vcs_tipo = dados.vcs_tipo
+        vcs.repo_url = dados.repo_url
+        vcs.api_token_encrypted = token_enc
+        vcs.branch_padrao = dados.branch_padrao
+        vcs.ativo = True
+        vcs.atualizado_em = datetime.now(timezone.utc)
+    else:
+        vcs = ProjetoVCSDB(
+            projeto_id=projeto_id,
+            vcs_tipo=dados.vcs_tipo,
+            repo_url=dados.repo_url,
+            api_token_encrypted=token_enc,
+            branch_padrao=dados.branch_padrao,
+            company_id=usuario.company_id,
+        )
+        db.add(vcs)
+
+    # Audit log
+    db.add(AuditLogDB(
+        usuario_id=usuario.id,
+        acao="vcs_configurar",
+        detalhes=f"VCS {dados.vcs_tipo} configurado para projeto {projeto.nome}: {dados.repo_url}",
+        ip="api",
+        company_id=usuario.company_id,
+    ))
+
+    db.commit()
+    logger.info(f"[VCS] {usuario.nome} configurou {dados.vcs_tipo} para projeto {projeto.nome}")
+    return {"mensagem": "VCS configurado com sucesso", "tipo": dados.vcs_tipo, "repo": dados.repo_url}
+
+
+@router.get("/{projeto_id}/vcs")
+async def buscar_vcs(
+    projeto_id: int,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Busca configuração VCS do projeto (sem expor o token)."""
+    from database.models import ProjetoVCSDB
+
+    vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=projeto_id, ativo=True).first()
+    if not vcs:
+        return {"configurado": False}
+
+    return {
+        "configurado": True,
+        "vcs_tipo": vcs.vcs_tipo,
+        "repo_url": vcs.repo_url,
+        "branch_padrao": vcs.branch_padrao,
+        "token_status": "***configurado***",
+        "criado_em": vcs.criado_em.isoformat() if vcs.criado_em else None,
+        "atualizado_em": vcs.atualizado_em.isoformat() if vcs.atualizado_em else None,
+    }
+
+
+@router.post("/{projeto_id}/vcs/testar")
+async def testar_vcs(
+    projeto_id: int,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Testa conexão VCS do projeto."""
+    from database.models import ProjetoVCSDB
+    from core.vcs_service import descriptografar_token, VCSService
+
+    vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=projeto_id, ativo=True).first()
+    if not vcs:
+        raise HTTPException(status_code=404, detail="VCS não configurado para este projeto")
+
+    token = descriptografar_token(vcs.api_token_encrypted)
+    service = VCSService(vcs.vcs_tipo, vcs.repo_url, token, vcs.branch_padrao)
+    resultado = await service.testar_conexao()
+
+    return {
+        "sucesso": resultado.sucesso,
+        "mensagem": resultado.mensagem,
+        "repo_nome": resultado.repo_nome,
+        "branch_padrao": resultado.branch_padrao,
+    }
+
+
+@router.delete("/{projeto_id}/vcs")
+async def remover_vcs(
+    projeto_id: int,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Remove configuração VCS do projeto."""
+    from database.models import ProjetoVCSDB
+
+    projeto = db.query(ProjetoDB).filter_by(id=projeto_id).first()
+    if not projeto:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+
+    eh_dono = projeto.proprietario_id == usuario.id
+    eh_ceo = any(p in (usuario.papeis or []) for p in ["ceo", "operations_lead"])
+    if not eh_dono and not eh_ceo:
+        raise HTTPException(status_code=403, detail="Sem permissão")
+
+    vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=projeto_id).first()
+    if vcs:
+        vcs.ativo = False
+        db.commit()
+
+    logger.info(f"[VCS] {usuario.nome} removeu VCS do projeto {projeto.nome}")
+    return {"mensagem": "VCS removido"}

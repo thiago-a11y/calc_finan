@@ -308,3 +308,32 @@ export const uploadArquivos = async (files: File[]): Promise<import('../types').
   const data = await res.json()
   return data.arquivos
 }
+
+// ============================================================
+// Version Control (VCS) — GitHub + GitBucket
+// ============================================================
+
+export interface VCSConfig {
+  configurado: boolean
+  vcs_tipo?: string
+  repo_url?: string
+  branch_padrao?: string
+  token_status?: string
+  criado_em?: string
+  atualizado_em?: string
+}
+
+export const buscarVCS = (projetoId: number) =>
+  get<VCSConfig>(`/projetos/${projetoId}/vcs`)
+
+export const salvarVCS = (projetoId: number, dados: {
+  vcs_tipo: string; repo_url: string; api_token: string; branch_padrao: string
+}) => post<{ mensagem: string }>(`/projetos/${projetoId}/vcs`, dados)
+
+export const testarVCS = (projetoId: number) =>
+  post<{ sucesso: boolean; mensagem: string; repo_nome: string; branch_padrao: string }>(
+    `/projetos/${projetoId}/vcs/testar`, {}
+  )
+
+export const removerVCS = (projetoId: number) =>
+  del<{ mensagem: string }>(`/projetos/${projetoId}/vcs`)

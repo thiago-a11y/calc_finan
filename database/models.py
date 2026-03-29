@@ -214,6 +214,28 @@ class ProjetoDB(Base):
         return f"<Projeto {self.id}: {self.nome} (dono: {self.proprietario_nome})>"
 
 
+class ProjetoVCSDB(Base):
+    """
+    Configuração de Version Control (GitHub/GitBucket) por projeto.
+    Token criptografado com Fernet para segurança em repouso.
+    """
+    __tablename__ = "projeto_vcs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    projeto_id = Column(Integer, nullable=False, index=True)
+    vcs_tipo = Column(String(20), nullable=False, default="github")  # github | gitbucket
+    repo_url = Column(String(500), nullable=False)
+    api_token_encrypted = Column(Text, nullable=False)  # Fernet-encrypted
+    branch_padrao = Column(String(100), default="main")
+    ativo = Column(Boolean, default=True)
+    company_id = Column(Integer, default=1)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<ProjetoVCS {self.id}: {self.vcs_tipo} → {self.repo_url}>"
+
+
 class SolicitacaoDB(Base):
     """
     Tabela de solicitações de mudança em projetos.

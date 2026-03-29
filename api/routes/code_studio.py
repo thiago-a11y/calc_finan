@@ -429,9 +429,48 @@ async def aplicar_acao(
 
     logger.info(f"[CodeStudio] {usuario.email} aplicou ação '{dados.tipo_acao}' em {dados.caminho_destino}")
 
+    # Tentar commit + push se projeto tiver VCS configurado
+    vcs_resultado = None
+    try:
+        from database.models import ProjetoVCSDB
+        from core.vcs_service import descriptografar_token, VCSService
+
+        # Buscar VCS ativo (usar primeiro encontrado — projeto padrão)
+        vcs = db.query(ProjetoVCSDB).filter_by(ativo=True).first()
+        if vcs:
+            token = descriptografar_token(vcs.api_token_encrypted)
+            service = VCSService(vcs.vcs_tipo, vcs.repo_url, token, vcs.branch_padrao)
+
+            # Mensagem de commit baseada no tipo de ação
+            nomes_acao = {
+                "substituir": "refactor",
+                "criar": "feat",
+            }
+            prefixo = nomes_acao.get(dados.tipo_acao, "chore")
+            nome_arquivo = dados.caminho_destino.split("/")[-1]
+            msg_commit = f"{prefixo}(code-studio): {dados.tipo_acao} em {nome_arquivo}\n\nAplicado via Synerium Factory Code Studio por {usuario.nome}"
+
+            resultado = service.commit_e_push(
+                caminho_projeto=str(ALLOWED_BASE),
+                arquivos=[dados.caminho_destino],
+                mensagem_commit=msg_commit,
+                autor_nome=usuario.nome,
+                autor_email=usuario.email,
+            )
+            vcs_resultado = {
+                "sucesso": resultado.sucesso,
+                "mensagem": resultado.mensagem,
+                "commit_hash": resultado.commit_hash,
+                "branch": resultado.branch,
+            }
+            logger.info(f"[CodeStudio/VCS] Commit: {resultado.commit_hash} - {resultado.mensagem}")
+    except Exception as e:
+        logger.warning(f"[CodeStudio/VCS] Git não executado: {str(e)[:200]}")
+
     return {
         "ok": True,
         "caminho": dados.caminho_destino,
         "tipo": dados.tipo_acao,
         "tamanho": len(dados.conteudo_novo),
+        "vcs": vcs_resultado,
     }

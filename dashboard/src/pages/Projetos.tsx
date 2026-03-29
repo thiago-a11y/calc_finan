@@ -7,8 +7,9 @@ import {
   FolderKanban, Crown, Wrench, Users, X, Plus, Send,
   Clock, CheckCircle2, XCircle, Loader2, ShieldCheck,
   GitPullRequest, Bug, RefreshCw, Rocket, Lock, MessageSquare,
-  ChevronRight, 
+  ChevronRight, GitBranch, Plug, Trash2,
 } from 'lucide-react'
+import { buscarVCS, salvarVCS, testarVCS, removerVCS } from '../services/api'
 
 interface Membro { id: number; nome: string; papel: string }
 interface Solicitacao {
@@ -223,6 +224,11 @@ export default function Projetos() {
                 </div>
               </div>
 
+              {/* Version Control */}
+              {(projetoAberto.eh_proprietario || projetoAberto.eh_ceo) && (
+                <SecaoVCS projetoId={projetoAberto.id} />
+              )}
+
               {/* Solicitações */}
               <div>
                 <div className="flex items-center justify-between mb-4">
@@ -315,6 +321,161 @@ export default function Projetos() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+/* ================================================================ */
+/* Seção Version Control (VCS)                                       */
+/* ================================================================ */
+
+function SecaoVCS({ projetoId }: { projetoId: number }) {
+  const [vcs, setVcs] = useState<{ configurado: boolean; vcs_tipo?: string; repo_url?: string; branch_padrao?: string } | null>(null)
+  const [editando, setEditando] = useState(false)
+  const [vcsTipo, setVcsTipo] = useState('github')
+  const [repoUrl, setRepoUrl] = useState('')
+  const [token, setToken] = useState('')
+  const [branch, setBranch] = useState('main')
+  const [salvando, setSalvando] = useState(false)
+  const [testando, setTestando] = useState(false)
+  const [resultadoTeste, setResultadoTeste] = useState<{ sucesso: boolean; mensagem: string } | null>(null)
+  const [erro, setErro] = useState('')
+
+  const inputCls = 'w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm sf-text-white outline-none focus:border-emerald-500/50'
+
+  // Carregar config ao montar
+  useState(() => {
+    buscarVCS(projetoId).then(data => {
+      setVcs(data)
+      if (data.configurado) {
+        setVcsTipo(data.vcs_tipo || 'github')
+        setRepoUrl(data.repo_url || '')
+        setBranch(data.branch_padrao || 'main')
+      }
+    }).catch(() => {})
+  })
+
+  const handleSalvar = async () => {
+    if (!repoUrl || !token) { setErro('Preencha URL e Token'); return }
+    setSalvando(true); setErro('')
+    try {
+      await salvarVCS(projetoId, { vcs_tipo: vcsTipo, repo_url: repoUrl, api_token: token, branch_padrao: branch })
+      setVcs({ configurado: true, vcs_tipo: vcsTipo, repo_url: repoUrl, branch_padrao: branch })
+      setEditando(false); setToken('')
+    } catch (e) { setErro(e instanceof Error ? e.message : 'Erro ao salvar') }
+    finally { setSalvando(false) }
+  }
+
+  const handleTestar = async () => {
+    setTestando(true); setResultadoTeste(null)
+    try {
+      const r = await testarVCS(projetoId)
+      setResultadoTeste(r)
+    } catch (e) { setResultadoTeste({ sucesso: false, mensagem: e instanceof Error ? e.message : 'Erro' }) }
+    finally { setTestando(false) }
+  }
+
+  const handleRemover = async () => {
+    if (!confirm('Remover configuração VCS deste projeto?')) return
+    try {
+      await removerVCS(projetoId)
+      setVcs({ configurado: false }); setRepoUrl(''); setToken(''); setBranch('main')
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="sf-glass border rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <GitBranch size={14} className="sf-text-dim" />
+          <p className="text-xs sf-text-dim font-semibold uppercase tracking-wider">Version Control</p>
+        </div>
+        {vcs?.configurado && !editando && (
+          <div className="flex gap-1.5">
+            <button onClick={() => setEditando(true)}
+              className="text-[10px] px-2 py-1 rounded bg-white/5 hover:bg-white/10 sf-text-dim transition-colors">
+              Editar
+            </button>
+            <button onClick={handleTestar} disabled={testando}
+              className="text-[10px] px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50">
+              {testando ? <Loader2 size={10} className="animate-spin inline" /> : <Plug size={10} className="inline" />}
+              {' '}Testar
+            </button>
+            <button onClick={handleRemover}
+              className="text-[10px] px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">
+              <Trash2 size={10} className="inline" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Resultado do teste */}
+      {resultadoTeste && (
+        <div className={`mb-3 px-3 py-2 rounded-lg text-[11px] font-medium ${resultadoTeste.sucesso ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+          {resultadoTeste.sucesso ? <CheckCircle2 size={12} className="inline mr-1" /> : <XCircle size={12} className="inline mr-1" />}
+          {resultadoTeste.mensagem}
+        </div>
+      )}
+
+      {vcs?.configurado && !editando ? (
+        /* VCS configurado — mostrar info */
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded"
+              style={{ background: vcs.vcs_tipo === 'github' ? 'rgba(36,41,47,0.3)' : 'rgba(139,92,246,0.1)', color: vcs.vcs_tipo === 'github' ? '#e6edf3' : '#a78bfa' }}>
+              {vcs.vcs_tipo === 'github' ? 'GitHub' : 'GitBucket'}
+            </span>
+            <span className="text-xs sf-text-dim font-mono truncate">{vcs.repo_url}</span>
+          </div>
+          <p className="text-[10px] sf-text-ghost">Branch: <span className="sf-text-dim font-mono">{vcs.branch_padrao}</span> · Token: <span className="text-emerald-400">***configurado***</span></p>
+        </div>
+      ) : (
+        /* Formulário de configuração */
+        <div className="space-y-3">
+          <div>
+            <p className="text-[10px] sf-text-ghost mb-1">Tipo</p>
+            <div className="flex gap-2">
+              {(['github', 'gitbucket'] as const).map(t => (
+                <button key={t} onClick={() => setVcsTipo(t)}
+                  className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-medium border transition-all ${vcsTipo === t ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-white/10 bg-white/5 sf-text-dim hover:bg-white/8'}`}>
+                  {t === 'github' ? 'GitHub' : 'GitBucket'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] sf-text-ghost mb-1">URL do Repositório</p>
+            <input value={repoUrl} onChange={e => setRepoUrl(e.target.value)}
+              placeholder={vcsTipo === 'github' ? 'https://github.com/owner/repo' : 'http://gitbucket.empresa.com/git/owner/repo'}
+              className={inputCls} />
+          </div>
+          <div>
+            <p className="text-[10px] sf-text-ghost mb-1">{vcsTipo === 'github' ? 'Personal Access Token' : 'Token de API'}</p>
+            <input type="password" value={token} onChange={e => setToken(e.target.value)}
+              placeholder="ghp_xxxxx..." className={inputCls} />
+          </div>
+          <div>
+            <p className="text-[10px] sf-text-ghost mb-1">Branch Padrão</p>
+            <input value={branch} onChange={e => setBranch(e.target.value)}
+              placeholder="main" className={inputCls} />
+          </div>
+          {erro && <p className="text-[11px] text-red-400">{erro}</p>}
+          <div className="flex gap-2">
+            <button onClick={handleSalvar} disabled={salvando}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-all disabled:opacity-50">
+              {salvando ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+              {salvando ? 'Salvando...' : 'Salvar VCS'}
+            </button>
+            {vcs?.configurado && (
+              <button onClick={() => setEditando(false)}
+                className="px-3 py-2 rounded-lg text-[11px] sf-text-dim bg-white/5 hover:bg-white/10 transition-colors">
+                Cancelar
+              </button>
+            )}
           </div>
         </div>
       )}
