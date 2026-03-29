@@ -435,9 +435,9 @@ function SecaoHierarquia({
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3 relative" style={{ zIndex: 10 }}>
         {/* Proprietario */}
-        <div className="sf-glass border rounded-xl p-4 text-center relative">
+        <div className="sf-glass border rounded-xl p-4 text-center relative overflow-visible">
           <div className="w-9 h-9 rounded-lg mx-auto mb-2 flex items-center justify-center" style={{ backgroundColor: '#10b98115' }}>
             <Crown size={16} className="text-emerald-400" strokeWidth={1.8} />
           </div>
@@ -451,7 +451,7 @@ function SecaoHierarquia({
                 <Edit3 size={9} /> Alterar <ChevronDown size={9} />
               </button>
               {dropProp && (
-                <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-white/10 shadow-xl max-h-40 overflow-y-auto z-20" style={{ background: 'var(--sf-bg-tooltip)' }}>
+                <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-white/10 shadow-xl max-h-40 overflow-y-auto z-50" style={{ background: 'var(--sf-bg-tooltip)' }}>
                   {carregandoUsuarios ? (
                     <div className="p-2 text-center"><Loader2 size={12} className="animate-spin inline sf-text-dim" /></div>
                   ) : usuarios.filter(u => Number(u.id) !== projeto.proprietario_id).map(u => (
@@ -467,7 +467,7 @@ function SecaoHierarquia({
         </div>
 
         {/* Lider Tecnico */}
-        <div className="sf-glass border rounded-xl p-4 text-center relative">
+        <div className="sf-glass border rounded-xl p-4 text-center relative overflow-visible">
           <div className="w-9 h-9 rounded-lg mx-auto mb-2 flex items-center justify-center" style={{ backgroundColor: '#3b82f615' }}>
             <Wrench size={16} className="text-blue-400" strokeWidth={1.8} />
           </div>
@@ -481,7 +481,7 @@ function SecaoHierarquia({
                 <Edit3 size={9} /> Alterar <ChevronDown size={9} />
               </button>
               {dropLider && (
-                <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-white/10 shadow-xl max-h-40 overflow-y-auto z-20" style={{ background: 'var(--sf-bg-tooltip)' }}>
+                <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-white/10 shadow-xl max-h-40 overflow-y-auto z-50" style={{ background: 'var(--sf-bg-tooltip)' }}>
                   {carregandoUsuarios ? (
                     <div className="p-2 text-center"><Loader2 size={12} className="animate-spin inline sf-text-dim" /></div>
                   ) : usuarios.filter(u => Number(u.id) !== projeto.lider_tecnico_id).map(u => (
@@ -497,7 +497,7 @@ function SecaoHierarquia({
         </div>
 
         {/* Membros */}
-        <div className="sf-glass border rounded-xl p-4 text-center relative">
+        <div className="sf-glass border rounded-xl p-4 text-center relative overflow-visible">
           <div className="w-9 h-9 rounded-lg mx-auto mb-2 flex items-center justify-center" style={{ backgroundColor: '#8b5cf615' }}>
             <Users size={16} className="text-purple-400" strokeWidth={1.8} />
           </div>
