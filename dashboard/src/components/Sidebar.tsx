@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import {
   LayoutDashboard, ShieldCheck, Users, Building2, FolderKanban,
   BookOpen, ClipboardList, FileText, Coins, Brain, Wrench,
-  UserCircle, Settings, LogOut, ChevronRight, Rocket, Bot, UserCog,
+  UserCircle, Settings, LogOut, ChevronRight, Rocket, Bot, UserCog, Code2,
 } from 'lucide-react'
 
 const links = [
@@ -15,6 +15,7 @@ const links = [
   { to: '/catalogo', label: 'Catálogo de Agentes', Icon: Bot },
   { to: '/atribuicoes', label: 'Atribuições', Icon: UserCog },
   { to: '/escritorio', label: 'Escritorio', Icon: Building2 },
+  { to: '/code-studio', label: 'Code Studio', Icon: Code2 },
   { to: '/projetos', label: 'Projetos', Icon: FolderKanban },
   { to: '/rag', label: 'Base de Conhecimento', Icon: BookOpen },
   { to: '/standup', label: 'Standup Diario', Icon: ClipboardList },

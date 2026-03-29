@@ -27,6 +27,7 @@ import LLMProviders from './pages/LLMProviders'
 import Catalogo from './pages/Catalogo'
 import Atribuicoes from './pages/Atribuicoes'
 import Luna from './pages/Luna'
+import CodeStudio from './pages/CodeStudio'
 
 /* Rota protegida — redireciona para /login se não autenticado */
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -213,6 +214,14 @@ function AppRoutes() {
         element={
           <RotaProtegida>
             <LayoutPrincipal><Skills /></LayoutPrincipal>
+          </RotaProtegida>
+        }
+      />
+      <Route
+        path="/code-studio"
+        element={
+          <RotaProtegida>
+            <LayoutPrincipal><CodeStudio /></LayoutPrincipal>
           </RotaProtegida>
         }
       />
