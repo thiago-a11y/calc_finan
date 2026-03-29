@@ -681,7 +681,7 @@ class VCSConfigRequest(BaseModel):
     branch_padrao: str = "main"
 
 
-@router.post("/{projeto_id}/vcs")
+@router.post("/projetos/{projeto_id}/vcs")
 async def configurar_vcs(
     projeto_id: int,
     dados: VCSConfigRequest,
@@ -743,7 +743,7 @@ async def configurar_vcs(
     return {"mensagem": "VCS configurado com sucesso", "tipo": dados.vcs_tipo, "repo": dados.repo_url}
 
 
-@router.get("/{projeto_id}/vcs")
+@router.get("/projetos/{projeto_id}/vcs")
 async def buscar_vcs(
     projeto_id: int,
     usuario: UsuarioDB = Depends(obter_usuario_atual),
@@ -767,7 +767,7 @@ async def buscar_vcs(
     }
 
 
-@router.post("/{projeto_id}/vcs/testar")
+@router.post("/projetos/{projeto_id}/vcs/testar")
 async def testar_vcs(
     projeto_id: int,
     usuario: UsuarioDB = Depends(obter_usuario_atual),
@@ -793,7 +793,7 @@ async def testar_vcs(
     }
 
 
-@router.delete("/{projeto_id}/vcs")
+@router.delete("/projetos/{projeto_id}/vcs")
 async def remover_vcs(
     projeto_id: int,
     usuario: UsuarioDB = Depends(obter_usuario_atual),
