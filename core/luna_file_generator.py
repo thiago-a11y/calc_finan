@@ -11,6 +11,7 @@ Uso:
 """
 
 import os
+import re
 import json
 import uuid
 import logging
@@ -18,6 +19,39 @@ from datetime import datetime
 from io import BytesIO
 
 logger = logging.getLogger("synerium.luna.files")
+
+
+def _sanitizar_para_pdf(texto: str) -> str:
+    """
+    Remove tags HTML/XML inválidas do conteúdo antes de enviar ao ReportLab.
+    O ReportLab só aceita tags específicas: <b>, <i>, <u>, <br/>, <font>, <a>, <sub>, <sup>, <strike>.
+    Qualquer outra tag causa erro de parsing.
+    """
+    if not texto:
+        return texto
+
+    # Tags permitidas pelo ReportLab (Paragraph markup)
+    tags_permitidas = {'b', 'i', 'u', 'br', 'font', 'a', 'sub', 'sup', 'strike', 'strong', 'em'}
+
+    def _filtrar_tag(match):
+        tag_completa = match.group(0)
+        # Extrair nome da tag (sem atributos)
+        tag_match = re.match(r'</?(\w+)', tag_completa)
+        if not tag_match:
+            return ''
+        nome_tag = tag_match.group(1).lower()
+        if nome_tag in tags_permitidas:
+            return tag_completa
+        return ''  # Remover tag não permitida
+
+    # Filtrar tags — manter apenas as permitidas
+    resultado = re.sub(r'</?[a-zA-Z][^>]*/?>', _filtrar_tag, texto)
+
+    # Escapar & e < soltos que não fazem parte de tags permitidas
+    # (& já é válido em XML, mas & sozinho causa erro)
+    resultado = resultado.replace('&', '&amp;').replace('&amp;amp;', '&amp;')
+
+    return resultado
 
 UPLOAD_DIR = os.path.expanduser("~/synerium-factory/data/uploads/chat")
 # No servidor AWS
@@ -53,6 +87,17 @@ def gerar_arquivo(
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
     formato = formato.lower().strip().lstrip(".")
+
+    # Sanitização geral: remover tags HTML do browser que não deveriam estar no conteúdo
+    # (ex: <link rel="icon">, <meta>, <script>, <style>, <!DOCTYPE>)
+    tags_browser = re.compile(
+        r'<(!DOCTYPE|html|head|body|link|meta|script|style|noscript|iframe)[^>]*/?>'
+        r'|</?(html|head|body|script|style|noscript|iframe)>',
+        re.IGNORECASE
+    )
+    if tags_browser.search(conteudo):
+        logger.warning("[Luna Files] Conteúdo contém tags HTML do browser — removendo antes de gerar arquivo")
+        conteudo = tags_browser.sub('', conteudo).strip()
 
     geradores = {
         "xlsx": _gerar_xlsx,
@@ -358,17 +403,21 @@ def _gerar_pdf(conteudo: str, caminho: str, titulo: str):
     ))
     elementos.append(Spacer(1, 12))
 
-    # Conteúdo
+    # Conteúdo — sanitizar para evitar tags HTML inválidas no ReportLab
     for linha in conteudo.strip().split("\n"):
         if linha.startswith("### "):
-            elementos.append(Paragraph(linha[4:], styles["Heading3"]))
+            texto_limpo = _sanitizar_para_pdf(linha[4:])
+            elementos.append(Paragraph(texto_limpo, styles["Heading3"]))
         elif linha.startswith("## "):
-            elementos.append(Paragraph(linha[3:], styles["Heading2"]))
+            texto_limpo = _sanitizar_para_pdf(linha[3:])
+            elementos.append(Paragraph(texto_limpo, styles["Heading2"]))
         elif linha.startswith("# "):
-            elementos.append(Paragraph(linha[2:], styles["Heading1"]))
+            texto_limpo = _sanitizar_para_pdf(linha[2:])
+            elementos.append(Paragraph(texto_limpo, styles["Heading1"]))
         elif linha.strip().startswith("- ") or linha.strip().startswith("* "):
             texto = linha.strip().lstrip("-* ").strip()
-            elementos.append(Paragraph(f"• {texto}", styles["Normal"]))
+            texto_limpo = _sanitizar_para_pdf(texto)
+            elementos.append(Paragraph(f"• {texto_limpo}", styles["Normal"]))
         elif linha.strip():
             # Converter **negrito** para <b>
             texto = linha.replace("**", "<b>", 1)
@@ -376,7 +425,8 @@ def _gerar_pdf(conteudo: str, caminho: str, titulo: str):
                 texto = texto.replace("**", "</b>", 1)
                 if "**" in texto:
                     texto = texto.replace("**", "<b>", 1)
-            elementos.append(Paragraph(texto, styles["Normal"]))
+            texto_limpo = _sanitizar_para_pdf(texto)
+            elementos.append(Paragraph(texto_limpo, styles["Normal"]))
         else:
             elementos.append(Spacer(1, 6))
 

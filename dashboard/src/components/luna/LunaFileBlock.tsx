@@ -65,9 +65,15 @@ export default function LunaFileBlock({ nome, conteudo, conversaId, onPreview }:
     setGerando(true)
     setErro('')
     try {
+      // Sanitizar conteúdo: remover tags HTML do browser que podem ter vazado
+      const conteudoLimpo = conteudo
+        .replace(/<(!DOCTYPE|html|head|body|link|meta|script|style|noscript|iframe)[^>]*\/?>/gi, '')
+        .replace(/<\/?(html|head|body|script|style|noscript|iframe)>/gi, '')
+        .trim()
+
       const resultado = await gerarArquivo({
         formato,
-        conteudo,
+        conteudo: conteudoLimpo,
         nome: nomeBase,
         titulo: nomeBase.replace(/_/g, ' '),
         conversa_id: conversaId,
