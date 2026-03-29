@@ -240,7 +240,7 @@ CEO (Thiago)
 ---
 
 ## Autenticação
-- JWT HS256 com access token (1h) + refresh token (30d)
+- JWT HS256 com access token (8h) + refresh token (30d) + auto-refresh transparente
 - bcrypt cost 12 para senhas
 - Bloqueio de conta após 10 tentativas (30 min)
 - Audit log de todos os logins (LGPD)
@@ -398,6 +398,9 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.35.0** — **Version Control (VCS)** — Integração GitHub/GitBucket por projeto, token criptografado (Fernet), 4 endpoints VCS, commit+push automático no Code Studio
 - **v0.35.1** — **Fix PDF (Luna)** — Corrigido erro 400 ao gerar PDF; nova função `_sanitizar_para_pdf()` remove tags HTML antes do ReportLab
 - **v0.36.0** — **Hierarquia Editável + Regras de Aprovação** — Projetos com hierarquia editável (owner, tech lead, membros) e regras de aprovação customizáveis por projeto (JSON), endpoint PUT, dropdowns inline no frontend
+- **v0.36.1** — **Fix Rotas VCS** — Corrigido prefixo de rotas VCS (404 → `/api/projetos/{id}/vcs`)
+- **v0.36.2** — **Fix AuditLogDB** — Corrigido campos inexistentes no endpoint VCS (`usuario_id`/`detalhes` → `user_id`/`descricao`)
+- **v0.36.3** — **JWT Auto-Refresh + Bloqueio de Binários** — Token 8h + auto-refresh transparente + bloqueio de 19 extensões binárias no Code Studio
 
 ---
 

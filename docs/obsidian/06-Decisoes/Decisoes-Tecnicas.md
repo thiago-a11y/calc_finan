@@ -155,4 +155,21 @@ GPT-4o ocupa a posição entre Sonnet e Gemini na cadeia de fallback (Opus → S
 
 ---
 
-> Última atualização: 2026-03-28
+## Por que JWT de 8h com auto-refresh (não 1h)?
+
+O token de 1h causava logouts aleatórios durante o expediente — o usuário perdia o contexto do trabalho. Aumentar para 8h cobre uma jornada de trabalho completa. O refresh token (30d) continua igual. Além disso, implementamos auto-refresh transparente: quando o frontend recebe 401, tenta renovar o access token via `/auth/refresh` antes de redirecionar ao login. O usuário nunca percebe a renovação. Segurança mantida: o refresh token ainda é de uso único e rotacionado a cada uso.
+
+## Por que bloquear binários no Code Studio (não tentar renderizar)?
+
+Arquivos binários (.docx, .xlsx, .pptx, .pdf, etc.) não são texto — tentar carregá-los no CodeMirror congela o editor (o componente tenta parsear megabytes de dados binários como texto). A solução foi criar uma blacklist de 19 extensões conhecidas que o editor recusa abrir, exibindo uma mensagem de aviso. Alternativa seria detectar binários por magic bytes, mas a blacklist de extensões é mais simples, zero falsos negativos para os formatos comuns de escritório e sem overhead de I/O.
+
+### Extensões bloqueadas
+`.docx`, `.xlsx`, `.pptx`, `.pdf`, `.doc`, `.xls`, `.ppt`, `.odt`, `.ods`, `.odp`, `.rtf`, `.bmp`, `.tiff`, `.psd`, `.ai`, `.eps`, `.bin`, `.dat`, `.lock`
+
+## Por que regras de aprovação customizáveis por projeto (campo JSON)?
+
+Cada projeto tem necessidades diferentes de governança. Um projeto interno pode usar auto-aprovação (nenhuma), enquanto um projeto crítico exige aprovação de proprietário + líder técnico. O campo `regras_aprovacao` em `ProjetoDB` armazena um JSON flexível com opções: `lider_tecnico`, `proprietario`, `ambos`, `auto-aprovacao`. Isso evita criar tabelas separadas para regras e permite evolução sem migration (adicionar novas opções é só adicionar ao JSON). O padrão global continua funcionando para projetos sem customização.
+
+---
+
+> Última atualização: 2026-03-29

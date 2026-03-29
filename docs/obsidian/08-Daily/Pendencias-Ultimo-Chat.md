@@ -1,14 +1,29 @@
 # Pendencias do Ultimo Chat — 29/Mar/2026
 
-> Atualizado em 29/Mar/2026 (sessao 14)
+> Atualizado em 29/Mar/2026 (sessao 15)
 
 ## Concluido nesta sessao
+
+### v0.36.3 — JWT Auto-Refresh + Bloqueio de Binarios no Code Studio
+- [x] JWT access token aumentado de 1h para 8h (jornada de trabalho completa)
+- [x] Auto-refresh transparente: ao receber 401, tenta refresh token antes de redirecionar ao login
+- [x] Bloqueio de 19 extensoes de arquivos binarios no Code Studio (.docx, .xlsx, .pptx, .pdf, etc.)
+- [x] Corrigido travamento do editor ao abrir arquivos de ata (PPTX)
+
+### v0.36.2 — Fix Campos AuditLogDB no VCS
+- [x] Corrigido erro 500 no endpoint VCS — campos `usuario_id` e `detalhes` nao existiam no AuditLogDB
+- [x] Corrigido para `user_id` e `descricao`
+
+### v0.36.1 — Fix Rotas VCS
+- [x] Corrigido 404 ao salvar configuracao VCS — rotas registradas com prefixo errado
+- [x] Prefixo corrigido de `/api/{id}/vcs` para `/api/projetos/{id}/vcs`
 
 ### v0.36.0 — Hierarquia Editavel + Regras de Aprovacao por Projeto
 - [x] Hierarquia editavel por projeto (proprietario, lider tecnico, membros) via dropdowns inline
 - [x] Regras de aprovacao customizaveis por projeto (campo JSON `regras_aprovacao` em ProjetoDB)
 - [x] Endpoint `PUT /projetos/{id}/regras` para atualizar regras de aprovacao
 - [x] Frontend com dropdowns inline para edicao direta na pagina de projetos
+- [x] ALTER TABLE manual no SQLite AWS para adicionar coluna `regras_aprovacao`
 
 ### v0.35.1 — Fix Geracao de PDF (Luna)
 - [x] Corrigido erro 400 ao gerar PDF — tags HTML do navegador passavam direto ao ReportLab
@@ -103,10 +118,12 @@
 
 ## Status Atual
 - Tudo em producao (AWS)
-- VCS integrado ao Code Studio com commit + push automatico
+- VCS integrado ao Code Studio com commit + push automatico (rotas e audit log corrigidos v0.36.1/v0.36.2)
 - Avatares reais dos agentes implementados em todas as telas
 - Luna funcional com downloads e geracao de arquivos (PDF corrigido na v0.35.1)
 - Projetos com hierarquia editavel e regras de aprovacao customizaveis (v0.36.0)
+- JWT com auto-refresh transparente — sessao de 8h sem logouts aleatorios (v0.36.3)
+- Code Studio com bloqueio de binarios — nao trava mais ao abrir .pptx/.docx (v0.36.3)
 
 ## Pendencias / Proximos passos
 - [ ] Testar integracao VCS com repositorio GitBucket real

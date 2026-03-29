@@ -4,6 +4,32 @@
 
 ---
 
+## v0.36.3 — JWT Auto-Refresh + Bloqueio de Binários no Code Studio (2026-03-29)
+
+### Melhorias
+- **JWT 8h de expiração** — Access token aumentado de 1h para 8h (jornada de trabalho completa), eliminando logouts aleatórios durante o expediente
+- **Auto-refresh transparente** — Quando recebe 401, o frontend tenta renovar o token via refresh token antes de redirecionar para login; o usuário nem percebe a renovação
+- **Bloqueio de arquivos binários no Code Studio** — Extensões bloqueadas: `.docx`, `.xlsx`, `.pptx`, `.pdf`, `.doc`, `.xls`, `.ppt`, `.odt`, `.ods`, `.odp`, `.rtf`, `.bmp`, `.tiff`, `.psd`, `.ai`, `.eps`, `.bin`, `.dat`, `.lock`
+
+### Correções
+- **Code Studio travava ao abrir binários** — Clicar em arquivos de ata (PPTX de reuniões) congelava o editor inteiro; agora exibe mensagem de aviso e não tenta abrir
+
+---
+
+## v0.36.2 — Fix Campos AuditLogDB no VCS (2026-03-29)
+
+### Correções
+- **Erro 500 no endpoint VCS** — Endpoint usava campos inexistentes `usuario_id` e `detalhes` no AuditLogDB; corrigido para `user_id` e `descricao`
+
+---
+
+## v0.36.1 — Fix Rotas VCS (2026-03-29)
+
+### Correções
+- **404 ao salvar configuração VCS** — Endpoints VCS estavam registrados como `/api/{id}/vcs` em vez de `/api/projetos/{id}/vcs`; corrigido prefixo das rotas
+
+---
+
 ## v0.36.0 — Hierarquia Editável + Regras de Aprovação por Projeto (2026-03-29)
 
 ### Funcionalidades
