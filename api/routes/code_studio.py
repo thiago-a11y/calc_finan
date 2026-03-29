@@ -389,30 +389,31 @@ async def aplicar_acao(
     db: Session = Depends(get_db),
 ):
     """Aplica uma ação do agente IA — substituir conteúdo ou criar novo arquivo."""
-    _verificar_escrita(usuario)
-    caminho = _validar_caminho(dados.caminho_destino)
+    try:
+        _verificar_escrita(usuario)
+        caminho = _validar_caminho(dados.caminho_destino)
 
-    if dados.tipo_acao == "criar":
-        # Criar diretórios pais se necessário
-        caminho.parent.mkdir(parents=True, exist_ok=True)
-        if caminho.exists():
-            # Backup antes de sobrescrever
-            backup_dir = Path(PROJETO_BASE) / "data" / "backups" / "code-studio"
-            backup_dir.mkdir(parents=True, exist_ok=True)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            shutil.copy2(str(caminho), str(backup_dir / f"{caminho.name}.{ts}.bak"))
-    else:
-        # Substituir — arquivo deve existir
-        if not caminho.exists():
-            raise HTTPException(status_code=404, detail="Arquivo não encontrado")
-        # Backup
-        backup_dir = Path(PROJETO_BASE) / "data" / "backups" / "code-studio"
+        # Backup antes de qualquer alteração
+        backup_dir = ALLOWED_BASE / "data" / "backups" / "code-studio"
         backup_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        shutil.copy2(str(caminho), str(backup_dir / f"{caminho.name}.{ts}.bak"))
 
-    # Escrever
-    caminho.write_text(dados.conteudo_novo, encoding="utf-8")
+        if dados.tipo_acao == "criar":
+            caminho.parent.mkdir(parents=True, exist_ok=True)
+            if caminho.exists():
+                shutil.copy2(str(caminho), str(backup_dir / f"{caminho.name}.{ts}.bak"))
+        else:
+            if not caminho.exists():
+                raise HTTPException(status_code=404, detail=f"Arquivo não encontrado: {dados.caminho_destino}")
+            shutil.copy2(str(caminho), str(backup_dir / f"{caminho.name}.{ts}.bak"))
+
+        # Escrever
+        caminho.write_text(dados.conteudo_novo, encoding="utf-8")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[CodeStudio] Erro ao aplicar ação: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro ao aplicar: {str(e)}")
 
     # Audit log
     try:
