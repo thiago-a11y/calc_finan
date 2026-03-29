@@ -1,5 +1,5 @@
 /**
- * Code Studio — Serviço de API para o editor de código integrado.
+ * Code Studio — Servico de API para o editor de codigo integrado (multi-projeto).
  */
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -40,20 +40,36 @@ export interface AnaliseResposta {
   modelo: string
 }
 
-// ============================================================
-// Funções de API
-// ============================================================
-
-export async function buscarArvore(path = ''): Promise<ArquivoArvore[]> {
-  const params = path ? `?path=${encodeURIComponent(path)}` : ''
-  const res = await fetch(`${API}/api/code-studio/tree${params}`, { headers: headers() })
-  if (!res.ok) throw new Error('Erro ao carregar árvore de arquivos')
-  const data = await res.json()
-  return data.arvore
+export interface ArvoreResponse {
+  arvore: ArquivoArvore[]
+  base: string
+  project_id: number
+  projeto_nome: string
 }
 
-export async function lerArquivo(caminho: string): Promise<ArquivoConteudo> {
-  const res = await fetch(`${API}/api/code-studio/file?path=${encodeURIComponent(caminho)}`, {
+// ============================================================
+// Funcoes de API (multi-projeto)
+// ============================================================
+
+export async function buscarArvore(path = '', projetoId = 0): Promise<ArvoreResponse> {
+  const params = new URLSearchParams()
+  if (path) params.set('path', path)
+  if (projetoId) params.set('project_id', String(projetoId))
+  const qs = params.toString() ? `?${params.toString()}` : ''
+
+  const res = await fetch(`${API}/api/code-studio/tree${qs}`, { headers: headers() })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Erro ao carregar arvore' }))
+    throw new Error(err.detail || 'Erro ao carregar arvore de arquivos')
+  }
+  return res.json()
+}
+
+export async function lerArquivo(caminho: string, projetoId = 0): Promise<ArquivoConteudo> {
+  const params = new URLSearchParams({ path: caminho })
+  if (projetoId) params.set('project_id', String(projetoId))
+
+  const res = await fetch(`${API}/api/code-studio/file?${params.toString()}`, {
     headers: headers(),
   })
   if (!res.ok) {
@@ -63,11 +79,11 @@ export async function lerArquivo(caminho: string): Promise<ArquivoConteudo> {
   return res.json()
 }
 
-export async function salvarArquivo(caminho: string, conteudo: string): Promise<{ sucesso: boolean }> {
+export async function salvarArquivo(caminho: string, conteudo: string, projetoId = 0): Promise<{ sucesso: boolean }> {
   const res = await fetch(`${API}/api/code-studio/file`, {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ caminho, conteudo }),
+    body: JSON.stringify({ caminho, conteudo, project_id: projetoId }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Erro ao salvar' }))
@@ -79,16 +95,22 @@ export async function salvarArquivo(caminho: string, conteudo: string): Promise<
 export async function aplicarAcao(
   caminhoDestino: string,
   conteudoNovo: string,
-  tipoAcao: 'substituir' | 'criar' = 'substituir'
+  tipoAcao: 'substituir' | 'criar' = 'substituir',
+  projetoId = 0
 ): Promise<{ ok: boolean; caminho: string; tipo: string; tamanho: number }> {
   const res = await fetch(`${API}/api/code-studio/apply-action`, {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ caminho_destino: caminhoDestino, conteudo_novo: conteudoNovo, tipo_acao: tipoAcao }),
+    body: JSON.stringify({
+      caminho_destino: caminhoDestino,
+      conteudo_novo: conteudoNovo,
+      tipo_acao: tipoAcao,
+      project_id: projetoId,
+    }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Erro ao aplicar ação' }))
-    throw new Error(err.detail || 'Erro ao aplicar ação')
+    const err = await res.json().catch(() => ({ detail: 'Erro ao aplicar acao' }))
+    throw new Error(err.detail || 'Erro ao aplicar acao')
   }
   return res.json()
 }
@@ -97,16 +119,17 @@ export async function analisarCodigo(
   caminho: string,
   conteudo: string,
   instrucao: string,
-  modelo = 'auto'
+  modelo = 'auto',
+  projetoId = 0
 ): Promise<AnaliseResposta> {
   const res = await fetch(`${API}/api/code-studio/analyze`, {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ caminho, conteudo, instrucao, modelo }),
+    body: JSON.stringify({ caminho, conteudo, instrucao, modelo, project_id: projetoId }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Erro na análise' }))
-    throw new Error(err.detail || 'Erro na análise')
+    const err = await res.json().catch(() => ({ detail: 'Erro na analise' }))
+    throw new Error(err.detail || 'Erro na analise')
   }
   return res.json()
 }

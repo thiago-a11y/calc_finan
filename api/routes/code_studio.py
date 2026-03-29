@@ -1,17 +1,19 @@
 """
-Code Studio — Editor de código integrado ao Synerium Factory.
+Code Studio — Editor de codigo integrado ao Synerium Factory (multi-projeto).
 
 Endpoints:
-- GET /api/code-studio/tree — árvore de arquivos do projeto
-- GET /api/code-studio/file — ler conteúdo de um arquivo
+- GET /api/code-studio/tree — arvore de arquivos do projeto
+- GET /api/code-studio/file — ler conteudo de um arquivo
 - POST /api/code-studio/file — salvar arquivo (com backup e audit log)
-- POST /api/code-studio/analyze — análise de código via Smart Router
+- POST /api/code-studio/analyze — analise de codigo via Smart Router
+- POST /api/code-studio/apply-action — aplicar acao IA + VCS auto-commit
 
-Segurança:
+Seguranca:
 - Path traversal bloqueado via Path.resolve() + is_relative_to()
-- Escrita restrita a papéis: CEO, operations_lead, dev, diretor_tecnico
-- Binários bloqueados para leitura
+- Escrita restrita a papeis: CEO, operations_lead, dev, diretor_tecnico
+- Binarios bloqueados para leitura
 - Audit log LGPD em todas as escritas
+- Multi-projeto: cada projeto tem seu caminho base isolado
 """
 
 import logging
@@ -26,29 +28,29 @@ from sqlalchemy.orm import Session
 
 from api.dependencias import obter_usuario_atual
 from database.session import get_db
-from database.models import UsuarioDB, AuditLogDB
+from database.models import UsuarioDB, AuditLogDB, ProjetoDB
 
 logger = logging.getLogger("synerium.code_studio")
 
 router = APIRouter(prefix="/api/code-studio", tags=["Code Studio"])
 
 # ============================================================
-# Configuração de segurança
+# Configuracao de seguranca
 # ============================================================
 
-# Base permitida — nunca acessar fora disso
+# Base padrao (Synerium Factory) — fallback quando nenhum projeto e selecionado
 if os.path.exists("/opt/synerium-factory"):
-    ALLOWED_BASE = Path("/opt/synerium-factory")
+    DEFAULT_BASE = Path("/opt/synerium-factory")
 else:
-    ALLOWED_BASE = Path(__file__).parent.parent.parent.resolve()
+    DEFAULT_BASE = Path(__file__).parent.parent.parent.resolve()
 
-# Diretórios ignorados na árvore
+# Diretorios ignorados na arvore
 IGNORED_DIRS = {
     ".git", "node_modules", ".venv", "__pycache__", ".mypy_cache",
     ".pytest_cache", ".claude", ".next", ".cache", "dist",
 }
 
-# Extensões bloqueadas para leitura (binários)
+# Extensoes bloqueadas para leitura (binarios)
 BLOCKED_EXTENSIONS = {
     ".pyc", ".pyo", ".db", ".sqlite", ".sqlite3",
     ".jpg", ".jpeg", ".png", ".gif", ".ico", ".svg", ".webp",
@@ -64,7 +66,7 @@ BLOCKED_EXTENSIONS = {
     ".bin", ".dat", ".lock",
 }
 
-# Mapeamento extensão → linguagem CodeMirror
+# Mapeamento extensao → linguagem CodeMirror
 LANG_MAP = {
     ".py": "python", ".pyx": "python", ".pyi": "python",
     ".tsx": "typescript", ".ts": "typescript",
@@ -85,7 +87,7 @@ LANG_MAP = {
     ".dockerfile": "text", ".gitignore": "text",
 }
 
-# Papéis que podem escrever arquivos
+# Papeis que podem escrever arquivos
 PAPEIS_ESCRITA = {"ceo", "operations_lead", "dev", "desenvolvedor", "diretor_tecnico"}
 
 
@@ -93,16 +95,47 @@ PAPEIS_ESCRITA = {"ceo", "operations_lead", "dev", "desenvolvedor", "diretor_tec
 # Helpers
 # ============================================================
 
-def _validar_caminho(caminho_relativo: str) -> Path:
+def _obter_base_projeto(project_id: int, db: Session, usuario: UsuarioDB) -> tuple[Path, int | None, ProjetoDB | None]:
+    """
+    Resolve a base do projeto pelo ID.
+
+    Retorna (base_path, projeto_id_real, projeto_obj).
+    Se project_id=0 ou None: retorna DEFAULT_BASE (Synerium Factory).
+    """
+    if not project_id:
+        return DEFAULT_BASE, None, None
+
+    projeto = db.query(ProjetoDB).filter_by(id=project_id, ativo=True).first()
+    if not projeto:
+        raise HTTPException(status_code=404, detail="Projeto nao encontrado.")
+
+    # Verificar que o usuario tem acesso (mesma company)
+    if projeto.company_id != usuario.company_id:
+        raise HTTPException(status_code=403, detail="Sem acesso a este projeto.")
+
+    caminho = projeto.caminho
+    if not caminho or not caminho.strip():
+        raise HTTPException(status_code=400, detail=f"Projeto '{projeto.nome}' nao tem caminho configurado. Configure em Projetos.")
+
+    base = Path(caminho.strip()).resolve()
+    if not base.is_dir():
+        raise HTTPException(status_code=400, detail=f"Diretorio do projeto nao encontrado: {caminho}")
+
+    return base, projeto.id, projeto
+
+
+def _validar_caminho(caminho_relativo: str, base: Path = None) -> Path:
     """Valida e resolve caminho, bloqueando traversal."""
-    # Limpar caminho
+    if base is None:
+        base = DEFAULT_BASE
+
     caminho_relativo = caminho_relativo.strip().lstrip("/")
     if not caminho_relativo:
-        raise HTTPException(status_code=400, detail="Caminho não informado.")
+        raise HTTPException(status_code=400, detail="Caminho nao informado.")
 
-    caminho = (ALLOWED_BASE / caminho_relativo).resolve()
+    caminho = (base / caminho_relativo).resolve()
 
-    if not caminho.is_relative_to(ALLOWED_BASE):
+    if not caminho.is_relative_to(base):
         logger.warning(f"Path traversal bloqueado: {caminho_relativo}")
         raise HTTPException(status_code=403, detail="Acesso negado: caminho fora do projeto.")
 
@@ -110,19 +143,19 @@ def _validar_caminho(caminho_relativo: str) -> Path:
 
 
 def _verificar_escrita(usuario: UsuarioDB):
-    """Verifica se o usuário tem permissão de escrita."""
+    """Verifica se o usuario tem permissao de escrita."""
     papeis = set(usuario.papeis or [])
     if not papeis.intersection(PAPEIS_ESCRITA):
-        raise HTTPException(status_code=403, detail="Sem permissão para editar arquivos.")
+        raise HTTPException(status_code=403, detail="Sem permissao para editar arquivos.")
 
 
 def _detectar_linguagem(extensao: str) -> str:
-    """Retorna a linguagem do CodeMirror baseada na extensão."""
+    """Retorna a linguagem do CodeMirror baseada na extensao."""
     return LANG_MAP.get(extensao.lower(), "text")
 
 
-def _listar_diretorio(caminho: Path, profundidade: int = 0, max_prof: int = 4) -> list:
-    """Lista recursivamente os arquivos/pastas de um diretório."""
+def _listar_diretorio(caminho: Path, base: Path, profundidade: int = 0, max_prof: int = 4) -> list:
+    """Lista recursivamente os arquivos/pastas de um diretorio."""
     if profundidade > max_prof:
         return []
 
@@ -136,7 +169,7 @@ def _listar_diretorio(caminho: Path, profundidade: int = 0, max_prof: int = 4) -
     for item in itens:
         nome = item.name
 
-        # Ignorar diretórios bloqueados
+        # Ignorar diretorios bloqueados
         if item.is_dir() and nome in IGNORED_DIRS:
             continue
 
@@ -144,10 +177,10 @@ def _listar_diretorio(caminho: Path, profundidade: int = 0, max_prof: int = 4) -
         if nome.startswith(".") and nome != ".env":
             continue
 
-        caminho_rel = str(item.relative_to(ALLOWED_BASE))
+        caminho_rel = str(item.relative_to(base))
 
         if item.is_dir():
-            filhos = _listar_diretorio(item, profundidade + 1, max_prof)
+            filhos = _listar_diretorio(item, base, profundidade + 1, max_prof)
             resultado.append({
                 "nome": nome,
                 "caminho": caminho_rel,
@@ -176,6 +209,7 @@ def _listar_diretorio(caminho: Path, profundidade: int = 0, max_prof: int = 4) -
 class SalvarArquivoRequest(BaseModel):
     caminho: str
     conteudo: str
+    project_id: int = 0
 
 
 class AnalisarCodigoRequest(BaseModel):
@@ -183,13 +217,15 @@ class AnalisarCodigoRequest(BaseModel):
     conteudo: str
     instrucao: str
     modelo: str = "auto"
+    project_id: int = 0
 
 
 class AplicarAcaoRequest(BaseModel):
-    """Aplica código gerado pelo agente no arquivo original ou cria novo arquivo."""
+    """Aplica codigo gerado pelo agente no arquivo original ou cria novo arquivo."""
     caminho_destino: str
     conteudo_novo: str
     tipo_acao: str = "substituir"  # substituir | criar
+    project_id: int = 0
 
 
 # ============================================================
@@ -198,46 +234,58 @@ class AplicarAcaoRequest(BaseModel):
 
 @router.get("/tree")
 async def listar_arvore(
-    path: str = Query("", description="Subdiretório relativo"),
+    path: str = Query("", description="Subdiretorio relativo"),
+    project_id: int = Query(0, description="ID do projeto (0 = Synerium Factory)"),
     usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
 ):
-    """Retorna a árvore de arquivos do projeto."""
-    if path:
-        base = _validar_caminho(path)
-        if not base.is_dir():
-            raise HTTPException(status_code=404, detail="Diretório não encontrado.")
-    else:
-        base = ALLOWED_BASE
+    """Retorna a arvore de arquivos do projeto."""
+    base, proj_id, projeto = _obter_base_projeto(project_id, db, usuario)
 
-    arvore = _listar_diretorio(base)
-    return {"arvore": arvore, "base": str(ALLOWED_BASE)}
+    if path:
+        dir_base = _validar_caminho(path, base)
+        if not dir_base.is_dir():
+            raise HTTPException(status_code=404, detail="Diretorio nao encontrado.")
+    else:
+        dir_base = base
+
+    arvore = _listar_diretorio(dir_base, base)
+    return {
+        "arvore": arvore,
+        "base": str(base),
+        "project_id": proj_id or 0,
+        "projeto_nome": projeto.nome if projeto else "Synerium Factory",
+    }
 
 
 @router.get("/file")
 async def ler_arquivo(
     path: str = Query(..., description="Caminho relativo do arquivo"),
+    project_id: int = Query(0, description="ID do projeto"),
     usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
 ):
-    """Lê o conteúdo de um arquivo do projeto."""
-    caminho = _validar_caminho(path)
+    """Le o conteudo de um arquivo do projeto."""
+    base, proj_id, _ = _obter_base_projeto(project_id, db, usuario)
+    caminho = _validar_caminho(path, base)
 
     if not caminho.is_file():
-        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
+        raise HTTPException(status_code=404, detail="Arquivo nao encontrado.")
 
     ext = caminho.suffix.lower()
     if ext in BLOCKED_EXTENSIONS:
-        raise HTTPException(status_code=415, detail=f"Tipo de arquivo não suportado: {ext}")
+        raise HTTPException(status_code=415, detail=f"Tipo de arquivo nao suportado: {ext}")
 
     tamanho = caminho.stat().st_size
     if tamanho > 1_048_576:  # 1MB
-        raise HTTPException(status_code=413, detail="Arquivo muito grande (máximo 1MB).")
+        raise HTTPException(status_code=413, detail="Arquivo muito grande (maximo 1MB).")
 
     try:
         conteudo = caminho.read_text(encoding="utf-8", errors="replace")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao ler arquivo: {str(e)}")
 
-    # Verificar permissão de escrita
+    # Verificar permissao de escrita
     papeis = set(usuario.papeis or [])
     editavel = bool(papeis.intersection(PAPEIS_ESCRITA))
 
@@ -257,19 +305,20 @@ async def salvar_arquivo(
     usuario: UsuarioDB = Depends(obter_usuario_atual),
     db: Session = Depends(get_db),
 ):
-    """Salva o conteúdo de um arquivo (com backup e audit log)."""
+    """Salva o conteudo de um arquivo (com backup e audit log)."""
     _verificar_escrita(usuario)
 
-    caminho = _validar_caminho(dados.caminho)
+    base, proj_id, projeto = _obter_base_projeto(dados.project_id, db, usuario)
+    caminho = _validar_caminho(dados.caminho, base)
 
-    # Verificar extensão
+    # Verificar extensao
     ext = caminho.suffix.lower()
     if ext in BLOCKED_EXTENSIONS:
-        raise HTTPException(status_code=415, detail=f"Não é permitido editar arquivos {ext}.")
+        raise HTTPException(status_code=415, detail=f"Nao e permitido editar arquivos {ext}.")
 
-    # Criar backup se o arquivo já existe
+    # Criar backup se o arquivo ja existe
     if caminho.is_file():
-        backup_dir = ALLOWED_BASE / "data" / "backups" / "code-studio"
+        backup_dir = base / "data" / "backups" / "code-studio"
         backup_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         nome_backup = f"{timestamp}_{caminho.name}"
@@ -285,19 +334,20 @@ async def salvar_arquivo(
 
     # Audit log
     try:
+        proj_label = projeto.nome if projeto else "Synerium Factory"
         audit = AuditLogDB(
             user_id=usuario.id,
             email=usuario.email,
             acao="CODE_STUDIO_WRITE",
-            descricao=f"Arquivo editado: {dados.caminho}",
+            descricao=f"[{proj_label}] Arquivo editado: {dados.caminho}",
             ip=request.client.host if request.client else "",
         )
         db.add(audit)
         db.commit()
     except Exception:
-        pass  # Não falhar por causa do audit log
+        pass
 
-    logger.info(f"Arquivo salvo por {usuario.email}: {dados.caminho}")
+    logger.info(f"Arquivo salvo por {usuario.email}: {dados.caminho} (projeto: {proj_id or 'SF'})")
 
     return {"sucesso": True, "caminho": dados.caminho, "tamanho": len(dados.conteudo)}
 
@@ -306,23 +356,30 @@ async def salvar_arquivo(
 async def analisar_codigo(
     dados: AnalisarCodigoRequest,
     usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
 ):
-    """Analisa código usando o Smart Router Global + LLM."""
-    try:
-        prompt = f"""Analise o seguinte código do arquivo `{dados.caminho}`:
+    """Analisa codigo usando o Smart Router Global + LLM."""
+    # Obter contexto do projeto
+    _, proj_id, projeto = _obter_base_projeto(dados.project_id, db, usuario)
+    proj_contexto = ""
+    if projeto:
+        proj_contexto = f"\nProjeto: {projeto.nome} | Stack: {projeto.stack}\n"
 
+    try:
+        prompt = f"""Analise o seguinte codigo do arquivo `{dados.caminho}`:
+{proj_contexto}
 ```
 {dados.conteudo[:8000]}
 ```
 
-Instrução do usuário: {dados.instrucao}
+Instrucao do usuario: {dados.instrucao}
 
-Responda em português brasileiro. Seja direto e objetivo."""
+Responda em portugues brasileiro. Seja direto e objetivo."""
 
         # Tentar usar Smart Router para decidir o modelo
         provider_nome = "sonnet"
         modelo_nome = "claude-sonnet-4-20250514"
-        motivo = "padrão"
+        motivo = "padrao"
 
         try:
             from core.smart_router_global import SmartRouterGlobal
@@ -339,23 +396,24 @@ Responda em português brasileiro. Seja direto e objetivo."""
             pass  # Fallback para Sonnet
 
         # System prompt do agente
-        system = """Você é o agente de código do Synerium Factory — Code Studio.
+        system = f"""Voce e o agente de codigo do Synerium Factory — Code Studio.
+{f"Voce esta trabalhando no projeto: {projeto.nome} ({projeto.stack})" if projeto else ""}
 
-Regras obrigatórias:
-- Responda SEMPRE em português brasileiro
-- Use Markdown estruturado (títulos, listas, blocos de código)
-- Quando mostrar código, SEMPRE use blocos ```linguagem com a linguagem correta
+Regras obrigatorias:
+- Responda SEMPRE em portugues brasileiro
+- Use Markdown estruturado (titulos, listas, blocos de codigo)
+- Quando mostrar codigo, SEMPRE use blocos ```linguagem com a linguagem correta
 - Estruture suas respostas assim:
-  1. **Análise** — o que o código faz (breve)
-  2. **Resposta** — responda a instrução com código se necessário
-  3. **Motivo** — por que essa é a melhor abordagem
+  1. **Analise** — o que o codigo faz (breve)
+  2. **Resposta** — responda a instrucao com codigo se necessario
+  3. **Motivo** — por que essa e a melhor abordagem
 - Seja direto, profissional e completo
-- Quando sugerir código, mostre o código COMPLETO (não parcial)"""
+- Quando sugerir codigo, mostre o codigo COMPLETO (nao parcial)"""
 
         from langchain_core.messages import HumanMessage, SystemMessage
         mensagens = [SystemMessage(content=system), HumanMessage(content=prompt)]
 
-        # Cadeia de fallback: tentar múltiplos providers
+        # Cadeia de fallback: tentar multiplos providers
         erros = []
         providers_tentativa = [
             ("anthropic", modelo_nome if "claude" in modelo_nome else "claude-sonnet-4-20250514"),
@@ -379,13 +437,13 @@ Regras obrigatórias:
 
         # Se todos falharam
         logger.error(f"Todos os providers falharam: {erros}")
-        raise HTTPException(status_code=500, detail=f"Todos os providers falharam. Tente novamente em alguns minutos.")
+        raise HTTPException(status_code=500, detail="Todos os providers falharam. Tente novamente em alguns minutos.")
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Erro na análise: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Erro na análise: {str(e)}")
+        logger.error(f"Erro na analise: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro na analise: {str(e)}")
 
 
 @router.post("/apply-action")
@@ -394,13 +452,14 @@ async def aplicar_acao(
     usuario: UsuarioDB = Depends(obter_usuario_atual),
     db: Session = Depends(get_db),
 ):
-    """Aplica uma ação do agente IA — substituir conteúdo ou criar novo arquivo."""
+    """Aplica uma acao do agente IA — substituir conteudo ou criar novo arquivo."""
     try:
         _verificar_escrita(usuario)
-        caminho = _validar_caminho(dados.caminho_destino)
+        base, proj_id, projeto = _obter_base_projeto(dados.project_id, db, usuario)
+        caminho = _validar_caminho(dados.caminho_destino, base)
 
-        # Backup antes de qualquer alteração
-        backup_dir = ALLOWED_BASE / "data" / "backups" / "code-studio"
+        # Backup antes de qualquer alteracao
+        backup_dir = base / "data" / "backups" / "code-studio"
         backup_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -410,7 +469,7 @@ async def aplicar_acao(
                 shutil.copy2(str(caminho), str(backup_dir / f"{caminho.name}.{ts}.bak"))
         else:
             if not caminho.exists():
-                raise HTTPException(status_code=404, detail=f"Arquivo não encontrado: {dados.caminho_destino}")
+                raise HTTPException(status_code=404, detail=f"Arquivo nao encontrado: {dados.caminho_destino}")
             shutil.copy2(str(caminho), str(backup_dir / f"{caminho.name}.{ts}.bak"))
 
         # Escrever
@@ -418,22 +477,24 @@ async def aplicar_acao(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[CodeStudio] Erro ao aplicar ação: {str(e)}", exc_info=True)
+        logger.error(f"[CodeStudio] Erro ao aplicar acao: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro ao aplicar: {str(e)}")
 
     # Audit log
     try:
+        proj_label = projeto.nome if projeto else "Synerium Factory"
         db.add(AuditLogDB(
-            usuario_id=usuario.id,
+            user_id=usuario.id,
+            email=usuario.email,
             acao=f"code_studio_apply_{dados.tipo_acao}",
-            detalhes=f"Ação IA em {dados.caminho_destino} ({len(dados.conteudo_novo)} chars)",
+            descricao=f"[{proj_label}] Acao IA em {dados.caminho_destino} ({len(dados.conteudo_novo)} chars)",
             ip="api",
         ))
         db.commit()
     except Exception:
         pass
 
-    logger.info(f"[CodeStudio] {usuario.email} aplicou ação '{dados.tipo_acao}' em {dados.caminho_destino}")
+    logger.info(f"[CodeStudio] {usuario.email} aplicou '{dados.tipo_acao}' em {dados.caminho_destino} (projeto: {proj_id or 'SF'})")
 
     # Tentar commit + push se projeto tiver VCS configurado
     vcs_resultado = None
@@ -441,23 +502,27 @@ async def aplicar_acao(
         from database.models import ProjetoVCSDB
         from core.vcs_service import descriptografar_token, VCSService
 
-        # Buscar VCS ativo (usar primeiro encontrado — projeto padrão)
-        vcs = db.query(ProjetoVCSDB).filter_by(ativo=True).first()
+        # Buscar VCS do projeto especifico (nao mais .first() generico)
+        filtro_vcs = {"ativo": True}
+        if proj_id:
+            filtro_vcs["projeto_id"] = proj_id
+
+        vcs = db.query(ProjetoVCSDB).filter_by(**filtro_vcs).first()
         if vcs:
             token = descriptografar_token(vcs.api_token_encrypted)
             service = VCSService(vcs.vcs_tipo, vcs.repo_url, token, vcs.branch_padrao)
 
-            # Mensagem de commit baseada no tipo de ação
-            nomes_acao = {
-                "substituir": "refactor",
-                "criar": "feat",
-            }
+            # Mensagem de commit baseada no tipo de acao
+            nomes_acao = {"substituir": "refactor", "criar": "feat"}
             prefixo = nomes_acao.get(dados.tipo_acao, "chore")
             nome_arquivo = dados.caminho_destino.split("/")[-1]
-            msg_commit = f"{prefixo}(code-studio): {dados.tipo_acao} em {nome_arquivo}\n\nAplicado via Synerium Factory Code Studio por {usuario.nome}"
+            msg_commit = (
+                f"{prefixo}(code-studio): {dados.tipo_acao} em {nome_arquivo}\n\n"
+                f"Aplicado via Synerium Factory Code Studio por {usuario.nome}"
+            )
 
             resultado = service.commit_e_push(
-                caminho_projeto=str(ALLOWED_BASE),
+                caminho_projeto=str(base),
                 arquivos=[dados.caminho_destino],
                 mensagem_commit=msg_commit,
                 autor_nome=usuario.nome,
@@ -471,7 +536,7 @@ async def aplicar_acao(
             }
             logger.info(f"[CodeStudio/VCS] Commit: {resultado.commit_hash} - {resultado.mensagem}")
     except Exception as e:
-        logger.warning(f"[CodeStudio/VCS] Git não executado: {str(e)[:200]}")
+        logger.warning(f"[CodeStudio/VCS] Git nao executado: {str(e)[:200]}")
 
     return {
         "ok": True,

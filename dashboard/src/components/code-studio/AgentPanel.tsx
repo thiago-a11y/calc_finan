@@ -18,7 +18,10 @@ interface AgentPanelProps {
   linguagem?: string
   onFechar: () => void
   agenteNome?: string
-  onArquivoAtualizado?: () => void  // Recarregar arquivo no editor após aplicar
+  projetoId?: number
+  projetoNome?: string
+  projetoStack?: string
+  onArquivoAtualizado?: () => void  // Recarregar arquivo no editor apos aplicar
 }
 
 const ACOES_RAPIDAS = [
@@ -57,7 +60,8 @@ function gerarCaminhoTeste(caminho: string): string {
 }
 
 export default function AgentPanel({
-  caminhoAtivo, conteudoAtivo, linguagem, onFechar, agenteNome, onArquivoAtualizado,
+  caminhoAtivo, conteudoAtivo, linguagem, onFechar, agenteNome,
+  projetoId = 0, projetoNome, projetoStack, onArquivoAtualizado,
 }: AgentPanelProps) {
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [input, setInput] = useState('')
@@ -84,14 +88,15 @@ export default function AgentPanel({
 
     const nomeArquivo = caminhoAtivo.split('/').pop() || ''
     const lang = linguagem?.toUpperCase() || 'TEXT'
-    const instrucaoComContexto = `[Arquivo: ${nomeArquivo} | Linguagem: ${lang} | Caminho: ${caminhoAtivo}]\n\n${instrucao}`
+    const projetoCtx = projetoNome ? ` | Projeto: ${projetoNome}${projetoStack ? ` (${projetoStack})` : ''}` : ''
+    const instrucaoComContexto = `[Arquivo: ${nomeArquivo} | Linguagem: ${lang} | Caminho: ${caminhoAtivo}${projetoCtx}]\n\n${instrucao}`
 
     setMensagens(prev => [...prev, { papel: 'user', conteudo: instrucao }])
     setInput('')
     setAnalisando(true)
 
     try {
-      const resultado = await analisarCodigo(caminhoAtivo, conteudoAtivo, instrucaoComContexto)
+      const resultado = await analisarCodigo(caminhoAtivo, conteudoAtivo, instrucaoComContexto, 'auto', projetoId)
       setMensagens(prev => [...prev, {
         papel: 'assistant',
         conteudo: resultado.resposta,
@@ -131,11 +136,11 @@ export default function AgentPanel({
       if (msg.tipoAcao === 'testar') {
         // Criar arquivo de teste
         const caminhoTeste = gerarCaminhoTeste(caminhoAtivo)
-        await aplicarAcao(caminhoTeste, codigo, 'criar')
-        setToast({ msg: `✅ Teste criado em ${caminhoTeste}`, tipo: 'ok' })
+        await aplicarAcao(caminhoTeste, codigo, 'criar', projetoId)
+        setToast({ msg: `Teste criado em ${caminhoTeste}`, tipo: 'ok' })
       } else {
         // Substituir arquivo atual
-        await aplicarAcao(caminhoAtivo, codigo, 'substituir')
+        await aplicarAcao(caminhoAtivo, codigo, 'substituir', projetoId)
         setToast({ msg: `✅ ${msg.tipoAcao === 'refatorar' ? 'Refatoração' : msg.tipoAcao === 'documentar' ? 'Documentação' : 'Otimização'} aplicada!`, tipo: 'ok' })
         onArquivoAtualizado?.()
       }
