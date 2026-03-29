@@ -1,6 +1,7 @@
 /* Code Studio — Editor de código integrado ao Synerium Factory */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Code2, Loader2, Eye, EyeOff } from 'lucide-react'
 import FileTree from '../components/code-studio/FileTree'
 import EditorTabs, { type TabInfo } from '../components/code-studio/EditorTabs'
@@ -10,6 +11,10 @@ import AgentPanel from '../components/code-studio/AgentPanel'
 import { buscarArvore, lerArquivo, salvarArquivo, type ArquivoArvore } from '../services/codeStudio'
 
 export default function CodeStudio() {
+  // Ler agente da URL (quando vem do Escritório Virtual)
+  const [searchParams] = useSearchParams()
+  const agenteNome = useMemo(() => searchParams.get('agente') || '', [searchParams])
+
   // Estado da árvore
   const [arvore, setArvore] = useState<ArquivoArvore[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -25,8 +30,8 @@ export default function CodeStudio() {
   const [modificados, setModificados] = useState<Set<string>>(new Set())
   const [salvando, setSalvando] = useState(false)
 
-  // Estado do painel de agente
-  const [agentePainel, setAgentePainel] = useState(false)
+  // Estado do painel de agente — abre automaticamente se veio do Escritório
+  const [agentePainel, setAgentePainel] = useState(!!agenteNome)
 
   // Estado do preview
   const [previewAberto, setPreviewAberto] = useState(false)
@@ -307,6 +312,7 @@ export default function CodeStudio() {
               conteudoAtivo={abaAtiva ? conteudoAtivo : undefined}
               linguagem={linguagemAtiva}
               onFechar={() => setAgentePainel(false)}
+              agenteNome={agenteNome || undefined}
             />
           </div>
         )}

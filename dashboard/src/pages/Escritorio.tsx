@@ -1421,11 +1421,11 @@ export default function Escritorio() {
               <MessageSquare size={13} /> Abrir Chat
             </button>
             <button
-              onClick={() => { setCtxMenu(null); navigate('/code-studio') }}
+              onClick={() => { setCtxMenu(null); navigate(`/code-studio?agente=${encodeURIComponent(ctxMenu.agente)}`) }}
               className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition-colors hover:bg-white/5"
               style={{ color: '#10b981' }}
             >
-              <Code2 size={13} /> Abrir Code Studio
+              <Code2 size={13} /> Code Studio com {ctxMenu.agente.split(' ')[0]}
             </button>
           </div>
         </div>

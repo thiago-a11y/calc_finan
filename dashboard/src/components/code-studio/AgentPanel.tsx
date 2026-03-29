@@ -16,6 +16,7 @@ interface AgentPanelProps {
   conteudoAtivo?: string
   linguagem?: string
   onFechar: () => void
+  agenteNome?: string
 }
 
 const ACOES_RAPIDAS = [
@@ -26,7 +27,7 @@ const ACOES_RAPIDAS = [
   { label: 'Testar', icon: TestTube2, instrucao: 'Crie testes unitários completos para este código. Use o framework de teste adequado (pytest para Python, vitest/jest para TypeScript).' },
 ]
 
-export default function AgentPanel({ caminhoAtivo, conteudoAtivo, linguagem, onFechar }: AgentPanelProps) {
+export default function AgentPanel({ caminhoAtivo, conteudoAtivo, linguagem, onFechar, agenteNome }: AgentPanelProps) {
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [input, setInput] = useState('')
   const [analisando, setAnalisando] = useState(false)
@@ -73,9 +74,14 @@ export default function AgentPanel({ caminhoAtivo, conteudoAtivo, linguagem, onF
         style={{ borderBottom: '1px solid var(--sf-border-subtle)' }}>
         <div className="flex items-center gap-2">
           <Bot size={16} style={{ color: '#8b5cf6' }} />
-          <span className="text-[12px] font-semibold" style={{ color: 'var(--sf-text-0)' }}>
-            Agente IA
-          </span>
+          <div>
+            <span className="text-[12px] font-semibold" style={{ color: 'var(--sf-text-0)' }}>
+              {agenteNome || 'Agente IA'}
+            </span>
+            {agenteNome && (
+              <p className="text-[9px]" style={{ color: 'var(--sf-text-3)' }}>Assistente de código</p>
+            )}
+          </div>
         </div>
         <button onClick={onFechar} className="p-1 rounded hover:bg-white/5"
           style={{ color: 'var(--sf-text-3)' }}>
