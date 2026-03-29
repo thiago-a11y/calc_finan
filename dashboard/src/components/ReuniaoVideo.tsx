@@ -191,15 +191,23 @@ export default function ReuniaoVideo({ sala, participantes, onFechar }: Props) {
                 },
               }}
               onConnected={() => {
-                console.log('[LiveKit] Conectado com sucesso!')
+                console.log('[LiveKit] ✅ Conectado com sucesso!')
               }}
-              onDisconnected={() => {
-                console.log('[LiveKit] Desconectado')
-                sair()
+              onDisconnected={(reason) => {
+                console.warn('[LiveKit] Desconectado. Razão:', reason)
+                // DisconnectReason.CLIENT_INITIATED = 0
+                // Se o usuário saiu voluntariamente (reason === 0), fecha o modal
+                // Caso contrário, mostra erro para tentar reconectar
+                if (reason === 0 || reason === undefined) {
+                  sair()
+                } else {
+                  setErro(`Conexão perdida (código: ${reason}). Tente entrar novamente.`)
+                  setFase('erro')
+                }
               }}
               onError={(error) => {
-                console.error('[LiveKit] Erro na sala:', error)
-                setErro(error?.message || 'Erro na conexão')
+                console.error('[LiveKit] ❌ Erro na sala:', error)
+                setErro(error?.message || 'Erro na conexão com o servidor de vídeo')
                 setFase('erro')
               }}
               style={{ height: '100%' }}
