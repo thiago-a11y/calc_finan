@@ -731,9 +731,10 @@ async def configurar_vcs(
 
     # Audit log
     db.add(AuditLogDB(
-        usuario_id=usuario.id,
-        acao="vcs_configurar",
-        detalhes=f"VCS {dados.vcs_tipo} configurado para projeto {projeto.nome}: {dados.repo_url}",
+        user_id=usuario.id,
+        email=usuario.email,
+        acao="VCS_CONFIGURAR",
+        descricao=f"VCS {dados.vcs_tipo} configurado para projeto {projeto.nome}: {dados.repo_url}",
         ip="api",
         company_id=usuario.company_id,
     ))
