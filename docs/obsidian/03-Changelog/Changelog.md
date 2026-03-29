@@ -4,6 +4,20 @@
 
 ---
 
+## v0.34.1 — Correções e Melhorias do Code Studio (2026-03-29)
+
+### Correções
+- **Token de autenticação** — Renomeado de `token` para `sf_token` em todos os endpoints do Code Studio
+- **Árvore de arquivos** — Melhor tratamento de erro ao listar diretórios (catch de exceções com feedback ao usuário)
+- **Integração Smart Router** — Corrigido envio de `modelo_forcado` removido; integração LLM do Code Studio funcional
+
+### Funcionalidades
+- **Menu de contexto no Escritório Virtual** — Clique direito nas salas do Escritório abre menu contextual; ação "Code Studio" abre o editor diretamente
+- **AgentPanel: ação "Testar"** — 5ª ação adicionada ao painel de agentes: gera testes unitários para o código aberto no editor
+- **Contexto do arquivo enviado ao LLM** — Nome, linguagem e caminho do arquivo agora são enviados como contexto ao agente IA do Code Studio
+
+---
+
 ## v0.34.0 — Code Studio — Editor de Código Integrado (2026-03-28)
 
 ### Funcionalidades

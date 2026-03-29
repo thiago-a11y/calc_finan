@@ -1,8 +1,18 @@
-# Pendências do Último Chat — 28/Mar/2026
+# Pendências do Último Chat — 29/Mar/2026
 
-> Atualizado em 28/Mar/2026 (sessão 11)
+> Atualizado em 29/Mar/2026 (sessão 12)
 
 ## Concluído nesta sessão
+
+### v0.34.1 — Correções e Melhorias do Code Studio
+- [x] Fix: token de autenticação renomeado de `token` para `sf_token`
+- [x] Fix: tratamento de erro na árvore de arquivos (catch de exceções)
+- [x] Fix: integração Smart Router corrigida (modelo_forcado removido)
+- [x] Feat: menu de contexto (clique direito) no Escritório Virtual → Code Studio
+- [x] Feat: 5ª ação no AgentPanel: "Testar" (gera testes unitários)
+- [x] Feat: contexto do arquivo (nome, linguagem, caminho) enviado ao LLM
+
+### Sessão anterior (sessão 11)
 
 ### v0.34.0 — Code Studio — Editor de Código Integrado
 - [x] Editor de código com CodeMirror 6 integrado ao dashboard
