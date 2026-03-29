@@ -13,6 +13,7 @@ export default function CodeStudio() {
   // Estado da árvore
   const [arvore, setArvore] = useState<ArquivoArvore[]>([])
   const [carregando, setCarregando] = useState(true)
+  const [erroArvore, setErroArvore] = useState('')
 
   // Estado do editor
   const [abas, setAbas] = useState<TabInfo[]>([])
@@ -28,12 +29,21 @@ export default function CodeStudio() {
   const [agentePainel, setAgentePainel] = useState(false)
 
   // Carregar árvore ao montar
-  useEffect(() => {
-    buscarArvore()
-      .then(setArvore)
-      .catch(() => {})
-      .finally(() => setCarregando(false))
+  const carregarArvore = useCallback(async () => {
+    setCarregando(true)
+    setErroArvore('')
+    try {
+      const dados = await buscarArvore()
+      setArvore(dados)
+    } catch (e) {
+      setErroArvore(e instanceof Error ? e.message : 'Erro ao carregar árvore')
+      console.error('[CodeStudio] Erro ao carregar árvore:', e)
+    } finally {
+      setCarregando(false)
+    }
   }, [])
+
+  useEffect(() => { carregarArvore() }, [carregarArvore])
 
   // Abrir arquivo
   const abrirArquivo = useCallback(async (caminho: string) => {
@@ -134,10 +144,36 @@ export default function CodeStudio() {
       {/* Layout principal: 3 painéis */}
       <div className="flex-1 flex overflow-hidden">
         {/* Painel esquerdo: Árvore de arquivos */}
-        <div className="flex-shrink-0" style={{ width: '240px' }}>
+        <div className="flex-shrink-0" style={{ width: '240px', borderRight: '1px solid var(--sf-border-subtle)' }}>
           {carregando ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 size={20} className="animate-spin" style={{ color: 'var(--sf-text-3)' }} />
+            <div className="flex flex-col items-center justify-center h-full gap-2">
+              <Loader2 size={20} className="animate-spin" style={{ color: 'var(--sf-accent)' }} />
+              <span className="text-[11px]" style={{ color: 'var(--sf-text-3)' }}>Carregando arquivos...</span>
+            </div>
+          ) : erroArvore ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3 px-4 text-center">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.1)' }}>
+                <Code2 size={18} style={{ color: '#ef4444' }} />
+              </div>
+              <p className="text-[11px]" style={{ color: '#ef4444' }}>{erroArvore}</p>
+              <button
+                onClick={carregarArvore}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-medium"
+                style={{ background: 'var(--sf-accent)', color: '#fff' }}
+              >
+                Tentar novamente
+              </button>
+            </div>
+          ) : arvore.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2 px-4 text-center">
+              <p className="text-[11px]" style={{ color: 'var(--sf-text-3)' }}>Nenhum arquivo encontrado</p>
+              <button
+                onClick={carregarArvore}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-medium"
+                style={{ background: 'var(--sf-accent)', color: '#fff' }}
+              >
+                Recarregar
+              </button>
             </div>
           ) : (
             <FileTree arvore={arvore} arquivoAtivo={abaAtiva} onSelect={abrirArquivo} />
