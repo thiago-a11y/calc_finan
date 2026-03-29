@@ -294,11 +294,8 @@ async def analisar_codigo(
     dados: AnalisarCodigoRequest,
     usuario: UsuarioDB = Depends(obter_usuario_atual),
 ):
-    """Analisa código usando o Smart Router Global."""
+    """Analisa código usando o Smart Router Global + LLM."""
     try:
-        from core.smart_router_global import SmartRouterGlobal
-        router_global = SmartRouterGlobal()
-
         prompt = f"""Analise o seguinte código do arquivo `{dados.caminho}`:
 
 ```
@@ -309,21 +306,49 @@ Instrução do usuário: {dados.instrucao}
 
 Responda em português brasileiro. Seja direto e objetivo."""
 
-        resultado = await router_global.rotear(
-            prompt=prompt,
-            contexto=f"code_studio:{dados.caminho}",
-            modelo_forcado=dados.modelo if dados.modelo != "auto" else None,
+        # Tentar usar Smart Router para decidir o modelo
+        provider_nome = "sonnet"
+        modelo_nome = "claude-sonnet-4-20250514"
+        motivo = "padrão"
+
+        try:
+            from core.smart_router_global import SmartRouterGlobal
+            router_global = SmartRouterGlobal()
+            roteamento = router_global.rotear(
+                prompt=prompt,
+                agente_nome="Code Studio",
+                forcar=dados.modelo if dados.modelo != "auto" else None,
+            )
+            provider_nome = roteamento.nome_provider
+            modelo_nome = roteamento.modelo
+            motivo = roteamento.motivo
+        except Exception:
+            pass  # Fallback para Sonnet
+
+        # Invocar o LLM usando LangChain
+        from langchain_anthropic import ChatAnthropic
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        llm = ChatAnthropic(
+            model=modelo_nome if "claude" in modelo_nome else "claude-sonnet-4-20250514",
+            max_tokens=4000,
+            temperature=0.3,
         )
 
+        mensagens = [
+            SystemMessage(content="Você é um assistente de programação do Synerium Factory. Responda em português brasileiro."),
+            HumanMessage(content=prompt),
+        ]
+
+        resposta = await llm.ainvoke(mensagens)
+
         return {
-            "resposta": resultado.get("resposta", "Sem resposta."),
-            "provider": resultado.get("provider", "desconhecido"),
-            "modelo": resultado.get("modelo", "desconhecido"),
+            "resposta": resposta.content,
+            "provider": provider_nome,
+            "modelo": modelo_nome,
+            "motivo": motivo,
         }
 
-    except ImportError:
-        # Fallback sem Smart Router — usar LLM direto
-        raise HTTPException(status_code=501, detail="Smart Router não disponível.")
     except Exception as e:
         logger.error(f"Erro na análise: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro na análise: {str(e)}")
