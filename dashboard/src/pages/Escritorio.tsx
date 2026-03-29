@@ -12,7 +12,7 @@ import { buscarSquads, buscarHistoricoTarefas } from '../services/api'
 import { useChatManager } from '../components/ChatManager'
 import type { TarefaResultado } from '../types'
 import { useAuth } from '../contexts/AuthContext'
-import { Users, MessageSquare, Crown, X, User, Eye, ChevronDown, Video, Zap, Code2, Bot } from 'lucide-react'
+import { Users, MessageSquare, Crown, X, User, Eye, ChevronDown, Video, Zap, Code2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import ReuniaoVideo from '../components/ReuniaoVideo'
 import AgentAvatarPhoto from '../components/AgentAvatar'
@@ -1426,13 +1426,6 @@ export default function Escritorio() {
               style={{ color: '#10b981' }}
             >
               <Code2 size={13} /> Abrir Code Studio
-            </button>
-            <button
-              onClick={() => { setCtxMenu(null); navigate(`/code-studio?agente=${encodeURIComponent(ctxMenu.agente)}`) }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition-colors hover:bg-white/5"
-              style={{ color: '#8b5cf6' }}
-            >
-              <Bot size={13} /> Code Studio com {ctxMenu.agente.split(' ')[0]}
             </button>
           </div>
         </div>
