@@ -1,96 +1,107 @@
-# Pendências do Último Chat — 29/Mar/2026
+# Pendencias do Ultimo Chat — 29/Mar/2026
 
-> Atualizado em 29/Mar/2026 (sessão 12)
+> Atualizado em 29/Mar/2026 (sessao 13)
 
-## Concluído nesta sessão
+## Concluido nesta sessao
 
-### v0.34.1 — Correções e Melhorias do Code Studio
-- [x] Fix: token de autenticação renomeado de `token` para `sf_token`
-- [x] Fix: tratamento de erro na árvore de arquivos (catch de exceções)
-- [x] Fix: integração Smart Router corrigida (modelo_forcado removido)
-- [x] Feat: menu de contexto (clique direito) no Escritório Virtual → Code Studio
-- [x] Feat: 5ª ação no AgentPanel: "Testar" (gera testes unitários)
+### v0.35.0 — Version Control (VCS) — Integracao GitHub/GitBucket por Projeto
+- [x] `core/vcs_service.py` — Servico de VCS com criptografia Fernet para tokens
+- [x] `ProjetoVCSDB` — Modelo SQLAlchemy para configuracao VCS por projeto
+- [x] 4 endpoints VCS: cadastrar, buscar (sem token), testar conexao, remover
+- [x] Code Studio: commit + push automatico apos aplicar acao do agente IA
+- [x] Secao VCS no modal de projeto (dashboard)
+- [x] Seguranca: token nunca exposto na API, Fernet/AES-128-CBC, audit log LGPD
+
+### Sessao anterior (sessao 12)
+
+### v0.34.1 — Correcoes e Melhorias do Code Studio
+- [x] Fix: token de autenticacao renomeado de `token` para `sf_token`
+- [x] Fix: tratamento de erro na arvore de arquivos (catch de excecoes)
+- [x] Fix: integracao Smart Router corrigida (modelo_forcado removido)
+- [x] Feat: menu de contexto (clique direito) no Escritorio Virtual → Code Studio
+- [x] Feat: 5a acao no AgentPanel: "Testar" (gera testes unitarios)
 - [x] Feat: contexto do arquivo (nome, linguagem, caminho) enviado ao LLM
 
-### Sessão anterior (sessão 11)
+### Sessao anterior (sessao 11)
 
-### v0.34.0 — Code Studio — Editor de Código Integrado
-- [x] Editor de código com CodeMirror 6 integrado ao dashboard
+### v0.34.0 — Code Studio — Editor de Codigo Integrado
+- [x] Editor de codigo com CodeMirror 6 integrado ao dashboard
 - [x] 4 endpoints REST para CRUD de arquivos do projeto
-- [x] Árvore de arquivos com navegação hierárquica
-- [x] Sistema de abas para múltiplos arquivos abertos
-- [x] Agente IA integrado para assistência de código
+- [x] Arvore de arquivos com navegacao hierarquica
+- [x] Sistema de abas para multiplos arquivos abertos
+- [x] Agente IA integrado para assistencia de codigo
 - [x] Syntax highlighting para Python, TypeScript, JavaScript, JSON, Markdown, CSS, HTML
-- [x] Audit log LGPD para todas as operações de leitura/escrita
-- [x] Proteção contra path traversal e backup automático
+- [x] Audit log LGPD para todas as operacoes de leitura/escrita
 
-### Sessão anterior (sessão 10)
+### Sessao anterior (sessao 10)
 
 ### v0.33.1 — Gemini 2.0 Flash + GPT-4o como Providers Reais
 - [x] Gemini 2.0 Flash adicionado como provider via API OpenAI-compatible
 - [x] GPT-4o adicionado como provider alternativo na cadeia de fallback
 - [x] Cadeia completa: Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
-- [x] Smart Router Global exposto no dashboard (página LLM Providers)
+- [x] Smart Router Global exposto no dashboard (pagina LLM Providers)
 - [x] Gemini adicionado na tela de Consumo de APIs
 
-### Sessão anterior (sessão 9)
+### Sessao anterior (sessao 9)
 
 ### v0.33.0 — Smart Router Global Multi-Provider + Multi-Ferramenta
 - [x] Router Global (`core/smart_router_global.py`) com 7 providers de LLM e 8 ferramentas externas
-- [x] 13 categorias de intenção detectadas por regex (tempo médio 0.12ms)
+- [x] 13 categorias de intencao detectadas por regex (tempo medio 0.12ms)
 - [x] Override manual via prefixo no prompt (@opus, @groq, @exa, etc.)
 - [x] Cadeia de fallback multi-provider (Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together)
-- [x] Coexistência com SmartRouter antigo (llm_router.py continua para CrewAI)
+- [x] Coexistencia com SmartRouter antigo (llm_router.py continua para CrewAI)
 - [x] Endpoints da API: /api/router/decidir, /providers, /ferramentas, /categorias
-- [x] Documentação: Changelog, Decisões Técnicas, Arquitetura Smart-Router-Global.md
+- [x] Documentacao: Changelog, Decisoes Tecnicas, Arquitetura Smart-Router-Global.md
 
-### Sessão anterior (sessão 8)
+### Sessao anterior (sessao 8)
 
 ### v0.32.0 — Avatares Reais dos Agentes
 - [x] 10 avatares oficiais em JPG (Kenji, Amara, Carlos, Yuki, Rafael, Hans, Fatima, Marco, Sofia, Luna)
 - [x] Config centralizada `src/config/agents.ts` com dados de todos os agentes
-- [x] Componente `AgentAvatar.tsx` reutilizável (sm/md/lg/xl/2xl, fallback iniciais, status, hover)
-- [x] `AgentAvatarGroup` para empilhar avatares com sobreposição
-- [x] Integrado em: ChatFloating, ReuniaoModal, Escritório Virtual, Catálogo, Luna Chat, Luna Welcome
+- [x] Componente `AgentAvatar.tsx` reutilizavel (sm/md/lg/xl/2xl, fallback iniciais, status, hover)
+- [x] `AgentAvatarGroup` para empilhar avatares com sobreposicao
+- [x] Integrado em: ChatFloating, ReuniaoModal, Escritorio Virtual, Catalogo, Luna Chat, Luna Welcome
 
-### Correções e melhorias
+### Correcoes e melhorias
 - [x] Token de convite agora usa `token_hex` (evita ambiguidade visual l/I/1/0/O)
-- [x] Aba "Desativados" em Configurações — reativar ou excluir permanentemente
+- [x] Aba "Desativados" em Configuracoes — reativar ou excluir permanentemente
 - [x] Vault Obsidian migrado para dentro do repo Git (`docs/obsidian/`)
 
-### Sessões anteriores (sessão 7)
+### Sessoes anteriores (sessao 7)
 
-### v0.16.5 — Exclusão Permanente de Usuários
-- [x] Endpoint `DELETE /api/usuarios/{id}/permanente` — hard delete para proprietários
-- [x] Libera email para reconvite após exclusão permanente
-- [x] Audit log LGPD da exclusão permanente
+### v0.16.5 — Exclusao Permanente de Usuarios
+- [x] Endpoint `DELETE /api/usuarios/{id}/permanente` — hard delete para proprietarios
+- [x] Libera email para reconvite apos exclusao permanente
+- [x] Audit log LGPD da exclusao permanente
 
-### v0.16.4 — Fix Download de Arquivos Luna em Produção
+### v0.16.4 — Fix Download de Arquivos Luna em Producao
 - [x] Corrigido UPLOAD_DIR em `api/routes/uploads.py` — path do servidor AWS (`/opt/synerium-factory`)
-- [x] Downloads de arquivos gerados pela Luna funcionando em produção
+- [x] Downloads de arquivos gerados pela Luna funcionando em producao
 
 ### Syncthing Desinstalado
 - [x] Syncthing removido do Mac — redundante com rsync do deploy
-- [x] ~93 GB livres no Mac após remoção
+- [x] ~93 GB livres no Mac apos remocao
 
-### Sessões anteriores (já concluídas)
-- [x] v0.31.0 — Escritório Virtual 3D Isométrico Premium
-- [x] v0.30.0 — Escritório Virtual Revolucionário
-- [x] v0.29.0 — Catálogo de Agentes + Atribuição Dinâmica
+### Sessoes anteriores (ja concluidas)
+- [x] v0.31.0 — Escritorio Virtual 3D Isometrico Premium
+- [x] v0.30.0 — Escritorio Virtual Revolucionario
+- [x] v0.29.0 — Catalogo de Agentes + Atribuicao Dinamica
 - [x] v0.28.0 — Bootstrap AWS
 
 ## Status Atual
-- Tudo em produção (AWS)
+- Tudo em producao (AWS)
+- VCS integrado ao Code Studio com commit + push automatico
 - Avatares reais dos agentes implementados em todas as telas
-- Luna funcional com downloads e geração de arquivos
+- Luna funcional com downloads e geracao de arquivos
 
-## Pendências / Próximos passos
-- [ ] Testar exclusão permanente de usuários em produção
+## Pendencias / Proximos passos
+- [ ] Testar integracao VCS com repositorio GitBucket real
+- [ ] Testar exclusao permanente de usuarios em producao
 - [ ] Atribuir agentes ao Marcos e Rhammon via dashboard
-- [ ] Testar solicitação de agente por um usuário comum
-- [ ] Ajustar permissões granulares para a página de Atribuições (só admin vê)
-- [ ] Mapear os 45 funcionários da Objetiva e criar squads
-- [ ] Corrigir testes de integração (mock do lifespan para CI)
-- [ ] Melhorar escritório: interação com sala de reunião (vidro transparente vendo agentes dentro)
-- [ ] Adicionar histórico de conversas Luna ao RAG para contexto cruzado
-- [ ] Implementar sistema de migrations automáticas no bootstrap para novos campos (Alembic ou ALTER TABLE strategy)
+- [ ] Testar solicitacao de agente por um usuario comum
+- [ ] Ajustar permissoes granulares para a pagina de Atribuicoes (so admin ve)
+- [ ] Mapear os 45 funcionarios da Objetiva e criar squads
+- [ ] Corrigir testes de integracao (mock do lifespan para CI)
+- [ ] Melhorar escritorio: interacao com sala de reuniao (vidro transparente vendo agentes dentro)
+- [ ] Adicionar historico de conversas Luna ao RAG para contexto cruzado
+- [ ] Implementar sistema de migrations automaticas no bootstrap para novos campos (Alembic ou ALTER TABLE strategy)

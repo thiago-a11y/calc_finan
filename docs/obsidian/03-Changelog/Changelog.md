@@ -4,6 +4,25 @@
 
 ---
 
+## v0.35.0 — Version Control (VCS) — Integração GitHub/GitBucket por Projeto (2026-03-29)
+
+### Funcionalidades
+- **Integração VCS por projeto** — Cada projeto pode ter repositório GitHub ou GitBucket vinculado com token criptografado
+- **`core/vcs_service.py`** — Serviço central de Version Control com suporte a GitHub e GitBucket (clone, commit, push via API)
+- **Criptografia Fernet** — Tokens de acesso armazenados com criptografia simétrica (Fernet/AES-128-CBC); token nunca exposto em resposta da API
+- **`ProjetoVCSDB`** — Novo modelo SQLAlchemy para armazenar configuração VCS (provider, repo_url, branch, token criptografado)
+- **4 endpoints VCS** — `POST /api/projetos/{id}/vcs` (cadastrar), `GET /api/projetos/{id}/vcs` (buscar sem token), `POST /api/projetos/{id}/vcs/testar` (testar conexão), `DELETE /api/projetos/{id}/vcs` (remover)
+- **Commit + push automático no Code Studio** — Após aplicar ação do agente IA, o Code Studio faz commit e push automaticamente no repositório vinculado
+- **Seção VCS no modal de projeto** — Interface para configurar repositório, branch e token diretamente no dashboard
+
+### Segurança
+- Token de acesso nunca retornado pela API (apenas indicação `token_configurado: true/false`)
+- Criptografia Fernet com chave derivada do `JWT_SECRET_KEY`
+- Apenas proprietário e líder técnico do projeto podem configurar VCS
+- Audit log LGPD para todas as operações VCS
+
+---
+
 ## v0.34.1 — Correções e Melhorias do Code Studio (2026-03-29)
 
 ### Correções

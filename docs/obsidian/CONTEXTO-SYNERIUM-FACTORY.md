@@ -159,7 +159,8 @@ CEO (Thiago)
 │   └── gstack/                  # 28 skills do Y Combinator
 ├── core/                        # Motores e lógica central
 │   ├── luna_engine.py           # Motor da Luna: streaming + fallback (Opus→Sonnet→Groq→Fireworks→Together)
-│   └── llm_router.py            # Smart Router multi-provider
+│   ├── llm_router.py            # Smart Router multi-provider
+│   └── vcs_service.py           # Serviço VCS (GitHub/GitBucket) com Fernet
 ├── api/                         # API REST (FastAPI)
 │   ├── main.py                  # App principal
 │   ├── security.py              # JWT + bcrypt
@@ -290,7 +291,8 @@ SyneriumFactory-notes/
 │   ├── Permissoes-Granulares.md
 │   ├── Projetos.md
 │   ├── RAG.md
-│   └── Code-Studio.md
+│   ├── Code-Studio.md
+│   └── VCS-Integration.md
 ├── 09-Squads/
 │   ├── Mapa-Squads.md
 │   └── Squad-CEO-Thiago.md
@@ -392,6 +394,7 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.33.0** — **Smart Router Global** — Roteamento multi-provider (7 LLMs) + multi-ferramenta (8 integrações), 13 categorias de intenção
 - **v0.33.1** — **Gemini 2.0 Flash + GPT-4o** — Cadeia completa: Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 - **v0.34.0** — **Code Studio** — Editor de código integrado com CodeMirror 6, 4 endpoints, árvore de arquivos, abas, agente IA, syntax highlighting, audit log LGPD
+- **v0.35.0** — **Version Control (VCS)** — Integração GitHub/GitBucket por projeto, token criptografado (Fernet), 4 endpoints VCS, commit+push automático no Code Studio
 
 ---
 
@@ -484,4 +487,4 @@ Escritório premium com imersão cinematográfica:
 
 ---
 
-> Última atualização: 2026-03-28
+> Ultima atualizacao: 2026-03-29
