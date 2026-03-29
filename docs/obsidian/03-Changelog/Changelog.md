@@ -4,6 +4,22 @@
 
 ---
 
+## v0.37.1 — Auto-Clone VCS no Code Studio (2026-03-29)
+
+### Funcionalidades
+- **Auto-clone VCS** — Quando um projeto tem VCS (GitHub/GitBucket) configurado mas não possui diretório local, o Code Studio clona automaticamente o repositório para `/opt/projetos/{slug}/`
+- **Atualização automática do `caminho`** — O campo `caminho` no banco de dados é atualizado automaticamente após o clone bem-sucedido
+- **Git pull inteligente** — Se o diretório já existe com pasta `.git`, faz `git pull` em vez de re-clonar
+- **Endpoint `POST /api/code-studio/git-pull`** — Novo endpoint para atualizar o repositório a partir do remote
+- **Botão "Pull" no header** — Novo botão no cabeçalho do Code Studio (visível quando o projeto tem VCS configurado) para puxar atualizações do remote
+- **Botão de refresh na árvore** — Novo botão para recarregar a árvore de arquivos sem recarregar a página
+- **Mensagem de loading inteligente** — Exibe "Clonando repositório..." quando o auto-clone está em andamento
+
+### Correções
+- **Caminho local inválido no servidor AWS** — O projeto SyneriumX tinha `caminho` definido como `/Users/thiagoxavier/propostasap` (caminho do Mac), que não existe no servidor AWS; agora o auto-clone resolve isso automaticamente
+
+---
+
 ## v0.37.0 — Code Studio Multi-Projeto (2026-03-29)
 
 ### Funcionalidades

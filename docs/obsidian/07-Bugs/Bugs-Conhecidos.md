@@ -22,6 +22,8 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 | 8 | Code Studio travava ao abrir binários | Clicar em arquivos `.pptx` (atas de reunião) ou outros binários congelava o editor inteiro | Bloqueio de 19 extensões binárias com mensagem de aviso; editor não tenta abrir | 2026-03-29 |
 | 9 | Coluna `regras_aprovacao` faltando no SQLite (AWS) | `create_all()` do SQLAlchemy não adiciona colunas em tabelas existentes — mesmo problema do bug #3 | `ALTER TABLE projetos ADD COLUMN regras_aprovacao JSON` manual no servidor AWS | 2026-03-29 |
 
+| 10 | Code Studio não abria arquivos do SyneriumX no servidor AWS | Campo `caminho` no banco apontava para `/Users/thiagoxavier/propostasap` (caminho do Mac local), que não existe no servidor AWS Linux | Auto-clone VCS: quando o diretório não existe, o Code Studio clona automaticamente o repositório para `/opt/projetos/{slug}/` e atualiza o campo `caminho` no banco | 2026-03-29 |
+
 ### Lições Aprendidas
 
 - **Bug #3 e #9**: `create_all()` do SQLAlchemy só cria tabelas novas, nunca altera esquema de tabelas existentes. Para próximos deploys com novos campos, incluir migration manual no bootstrap ou adotar Alembic. Problema reincidente — priorizar solução definitiva.
@@ -29,6 +31,7 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 - **Bug #5 e #6**: Ao adicionar novos routers no FastAPI, sempre verificar o prefixo completo e os nomes dos campos do modelo de destino.
 - **Bug #7**: Tokens de curta duração (1h) são bons para segurança, mas péssimos para UX em aplicações de trabalho. Auto-refresh transparente resolve sem comprometer segurança.
 - **Bug #8**: Editores de código devem ter whitelist de extensões editáveis ou blacklist de extensões binárias. Nunca tentar renderizar binários como texto.
+- **Bug #10**: Caminhos absolutos de desenvolvimento local (Mac) não devem ser persistidos no banco de produção. O auto-clone VCS resolve isso de forma elegante: se o diretório não existe, clona do repositório remoto e atualiza o caminho automaticamente.
 
 ---
 

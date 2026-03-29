@@ -1,8 +1,18 @@
 # Pendencias do Ultimo Chat — 29/Mar/2026
 
-> Atualizado em 29/Mar/2026 (sessao 16)
+> Atualizado em 29/Mar/2026 (sessao 17)
 
 ## Concluido nesta sessao
+
+### v0.37.1 — Auto-Clone VCS no Code Studio
+- [x] Auto-clone VCS: quando projeto tem VCS configurado mas sem diretorio local, clona para `/opt/projetos/{slug}/`
+- [x] Campo `caminho` atualizado automaticamente no banco apos clone
+- [x] Git pull inteligente se diretorio ja existe com `.git`
+- [x] Endpoint `POST /api/code-studio/git-pull` para atualizar repositorio do remote
+- [x] Botao "Pull" no header do Code Studio (visivel com VCS configurado)
+- [x] Botao de refresh para recarregar arvore de arquivos
+- [x] Mensagem de loading inteligente ("Clonando repositorio...")
+- [x] Fix: caminho local do Mac (`/Users/thiagoxavier/propostasap`) nao funcionava no servidor AWS — resolvido via auto-clone
 
 ### v0.37.0 — Code Studio Multi-Projeto
 - [x] Code Studio agora e project-aware (multi-projeto)
@@ -129,7 +139,7 @@
 
 ## Status Atual
 - Tudo em producao (AWS)
-- Code Studio multi-projeto: seletor de projeto no header, endpoints com project_id, VCS por projeto (v0.37.0)
+- Code Studio multi-projeto com auto-clone VCS: clona repositorio automaticamente se diretorio nao existe (v0.37.1)
 - VCS integrado ao Code Studio com commit + push automatico (rotas e audit log corrigidos v0.36.1/v0.36.2)
 - Avatares reais dos agentes implementados em todas as telas
 - Luna funcional com downloads e geracao de arquivos (PDF corrigido na v0.35.1)
