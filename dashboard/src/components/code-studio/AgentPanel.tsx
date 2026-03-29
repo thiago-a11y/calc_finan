@@ -58,9 +58,13 @@ export default function AgentPanel({ caminhoAtivo, conteudoAtivo, linguagem, onF
         provider: `${resultado.provider} · ${resultado.modelo}`,
       }])
     } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Falha na análise'
+      const ehToken = msg.toLowerCase().includes('token') || msg.includes('401') || msg.includes('expirado')
       setMensagens(prev => [...prev, {
         papel: 'assistant',
-        conteudo: `Erro: ${e instanceof Error ? e.message : 'Falha na análise'}`,
+        conteudo: ehToken
+          ? '⚠️ **Sessão expirada.** Faça logout e login novamente para continuar usando o Agente IA.'
+          : `❌ **Erro na análise:** ${msg}\n\nTente novamente em alguns instantes.`,
       }])
     } finally {
       setAnalisando(false)

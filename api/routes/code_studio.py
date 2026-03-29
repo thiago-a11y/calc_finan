@@ -325,16 +325,7 @@ Responda em português brasileiro. Seja direto e objetivo."""
         except Exception:
             pass  # Fallback para Sonnet
 
-        # Invocar o LLM usando LangChain
-        from langchain_anthropic import ChatAnthropic
-        from langchain_core.messages import HumanMessage, SystemMessage
-
-        llm = ChatAnthropic(
-            model=modelo_nome if "claude" in modelo_nome else "claude-sonnet-4-20250514",
-            max_tokens=4000,
-            temperature=0.3,
-        )
-
+        # System prompt do agente
         system = """Você é o agente de código do Synerium Factory — Code Studio.
 
 Regras obrigatórias:
@@ -348,20 +339,37 @@ Regras obrigatórias:
 - Seja direto, profissional e completo
 - Quando sugerir código, mostre o código COMPLETO (não parcial)"""
 
-        mensagens = [
-            SystemMessage(content=system),
-            HumanMessage(content=prompt),
+        from langchain_core.messages import HumanMessage, SystemMessage
+        mensagens = [SystemMessage(content=system), HumanMessage(content=prompt)]
+
+        # Cadeia de fallback: tentar múltiplos providers
+        erros = []
+        providers_tentativa = [
+            ("anthropic", modelo_nome if "claude" in modelo_nome else "claude-sonnet-4-20250514"),
+            ("anthropic", "claude-sonnet-4-20250514"),
         ]
 
-        resposta = await llm.ainvoke(mensagens)
+        for prov, modelo in providers_tentativa:
+            try:
+                from langchain_anthropic import ChatAnthropic
+                llm = ChatAnthropic(model=modelo, max_tokens=4000, temperature=0.3)
+                resposta = await llm.ainvoke(mensagens)
+                return {
+                    "resposta": resposta.content,
+                    "provider": provider_nome,
+                    "modelo": modelo,
+                    "motivo": motivo,
+                }
+            except Exception as e:
+                erros.append(f"{prov}/{modelo}: {str(e)[:100]}")
+                continue
 
-        return {
-            "resposta": resposta.content,
-            "provider": provider_nome,
-            "modelo": modelo_nome,
-            "motivo": motivo,
-        }
+        # Se todos falharam
+        logger.error(f"Todos os providers falharam: {erros}")
+        raise HTTPException(status_code=500, detail=f"Todos os providers falharam. Tente novamente em alguns minutos.")
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Erro na análise: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro na análise: {str(e)}")
