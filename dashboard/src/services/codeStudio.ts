@@ -76,6 +76,23 @@ export async function salvarArquivo(caminho: string, conteudo: string): Promise<
   return res.json()
 }
 
+export async function aplicarAcao(
+  caminhoDestino: string,
+  conteudoNovo: string,
+  tipoAcao: 'substituir' | 'criar' = 'substituir'
+): Promise<{ ok: boolean; caminho: string; tipo: string; tamanho: number }> {
+  const res = await fetch(`${API}/api/code-studio/apply-action`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ caminho_destino: caminhoDestino, conteudo_novo: conteudoNovo, tipo_acao: tipoAcao }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Erro ao aplicar ação' }))
+    throw new Error(err.detail || 'Erro ao aplicar ação')
+  }
+  return res.json()
+}
+
 export async function analisarCodigo(
   caminho: string,
   conteudo: string,

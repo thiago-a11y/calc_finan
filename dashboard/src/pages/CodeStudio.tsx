@@ -313,6 +313,13 @@ export default function CodeStudio() {
               linguagem={linguagemAtiva}
               onFechar={() => setAgentePainel(false)}
               agenteNome={agenteNome || undefined}
+              onArquivoAtualizado={abaAtiva ? () => {
+                // Recarregar o arquivo do disco após aplicação
+                lerArquivo(abaAtiva).then(arq => {
+                  setConteudos(prev => new Map(prev).set(abaAtiva, arq.conteudo))
+                  setConteudosOriginal(prev => new Map(prev).set(abaAtiva, arq.conteudo))
+                }).catch(() => {})
+              } : undefined}
             />
           </div>
         )}

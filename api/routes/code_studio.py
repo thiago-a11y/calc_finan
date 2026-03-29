@@ -179,6 +179,13 @@ class AnalisarCodigoRequest(BaseModel):
     modelo: str = "auto"
 
 
+class AplicarAcaoRequest(BaseModel):
+    """Aplica código gerado pelo agente no arquivo original ou cria novo arquivo."""
+    caminho_destino: str
+    conteudo_novo: str
+    tipo_acao: str = "substituir"  # substituir | criar
+
+
 # ============================================================
 # Endpoints
 # ============================================================
@@ -373,3 +380,57 @@ Regras obrigatórias:
     except Exception as e:
         logger.error(f"Erro na análise: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro na análise: {str(e)}")
+
+
+@router.post("/apply-action")
+async def aplicar_acao(
+    dados: AplicarAcaoRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Aplica uma ação do agente IA — substituir conteúdo ou criar novo arquivo."""
+    _verificar_escrita(usuario)
+    caminho = _validar_caminho(dados.caminho_destino)
+
+    if dados.tipo_acao == "criar":
+        # Criar diretórios pais se necessário
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+        if caminho.exists():
+            # Backup antes de sobrescrever
+            backup_dir = Path(PROJETO_BASE) / "data" / "backups" / "code-studio"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            shutil.copy2(str(caminho), str(backup_dir / f"{caminho.name}.{ts}.bak"))
+    else:
+        # Substituir — arquivo deve existir
+        if not caminho.exists():
+            raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+        # Backup
+        backup_dir = Path(PROJETO_BASE) / "data" / "backups" / "code-studio"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        shutil.copy2(str(caminho), str(backup_dir / f"{caminho.name}.{ts}.bak"))
+
+    # Escrever
+    caminho.write_text(dados.conteudo_novo, encoding="utf-8")
+
+    # Audit log
+    try:
+        db.add(AuditLogDB(
+            usuario_id=usuario.id,
+            acao=f"code_studio_apply_{dados.tipo_acao}",
+            detalhes=f"Ação IA em {dados.caminho_destino} ({len(dados.conteudo_novo)} chars)",
+            ip="api",
+        ))
+        db.commit()
+    except Exception:
+        pass
+
+    logger.info(f"[CodeStudio] {usuario.email} aplicou ação '{dados.tipo_acao}' em {dados.caminho_destino}")
+
+    return {
+        "ok": True,
+        "caminho": dados.caminho_destino,
+        "tipo": dados.tipo_acao,
+        "tamanho": len(dados.conteudo_novo),
+    }
