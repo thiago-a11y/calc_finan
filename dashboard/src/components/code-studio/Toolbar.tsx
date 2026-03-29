@@ -1,6 +1,6 @@
 /* Toolbar — Barra de ferramentas do Code Studio */
 
-import { Save, Undo2, Redo2, Bot, Check, Loader2 } from 'lucide-react'
+import { Save, Undo2, Redo2, Bot, Check, Loader2, Eye } from 'lucide-react'
 
 interface ToolbarProps {
   caminho?: string
@@ -11,11 +11,15 @@ interface ToolbarProps {
   onSalvar: () => void
   onToggleAgente: () => void
   agentePainelAberto: boolean
+  onTogglePreview?: () => void
+  previewAberto?: boolean
+  suportaPreview?: boolean
 }
 
 export default function Toolbar({
   caminho, linguagem, modificado, salvando, editavel,
   onSalvar, onToggleAgente, agentePainelAberto,
+  onTogglePreview, previewAberto, suportaPreview,
 }: ToolbarProps) {
   return (
     <div className="flex items-center justify-between px-3 py-1.5 flex-shrink-0"
@@ -74,6 +78,22 @@ export default function Toolbar({
           style={{ color: 'var(--sf-text-3)' }} title="Refazer (Ctrl+Shift+Z)">
           <Redo2 size={13} />
         </button>
+
+        {/* Preview */}
+        {suportaPreview && (
+          <button
+            onClick={onTogglePreview}
+            className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-all"
+            style={{
+              color: previewAberto ? '#fff' : 'var(--sf-text-3)',
+              background: previewAberto ? 'rgba(16,185,129,0.2)' : 'transparent',
+            }}
+            title="Preview em tempo real"
+          >
+            <Eye size={12} />
+            Preview
+          </button>
+        )}
 
         {/* Separador */}
         <div className="w-px h-4 mx-1" style={{ background: 'var(--sf-border-subtle)' }} />

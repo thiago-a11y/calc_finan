@@ -1,7 +1,7 @@
 /* Code Studio — Editor de código integrado ao Synerium Factory */
 
 import { useState, useEffect, useCallback } from 'react'
-import { Code2, Loader2 } from 'lucide-react'
+import { Code2, Loader2, Eye, EyeOff } from 'lucide-react'
 import FileTree from '../components/code-studio/FileTree'
 import EditorTabs, { type TabInfo } from '../components/code-studio/EditorTabs'
 import CodeEditor from '../components/code-studio/CodeEditor'
@@ -27,6 +27,41 @@ export default function CodeStudio() {
 
   // Estado do painel de agente
   const [agentePainel, setAgentePainel] = useState(false)
+
+  // Estado do preview
+  const [previewAberto, setPreviewAberto] = useState(false)
+
+  // Linguagens que suportam preview
+  const suportaPreview = (lang: string) =>
+    ['html', 'javascript', 'typescript', 'markdown'].includes(lang)
+
+  // Gerar conteúdo do preview
+  const gerarPreviewHtml = useCallback((conteudo: string, lang: string): string => {
+    if (lang === 'html') return conteudo
+    if (lang === 'markdown') {
+      // Preview simples de markdown → HTML via regex básico
+      let html = conteudo
+        .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`(.*?)`/g, '<code style="background:#333;padding:2px 6px;border-radius:4px;font-size:13px">$1</code>')
+        .replace(/^- (.*$)/gm, '<li>$1</li>')
+        .replace(/\n/g, '<br>')
+      return `<div style="font-family:system-ui;padding:24px;color:#e2e8f0;max-width:700px">${html}</div>`
+    }
+    // Para JS/TS, mostrar o código em uma estrutura básica
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  body{font-family:system-ui;padding:24px;background:#1e1e2e;color:#cdd6f4;margin:0}
+  pre{background:#181825;padding:16px;border-radius:8px;overflow:auto;font-size:13px;line-height:1.6}
+  h3{color:#a6e3a1;margin-bottom:8px}
+</style></head><body>
+<h3>📄 ${abaAtiva?.split('/').pop() || 'arquivo'}</h3>
+<pre>${conteudo.replace(/</g,'&lt;').replace(/>/g,'&gt;').slice(0, 5000)}</pre>
+</body></html>`
+  }, [abaAtiva])
 
   // Carregar árvore ao montar
   const carregarArvore = useCallback(async () => {
@@ -195,19 +230,59 @@ export default function CodeStudio() {
             onSalvar={handleSalvar}
             onToggleAgente={() => setAgentePainel(!agentePainel)}
             agentePainelAberto={agentePainel}
+            onTogglePreview={() => setPreviewAberto(!previewAberto)}
+            previewAberto={previewAberto}
+            suportaPreview={abaAtiva ? suportaPreview(linguagemAtiva) : false}
           />
 
-          {/* Editor */}
-          <div className="flex-1 overflow-hidden">
+          {/* Editor + Preview */}
+          <div className="flex-1 flex flex-col overflow-hidden">
             {abaAtiva ? (
-              <CodeEditor
-                key={abaAtiva}
-                conteudo={conteudoAtivo}
-                linguagem={linguagemAtiva}
-                editavel={editavelAtivo}
-                onChange={handleChange}
-                onSave={handleSalvar}
-              />
+              <>
+                {/* Editor */}
+                <div className={previewAberto && suportaPreview(linguagemAtiva) ? 'flex-1 overflow-hidden' : 'flex-1 overflow-hidden'}
+                  style={{ height: previewAberto && suportaPreview(linguagemAtiva) ? '55%' : '100%' }}>
+                  <CodeEditor
+                    key={abaAtiva}
+                    conteudo={conteudoAtivo}
+                    linguagem={linguagemAtiva}
+                    editavel={editavelAtivo}
+                    onChange={handleChange}
+                    onSave={handleSalvar}
+                  />
+                </div>
+
+                {/* Preview */}
+                {previewAberto && suportaPreview(linguagemAtiva) && (
+                  <div className="overflow-hidden" style={{
+                    height: '45%',
+                    borderTop: '1px solid var(--sf-border-subtle)',
+                  }}>
+                    <div className="flex items-center justify-between px-3 py-1" style={{
+                      background: 'rgba(16,185,129,0.05)',
+                      borderBottom: '1px solid var(--sf-border-subtle)',
+                    }}>
+                      <div className="flex items-center gap-2">
+                        <Eye size={12} style={{ color: 'var(--sf-accent)' }} />
+                        <span className="text-[10px] font-semibold" style={{ color: 'var(--sf-accent)' }}>
+                          Preview
+                        </span>
+                      </div>
+                      <button onClick={() => setPreviewAberto(false)} className="p-0.5 rounded hover:bg-white/5"
+                        style={{ color: 'var(--sf-text-3)' }}>
+                        <EyeOff size={12} />
+                      </button>
+                    </div>
+                    <iframe
+                      srcDoc={gerarPreviewHtml(conteudoAtivo, linguagemAtiva)}
+                      sandbox="allow-scripts"
+                      className="w-full border-0"
+                      style={{ height: 'calc(100% - 28px)', background: '#1e1e2e' }}
+                      title="Preview"
+                    />
+                  </div>
+                )}
+              </>
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
