@@ -1,8 +1,19 @@
 # Pendencias do Ultimo Chat — 29/Mar/2026
 
-> Atualizado em 29/Mar/2026 (sessao 15)
+> Atualizado em 29/Mar/2026 (sessao 16)
 
 ## Concluido nesta sessao
+
+### v0.37.0 — Code Studio Multi-Projeto
+- [x] Code Studio agora e project-aware (multi-projeto)
+- [x] Seletor de projeto no header com nome, stack e icone VCS
+- [x] Backend `_obter_base_projeto()` resolve caminho base por ID
+- [x] Todos os endpoints aceitam `project_id`
+- [x] VCS auto-commit usa config especifica do projeto
+- [x] Agente IA recebe contexto do projeto no system prompt
+- [x] Audit log inclui nome do projeto
+- [x] Frontend persiste ultimo projeto em localStorage
+- [x] Troca de projeto limpa abas e recarrega arvore
 
 ### v0.36.3 — JWT Auto-Refresh + Bloqueio de Binarios no Code Studio
 - [x] JWT access token aumentado de 1h para 8h (jornada de trabalho completa)
@@ -118,6 +129,7 @@
 
 ## Status Atual
 - Tudo em producao (AWS)
+- Code Studio multi-projeto: seletor de projeto no header, endpoints com project_id, VCS por projeto (v0.37.0)
 - VCS integrado ao Code Studio com commit + push automatico (rotas e audit log corrigidos v0.36.1/v0.36.2)
 - Avatares reais dos agentes implementados em todas as telas
 - Luna funcional com downloads e geracao de arquivos (PDF corrigido na v0.35.1)

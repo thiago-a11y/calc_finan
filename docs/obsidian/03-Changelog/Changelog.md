@@ -4,6 +4,21 @@
 
 ---
 
+## v0.37.0 — Code Studio Multi-Projeto (2026-03-29)
+
+### Funcionalidades
+- **Code Studio multi-projeto** — O Code Studio agora é project-aware: cada projeto abre seu próprio diretório base, árvore de arquivos e configuração VCS
+- **Seletor de projeto no header** — Dropdown no cabeçalho do Code Studio mostrando nome do projeto, stack e ícone do VCS vinculado
+- **`_obter_base_projeto()`** — Função backend que resolve o caminho base do projeto a partir do ID, centralizando a lógica de diretório
+- **Parâmetro `project_id` em todos os endpoints** — Todos os endpoints do Code Studio aceitam `project_id` para operar no projeto correto
+- **VCS auto-commit por projeto** — O commit automático agora usa a configuração VCS específica do projeto selecionado
+- **Contexto de projeto no Agente IA** — O system prompt do agente IA recebe o contexto do projeto ativo (nome, stack, estrutura)
+- **Audit log com nome do projeto** — Todas as entradas de audit log do Code Studio agora incluem o nome do projeto
+- **Persistência de projeto no frontend** — O último projeto selecionado é salvo em `localStorage` e restaurado ao reabrir o Code Studio
+- **Troca de projeto limpa** — Ao trocar de projeto, o frontend limpa abas abertas e recarrega a árvore de arquivos do novo projeto
+
+---
+
 ## v0.36.3 — JWT Auto-Refresh + Bloqueio de Binários no Code Studio (2026-03-29)
 
 ### Melhorias

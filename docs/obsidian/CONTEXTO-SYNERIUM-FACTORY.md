@@ -401,6 +401,7 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.36.1** — **Fix Rotas VCS** — Corrigido prefixo de rotas VCS (404 → `/api/projetos/{id}/vcs`)
 - **v0.36.2** — **Fix AuditLogDB** — Corrigido campos inexistentes no endpoint VCS (`usuario_id`/`detalhes` → `user_id`/`descricao`)
 - **v0.36.3** — **JWT Auto-Refresh + Bloqueio de Binários** — Token 8h + auto-refresh transparente + bloqueio de 19 extensões binárias no Code Studio
+- **v0.37.0** — **Code Studio Multi-Projeto** — Code Studio project-aware com seletor de projeto no header, `project_id` em todos os endpoints, VCS auto-commit por projeto, contexto de projeto no agente IA, audit log com nome do projeto, persistência em localStorage
 
 ---
 
