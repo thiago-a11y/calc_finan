@@ -1,8 +1,20 @@
 # Pendências do Último Chat — 28/Mar/2026
 
-> Atualizado em 28/Mar/2026 (sessão 10)
+> Atualizado em 28/Mar/2026 (sessão 11)
 
 ## Concluído nesta sessão
+
+### v0.34.0 — Code Studio — Editor de Código Integrado
+- [x] Editor de código com CodeMirror 6 integrado ao dashboard
+- [x] 4 endpoints REST para CRUD de arquivos do projeto
+- [x] Árvore de arquivos com navegação hierárquica
+- [x] Sistema de abas para múltiplos arquivos abertos
+- [x] Agente IA integrado para assistência de código
+- [x] Syntax highlighting para Python, TypeScript, JavaScript, JSON, Markdown, CSS, HTML
+- [x] Audit log LGPD para todas as operações de leitura/escrita
+- [x] Proteção contra path traversal e backup automático
+
+### Sessão anterior (sessão 10)
 
 ### v0.33.1 — Gemini 2.0 Flash + GPT-4o como Providers Reais
 - [x] Gemini 2.0 Flash adicionado como provider via API OpenAI-compatible

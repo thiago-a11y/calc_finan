@@ -289,7 +289,8 @@ SyneriumFactory-notes/
 │   ├── LLM-Providers.md
 │   ├── Permissoes-Granulares.md
 │   ├── Projetos.md
-│   └── RAG.md
+│   ├── RAG.md
+│   └── Code-Studio.md
 ├── 09-Squads/
 │   ├── Mapa-Squads.md
 │   └── Squad-CEO-Thiago.md
@@ -390,6 +391,7 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.32.0** — **Avatares Reais dos Agentes** — 10 avatares JPG, config centralizada, AgentAvatar reutilizável
 - **v0.33.0** — **Smart Router Global** — Roteamento multi-provider (7 LLMs) + multi-ferramenta (8 integrações), 13 categorias de intenção
 - **v0.33.1** — **Gemini 2.0 Flash + GPT-4o** — Cadeia completa: Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
+- **v0.34.0** — **Code Studio** — Editor de código integrado com CodeMirror 6, 4 endpoints, árvore de arquivos, abas, agente IA, syntax highlighting, audit log LGPD
 
 ---
 

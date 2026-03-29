@@ -4,6 +4,28 @@
 
 ---
 
+## v0.34.0 — Code Studio — Editor de Código Integrado (2026-03-28)
+
+### Funcionalidades
+- **Code Studio** — Editor de código integrado ao dashboard com CodeMirror 6
+- **4 endpoints REST** — CRUD de arquivos do projeto (ler, salvar, listar árvore, criar)
+- **Árvore de arquivos** — Navegação hierárquica com ícones por tipo de arquivo
+- **Sistema de abas** — Múltiplos arquivos abertos simultaneamente com indicador de modificação
+- **Agente IA integrado** — Assistência de código via agentes do Factory dentro do editor
+- **Syntax highlighting** — Destaque de sintaxe para Python, TypeScript, JavaScript, JSON, Markdown, CSS, HTML e mais
+- **Audit log LGPD** — Todas as operações de leitura e escrita registradas no audit log
+
+### Segurança
+- Proteção contra path traversal (sanitização de caminhos)
+- Backup automático antes de sobrescrever arquivos
+- Permissões baseadas no sistema de autenticação existente (JWT)
+
+### Dependências
+- CodeMirror 6 — Editor de código moderno e extensível
+- Extensões: lang-python, lang-javascript, lang-html, lang-css, lang-json, lang-markdown
+
+---
+
 ## v0.33.1 — Gemini 2.0 Flash + GPT-4o como Providers Reais (2026-03-28)
 
 ### Funcionalidades
