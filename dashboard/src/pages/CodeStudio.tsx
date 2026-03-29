@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Code2, Loader2, Eye, EyeOff, FolderKanban, ChevronDown, GitBranch, AlertCircle } from 'lucide-react'
+import { Code2, Loader2, Eye, EyeOff, FolderKanban, ChevronDown, GitBranch, AlertCircle, RefreshCw, Download } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import FileTree from '../components/code-studio/FileTree'
 import EditorTabs, { type TabInfo } from '../components/code-studio/EditorTabs'
 import CodeEditor from '../components/code-studio/CodeEditor'
 import Toolbar from '../components/code-studio/Toolbar'
 import AgentPanel from '../components/code-studio/AgentPanel'
-import { buscarArvore, lerArquivo, salvarArquivo, type ArquivoArvore } from '../services/codeStudio'
+import { buscarArvore, lerArquivo, salvarArquivo, gitPull, type ArquivoArvore } from '../services/codeStudio'
 
 interface ProjetoInfo {
   id: number
@@ -122,6 +122,10 @@ export default function CodeStudio() {
   // ============================================================
   // Carregar arvore quando projeto muda
   // ============================================================
+  // Estado de git pull
+  const [fazendoPull, setFazendoPull] = useState(false)
+  const [mensagemPull, setMensagemPull] = useState('')
+
   const carregarArvore = useCallback(async () => {
     setCarregando(true)
     setErroArvore('')
@@ -135,6 +139,26 @@ export default function CodeStudio() {
       setCarregando(false)
     }
   }, [projetoAtivo])
+
+  // Git pull — atualizar repositorio remoto
+  const executarPull = useCallback(async () => {
+    setFazendoPull(true)
+    setMensagemPull('')
+    try {
+      const resultado = await gitPull(projetoAtivo?.id || 0)
+      setMensagemPull(resultado.sucesso ? `Pull OK (${resultado.branch})` : resultado.mensagem)
+      // Recarregar arvore apos pull
+      if (resultado.sucesso) {
+        await carregarArvore()
+        // Limpar mensagem apos 3s
+        setTimeout(() => setMensagemPull(''), 3000)
+      }
+    } catch (e) {
+      setMensagemPull(e instanceof Error ? e.message : 'Erro no pull')
+    } finally {
+      setFazendoPull(false)
+    }
+  }, [projetoAtivo, carregarArvore])
 
   useEffect(() => {
     if (!carregandoProjetos) {
@@ -373,12 +397,52 @@ export default function CodeStudio() {
         </div>
 
         {/* Indicador do projeto ativo */}
-        {projetoAtivo && !projetoAtivo.caminho && (
+        {projetoAtivo && !projetoAtivo.caminho && !projetoAtivo.repositorio && (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20">
             <AlertCircle size={11} className="text-amber-400" />
             <span className="text-[10px] text-amber-400 font-medium">Caminho nao configurado</span>
           </div>
         )}
+
+        {/* Botao git pull */}
+        {projetoAtivo?.repositorio && (
+          <button
+            onClick={executarPull}
+            disabled={fazendoPull}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all hover:bg-white/5 disabled:opacity-50"
+            style={{ borderColor: 'var(--sf-border-subtle)', color: 'var(--sf-text-2)' }}
+            title="Atualizar repositorio (git pull)"
+          >
+            {fazendoPull ? (
+              <Loader2 size={11} className="animate-spin" />
+            ) : (
+              <Download size={11} />
+            )}
+            Pull
+          </button>
+        )}
+
+        {/* Mensagem do pull */}
+        {mensagemPull && (
+          <span className="text-[10px] px-2 py-0.5 rounded"
+            style={{ color: mensagemPull.includes('OK') ? '#34d399' : '#f87171', background: 'rgba(255,255,255,0.03)' }}>
+            {mensagemPull.slice(0, 60)}
+          </span>
+        )}
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Botao recarregar arvore */}
+        <button
+          onClick={carregarArvore}
+          disabled={carregando}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all hover:bg-white/5 disabled:opacity-50"
+          style={{ color: 'var(--sf-text-3)' }}
+          title="Recarregar arvore de arquivos"
+        >
+          <RefreshCw size={11} className={carregando ? 'animate-spin' : ''} />
+        </button>
       </div>
 
       {/* Fechar dropdown ao clicar fora */}
@@ -393,7 +457,11 @@ export default function CodeStudio() {
           {carregando || carregandoProjetos ? (
             <div className="flex flex-col items-center justify-center h-full gap-2">
               <Loader2 size={20} className="animate-spin" style={{ color: 'var(--sf-accent)' }} />
-              <span className="text-[11px]" style={{ color: 'var(--sf-text-3)' }}>Carregando arquivos...</span>
+              <span className="text-[11px] text-center px-4" style={{ color: 'var(--sf-text-3)' }}>
+                {projetoAtivo?.repositorio && !projetoAtivo?.caminho
+                  ? 'Clonando repositorio...\nIsso pode levar alguns segundos'
+                  : 'Carregando arquivos...'}
+              </span>
             </div>
           ) : erroArvore ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 px-4 text-center">

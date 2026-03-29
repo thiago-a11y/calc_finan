@@ -133,3 +133,25 @@ export async function analisarCodigo(
   }
   return res.json()
 }
+
+export interface GitPullResponse {
+  sucesso: boolean
+  mensagem: string
+  branch: string
+}
+
+export async function gitPull(projetoId = 0): Promise<GitPullResponse> {
+  const params = new URLSearchParams()
+  if (projetoId) params.set('project_id', String(projetoId))
+  const qs = params.toString() ? `?${params.toString()}` : ''
+
+  const res = await fetch(`${API}/api/code-studio/git-pull${qs}`, {
+    method: 'POST',
+    headers: headers(),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Erro no git pull' }))
+    throw new Error(err.detail || 'Erro no git pull')
+  }
+  return res.json()
+}

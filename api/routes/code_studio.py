@@ -18,7 +18,9 @@ Seguranca:
 
 import logging
 import os
+import re
 import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -28,7 +30,7 @@ from sqlalchemy.orm import Session
 
 from api.dependencias import obter_usuario_atual
 from database.session import get_db
-from database.models import UsuarioDB, AuditLogDB, ProjetoDB
+from database.models import UsuarioDB, AuditLogDB, ProjetoDB, ProjetoVCSDB
 
 logger = logging.getLogger("synerium.code_studio")
 
@@ -43,6 +45,10 @@ if os.path.exists("/opt/synerium-factory"):
     DEFAULT_BASE = Path("/opt/synerium-factory")
 else:
     DEFAULT_BASE = Path(__file__).parent.parent.parent.resolve()
+
+# Diretorio base para projetos clonados automaticamente do VCS
+PROJETOS_BASE = Path(os.getenv("PROJETOS_BASE", "/opt/projetos"))
+
 
 # Diretorios ignorados na arvore
 IGNORED_DIRS = {
@@ -95,12 +101,133 @@ PAPEIS_ESCRITA = {"ceo", "operations_lead", "dev", "desenvolvedor", "diretor_tec
 # Helpers
 # ============================================================
 
+def _slug_projeto(nome: str) -> str:
+    """Gera slug seguro a partir do nome do projeto (ex: 'SyneriumX' → 'syneriumx')."""
+    slug = re.sub(r'[^a-zA-Z0-9_-]', '', nome.replace(' ', '-')).lower().strip('-')
+    return slug or 'projeto'
+
+
+def _clonar_projeto_vcs(projeto: ProjetoDB, db: Session) -> Path | None:
+    """
+    Tenta clonar o repositorio do projeto via VCS (GitHub/GitBucket).
+
+    Se o projeto tem VCS configurado, clona para PROJETOS_BASE/{slug}/.
+    Atualiza o campo 'caminho' no banco com o novo diretorio.
+    Retorna o Path do diretorio clonado ou None se falhar.
+    """
+    from core.vcs_service import descriptografar_token
+
+    vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=projeto.id, ativo=True).first()
+    if not vcs:
+        return None
+
+    try:
+        token = descriptografar_token(vcs.api_token_encrypted)
+    except Exception as e:
+        logger.error(f"[CodeStudio] Erro ao descriptografar token VCS do projeto {projeto.nome}: {e}")
+        return None
+
+    # Construir URL autenticada para clone
+    repo_url = vcs.repo_url.rstrip("/")
+    owner_repo = None
+
+    if "github.com" in repo_url:
+        url_limpa = repo_url.rstrip("/").rstrip(".git")
+        partes = url_limpa.split("github.com/")
+        if len(partes) == 2:
+            owner_repo = partes[1]
+        clone_url = f"https://x-access-token:{token}@github.com/{owner_repo}.git" if owner_repo else None
+    elif "/git/" in repo_url:
+        url_limpa = repo_url.rstrip("/").rstrip(".git")
+        partes = url_limpa.split("/git/")
+        if len(partes) == 2:
+            owner_repo = partes[1]
+        base_host = repo_url.split("/git/")[0].replace("https://", "").replace("http://", "")
+        clone_url = f"https://token:{token}@{base_host}/git/{owner_repo}.git" if owner_repo else None
+    else:
+        logger.warning(f"[CodeStudio] URL VCS nao reconhecida: {repo_url}")
+        return None
+
+    if not clone_url:
+        return None
+
+    # Diretorio destino
+    slug = _slug_projeto(projeto.nome)
+    destino = PROJETOS_BASE / slug
+
+    # Se ja existe e e um repo git, apenas fazer pull
+    if destino.is_dir() and (destino / ".git").is_dir():
+        logger.info(f"[CodeStudio] Projeto {projeto.nome} ja clonado em {destino}, fazendo git pull...")
+        try:
+            subprocess.run(
+                ["git", "pull", "origin", vcs.branch_padrao or "main"],
+                cwd=str(destino),
+                capture_output=True,
+                timeout=60,
+            )
+        except Exception as e:
+            logger.warning(f"[CodeStudio] Erro no git pull: {e}")
+        # Atualizar caminho no banco
+        projeto.caminho = str(destino)
+        db.commit()
+        return destino
+
+    # Criar diretorio base se nao existir
+    PROJETOS_BASE.mkdir(parents=True, exist_ok=True)
+
+    # Clonar repositorio
+    logger.info(f"[CodeStudio] Clonando {projeto.nome} de {repo_url} para {destino}...")
+    branch = vcs.branch_padrao or "main"
+
+    try:
+        result = subprocess.run(
+            ["git", "clone", "--branch", branch, "--single-branch", clone_url, str(destino)],
+            capture_output=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace")
+            # Tentar sem --branch (repo pode ter branch diferente)
+            logger.warning(f"[CodeStudio] Clone com --branch {branch} falhou, tentando sem: {stderr[:200]}")
+            result = subprocess.run(
+                ["git", "clone", clone_url, str(destino)],
+                capture_output=True,
+                timeout=120,
+            )
+            if result.returncode != 0:
+                stderr = result.stderr.decode("utf-8", errors="replace")
+                logger.error(f"[CodeStudio] Falha no clone: {stderr[:300]}")
+                return None
+
+        # Atualizar caminho no banco
+        projeto.caminho = str(destino)
+        db.commit()
+
+        logger.info(f"[CodeStudio] Projeto {projeto.nome} clonado com sucesso em {destino}")
+        return destino
+
+    except subprocess.TimeoutExpired:
+        logger.error(f"[CodeStudio] Timeout ao clonar {projeto.nome}")
+        # Limpar diretorio parcial
+        if destino.exists():
+            shutil.rmtree(destino, ignore_errors=True)
+        return None
+    except Exception as e:
+        logger.error(f"[CodeStudio] Erro ao clonar {projeto.nome}: {e}")
+        if destino.exists():
+            shutil.rmtree(destino, ignore_errors=True)
+        return None
+
+
 def _obter_base_projeto(project_id: int, db: Session, usuario: UsuarioDB) -> tuple[Path, int | None, ProjetoDB | None]:
     """
     Resolve a base do projeto pelo ID.
 
     Retorna (base_path, projeto_id_real, projeto_obj).
     Se project_id=0 ou None: retorna DEFAULT_BASE (Synerium Factory).
+
+    Se o diretorio nao existe mas o projeto tem VCS configurado,
+    tenta clonar automaticamente do repositorio.
     """
     if not project_id:
         return DEFAULT_BASE, None, None
@@ -115,11 +242,25 @@ def _obter_base_projeto(project_id: int, db: Session, usuario: UsuarioDB) -> tup
 
     caminho = projeto.caminho
     if not caminho or not caminho.strip():
-        raise HTTPException(status_code=400, detail=f"Projeto '{projeto.nome}' nao tem caminho configurado. Configure em Projetos.")
+        # Sem caminho — tentar auto-clone via VCS
+        base_clonada = _clonar_projeto_vcs(projeto, db)
+        if base_clonada:
+            return base_clonada, projeto.id, projeto
+        raise HTTPException(
+            status_code=400,
+            detail=f"Projeto '{projeto.nome}' nao tem caminho configurado e nao possui VCS para clone automatico. Configure em Projetos.",
+        )
 
     base = Path(caminho.strip()).resolve()
     if not base.is_dir():
-        raise HTTPException(status_code=400, detail=f"Diretorio do projeto nao encontrado: {caminho}")
+        # Diretorio nao existe — tentar auto-clone via VCS
+        base_clonada = _clonar_projeto_vcs(projeto, db)
+        if base_clonada:
+            return base_clonada, projeto.id, projeto
+        raise HTTPException(
+            status_code=400,
+            detail=f"Diretorio do projeto nao encontrado: {caminho}. Configure VCS para clone automatico.",
+        )
 
     return base, projeto.id, projeto
 
@@ -545,3 +686,54 @@ async def aplicar_acao(
         "tamanho": len(dados.conteudo_novo),
         "vcs": vcs_resultado,
     }
+
+
+# ============================================================
+# Git Pull — atualizar repositorio do projeto
+# ============================================================
+
+@router.post("/git-pull")
+async def git_pull(
+    project_id: int = Query(0),
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Faz git pull no repositorio do projeto para atualizar arquivos locais."""
+    base, proj_id, projeto = _obter_base_projeto(project_id, db, usuario)
+
+    git_dir = base / ".git"
+    if not git_dir.is_dir():
+        raise HTTPException(status_code=400, detail="Diretorio nao e um repositorio git.")
+
+    try:
+        # Descobrir branch atual
+        branch_result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(base),
+            capture_output=True,
+            timeout=10,
+        )
+        branch = branch_result.stdout.decode().strip() if branch_result.returncode == 0 else "main"
+
+        # Git pull
+        result = subprocess.run(
+            ["git", "pull", "origin", branch],
+            cwd=str(base),
+            capture_output=True,
+            timeout=60,
+        )
+
+        stdout = result.stdout.decode("utf-8", errors="replace").strip()
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+
+        if result.returncode != 0:
+            logger.warning(f"[CodeStudio] git pull falhou em {base}: {stderr[:300]}")
+            return {"sucesso": False, "mensagem": stderr[:300], "branch": branch}
+
+        logger.info(f"[CodeStudio] git pull OK em {base} ({branch}): {stdout[:200]}")
+        return {"sucesso": True, "mensagem": stdout[:300], "branch": branch}
+
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Timeout no git pull (60s).")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro no git pull: {str(e)[:200]}")
