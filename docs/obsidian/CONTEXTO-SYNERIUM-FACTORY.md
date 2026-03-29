@@ -259,9 +259,10 @@ Gastos de IA abaixo de R$50 são auto-aprovados.
 
 ## Sistema de Projetos
 - Cada projeto tem: proprietário (nomeado pelo CEO), líder técnico, membros
-- Mudança pequena → líder aprova
-- Mudança grande → proprietário aprova
-- Mudança crítica → proprietário + líder
+- **Hierarquia editável** — Proprietário, líder técnico e membros podem ser alterados diretamente na interface com dropdowns inline (v0.36.0)
+- **Regras de aprovação customizáveis por projeto** — Campo JSON `regras_aprovacao` em `ProjetoDB` permite definir fluxo de aprovação diferente para cada projeto
+- Endpoint `PUT /projetos/{id}/regras` para atualizar regras de aprovação
+- Padrão (se não customizado): mudança pequena → líder aprova | mudança grande → proprietário aprova | mudança crítica → proprietário + líder
 - SyneriumX cadastrado como primeiro projeto (proprietário: Thiago, líder: Jonatas)
 
 ## Ferramentas de Edição do SyneriumX
@@ -395,6 +396,8 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.33.1** — **Gemini 2.0 Flash + GPT-4o** — Cadeia completa: Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 - **v0.34.0** — **Code Studio** — Editor de código integrado com CodeMirror 6, 4 endpoints, árvore de arquivos, abas, agente IA, syntax highlighting, audit log LGPD
 - **v0.35.0** — **Version Control (VCS)** — Integração GitHub/GitBucket por projeto, token criptografado (Fernet), 4 endpoints VCS, commit+push automático no Code Studio
+- **v0.35.1** — **Fix PDF (Luna)** — Corrigido erro 400 ao gerar PDF; nova função `_sanitizar_para_pdf()` remove tags HTML antes do ReportLab
+- **v0.36.0** — **Hierarquia Editável + Regras de Aprovação** — Projetos com hierarquia editável (owner, tech lead, membros) e regras de aprovação customizáveis por projeto (JSON), endpoint PUT, dropdowns inline no frontend
 
 ---
 

@@ -4,6 +4,30 @@
 
 ---
 
+## v0.36.0 — Hierarquia Editável + Regras de Aprovação por Projeto (2026-03-29)
+
+### Funcionalidades
+- **Hierarquia editável por projeto** — Proprietário, líder técnico e membros podem ser alterados diretamente na interface do projeto
+- **Regras de aprovação customizáveis** — Cada projeto pode definir suas próprias regras de aprovação (quem aprova mudanças pequenas, grandes e críticas)
+- **Campo `regras_aprovacao` (JSON)** — Novo campo JSON em `ProjetoDB` para armazenar regras de aprovação personalizadas por projeto
+- **Endpoint `PUT /projetos/{id}/regras`** — Novo endpoint para atualizar regras de aprovação de um projeto específico
+- **Dropdowns inline no frontend** — Edição da hierarquia e regras diretamente na página de projetos com dropdowns inline (sem modal separado)
+
+### Detalhes
+- Regras de aprovação são flexíveis: cada projeto pode ter fluxo diferente
+- Retrocompatível: projetos sem regras customizadas usam o padrão global (líder → proprietário → proprietário+líder)
+
+---
+
+## v0.35.1 — Fix Geração de PDF (Luna) (2026-03-29)
+
+### Correções
+- **Erro 400 ao gerar PDF** — Tags HTML vindas do navegador estavam sendo passadas diretamente ao ReportLab, causando erro na geração
+- **`_sanitizar_para_pdf()`** — Nova função que remove/converte tags HTML antes de enviar conteúdo ao ReportLab
+- **Sanitização geral em `gerar_arquivo()`** — Tratamento de HTML aplicado de forma global na função de geração de arquivos, prevenindo erros similares em outros formatos
+
+---
+
 ## v0.35.0 — Version Control (VCS) — Integração GitHub/GitBucket por Projeto (2026-03-29)
 
 ### Funcionalidades

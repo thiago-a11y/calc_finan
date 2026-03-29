@@ -1,8 +1,21 @@
 # Pendencias do Ultimo Chat — 29/Mar/2026
 
-> Atualizado em 29/Mar/2026 (sessao 13)
+> Atualizado em 29/Mar/2026 (sessao 14)
 
 ## Concluido nesta sessao
+
+### v0.36.0 — Hierarquia Editavel + Regras de Aprovacao por Projeto
+- [x] Hierarquia editavel por projeto (proprietario, lider tecnico, membros) via dropdowns inline
+- [x] Regras de aprovacao customizaveis por projeto (campo JSON `regras_aprovacao` em ProjetoDB)
+- [x] Endpoint `PUT /projetos/{id}/regras` para atualizar regras de aprovacao
+- [x] Frontend com dropdowns inline para edicao direta na pagina de projetos
+
+### v0.35.1 — Fix Geracao de PDF (Luna)
+- [x] Corrigido erro 400 ao gerar PDF — tags HTML do navegador passavam direto ao ReportLab
+- [x] Nova funcao `_sanitizar_para_pdf()` para remover/converter tags HTML
+- [x] Sanitizacao geral aplicada em `gerar_arquivo()` para prevenir erros similares
+
+### Sessao anterior (sessao 13)
 
 ### v0.35.0 — Version Control (VCS) — Integracao GitHub/GitBucket por Projeto
 - [x] `core/vcs_service.py` — Servico de VCS com criptografia Fernet para tokens
@@ -92,7 +105,8 @@
 - Tudo em producao (AWS)
 - VCS integrado ao Code Studio com commit + push automatico
 - Avatares reais dos agentes implementados em todas as telas
-- Luna funcional com downloads e geracao de arquivos
+- Luna funcional com downloads e geracao de arquivos (PDF corrigido na v0.35.1)
+- Projetos com hierarquia editavel e regras de aprovacao customizaveis (v0.36.0)
 
 ## Pendencias / Proximos passos
 - [ ] Testar integracao VCS com repositorio GitBucket real
