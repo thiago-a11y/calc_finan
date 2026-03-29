@@ -199,6 +199,15 @@ class ProjetoDB(Base):
     lider_tecnico_nome = Column(String(255), default="")
     membros = Column(JSON, default=list)  # [{"id": 1, "nome": "Rhammon", "papel": "dev"}]
 
+    # Regras de aprovação customizáveis por projeto
+    # Formato: {"pequena": "lider_tecnico", "grande": "proprietario", "critica": "ambos"}
+    # Valores possíveis: "lider_tecnico", "proprietario", "ambos", "nenhum" (auto-aprovação)
+    regras_aprovacao = Column(JSON, default=lambda: {
+        "pequena": {"aprovador": "lider_tecnico", "descricao": "Bug fix, UI tweak"},
+        "grande": {"aprovador": "proprietario", "descricao": "Feature, arquitetura"},
+        "critica": {"aprovador": "ambos", "descricao": "Deploy, banco, segurança"},
+    })
+
     # Status
     ativo = Column(Boolean, default=True)
     fase_atual = Column(String(100), default="")  # "Fase 7.3"

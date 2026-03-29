@@ -309,6 +309,20 @@ export const uploadArquivos = async (files: File[]): Promise<import('../types').
   return data.arquivos
 }
 
+/* --- Gestão de Projetos (hierarquia e regras) --- */
+
+export const nomearProprietario = (projetoId: number, usuarioId: number) =>
+  put<{ mensagem: string }>(`/projetos/${projetoId}/proprietario`, { usuario_id: usuarioId })
+
+export const nomearLider = (projetoId: number, usuarioId: number) =>
+  put<{ mensagem: string }>(`/projetos/${projetoId}/lider`, { usuario_id: usuarioId })
+
+export const gerenciarMembro = (projetoId: number, acao: 'adicionar' | 'remover', usuarioId: number, papel = 'membro') =>
+  put<{ mensagem: string }>(`/projetos/${projetoId}/membros`, { acao, usuario_id: usuarioId, papel })
+
+export const atualizarRegrasAprovacao = (projetoId: number, regras: Record<string, { aprovador: string; descricao: string }>) =>
+  put<{ mensagem: string }>(`/projetos/${projetoId}/regras`, { regras })
+
 // ============================================================
 // Version Control (VCS) — GitHub + GitBucket
 // ============================================================

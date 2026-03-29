@@ -1,17 +1,23 @@
-/* Projetos — Gestão premium dark-mode (zero emojis) */
+/* Projetos — Gestao premium dark-mode com hierarquia e regras editaveis */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { usePolling } from '../hooks/usePolling'
 import { useAuth } from '../contexts/AuthContext'
 import {
   FolderKanban, Crown, Wrench, Users, X, Plus, Send,
   Clock, CheckCircle2, XCircle, Loader2, ShieldCheck,
   GitPullRequest, Bug, RefreshCw, Rocket, Lock, MessageSquare,
-  ChevronRight, GitBranch, Plug, Trash2,
+  ChevronRight, GitBranch, Plug, Trash2, Edit3, UserPlus, UserMinus,
+  Save, ChevronDown,
 } from 'lucide-react'
-import { buscarVCS, salvarVCS, testarVCS, removerVCS } from '../services/api'
+import {
+  buscarVCS, salvarVCS, testarVCS, removerVCS,
+  buscarUsuarios, nomearProprietario, nomearLider,
+  gerenciarMembro, atualizarRegrasAprovacao,
+} from '../services/api'
 
 interface Membro { id: number; nome: string; papel: string }
+interface RegraAprovacao { aprovador: string; descricao: string }
 interface Solicitacao {
   id: number; titulo: string; descricao: string; tipo_mudanca: string
   categoria: string; status: string; aprovador_necessario: string
@@ -23,17 +29,19 @@ interface Projeto {
   repositorio: string; stack: string; icone: string
   proprietario_id: number; proprietario_nome: string
   lider_tecnico_id: number | null; lider_tecnico_nome: string
-  membros: Membro[]; fase_atual: string; criado_em: string
+  membros: Membro[]; regras_aprovacao: Record<string, RegraAprovacao>
+  fase_atual: string; criado_em: string
 }
 interface ProjetoDetalhado extends Projeto {
   eh_proprietario: boolean; eh_lider: boolean; eh_ceo: boolean
   solicitacoes: Solicitacao[]
 }
+interface UsuarioSimples { id: string; nome: string; email: string; cargo: string; ativo: boolean }
 
 const tipoConfig: Record<string, { cor: string; label: string }> = {
   pequena: { cor: '#10b981', label: 'Pequena' },
   grande: { cor: '#f59e0b', label: 'Grande' },
-  critica: { cor: '#ef4444', label: 'Crítica' },
+  critica: { cor: '#ef4444', label: 'Critica' },
 }
 
 const statusConfig: Record<string, { cor: string; label: string; icon: typeof Clock }> = {
@@ -41,12 +49,25 @@ const statusConfig: Record<string, { cor: string; label: string; icon: typeof Cl
   aprovada: { cor: '#10b981', label: 'Aprovada', icon: CheckCircle2 },
   rejeitada: { cor: '#ef4444', label: 'Rejeitada', icon: XCircle },
   em_execucao: { cor: '#3b82f6', label: 'Executando', icon: Loader2 },
-  concluida: { cor: '#10b981', label: 'Concluída', icon: CheckCircle2 },
+  concluida: { cor: '#10b981', label: 'Concluida', icon: CheckCircle2 },
 }
 
 const catIcons: Record<string, typeof GitPullRequest> = {
   feature: GitPullRequest, bugfix: Bug, refactor: RefreshCw,
   deploy: Rocket, seguranca: Lock,
+}
+
+const aprovadorLabels: Record<string, string> = {
+  lider_tecnico: 'Lider Tecnico',
+  proprietario: 'Proprietario',
+  ambos: 'Proprietario + Lider',
+  nenhum: 'Auto-aprovacao',
+}
+
+const regras_padrao: Record<string, RegraAprovacao> = {
+  pequena: { aprovador: 'lider_tecnico', descricao: 'Bug fix, UI tweak' },
+  grande: { aprovador: 'proprietario', descricao: 'Feature, arquitetura' },
+  critica: { aprovador: 'ambos', descricao: 'Deploy, banco, seguranca' },
 }
 
 export default function Projetos() {
@@ -86,7 +107,7 @@ export default function Projetos() {
   }
 
   const acaoSolicitacao = async (solId: number, acao: 'aprovar' | 'rejeitar') => {
-    const comentario = acao === 'rejeitar' ? prompt('Motivo da rejeição:') || '' : ''
+    const comentario = acao === 'rejeitar' ? prompt('Motivo da rejeicao:') || '' : ''
     const res = await fetch(`/api/solicitacoes/${solId}/${acao}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -116,11 +137,11 @@ export default function Projetos() {
 
       {mensagem && (
         <div className={`mb-6 px-4 py-3 rounded-xl text-sm flex items-center gap-2 ${
-          mensagem.includes('sucesso') || mensagem.includes('Aprovada')
+          mensagem.includes('sucesso') || mensagem.includes('Aprovada') || mensagem.includes('atualizada')
             ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
             : 'bg-red-500/10 border border-red-500/20 text-red-400'
         }`}>
-          {mensagem.includes('sucesso') ? <CheckCircle2 size={14} /> : <XCircle size={14} />} {mensagem}
+          {mensagem.includes('sucesso') || mensagem.includes('atualizada') ? <CheckCircle2 size={14} /> : <XCircle size={14} />} {mensagem}
         </div>
       )}
 
@@ -180,60 +201,30 @@ export default function Projetos() {
             </div>
 
             <div className="p-6 space-y-6">
-              {/* Hierarquia */}
-              <div>
-                <p className="text-[10px] sf-text-ghost uppercase tracking-wider mb-3">Hierarquia</p>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { icon: Crown, label: 'Proprietário', nome: projetoAberto.proprietario_nome, cor: '#10b981' },
-                    { icon: Wrench, label: 'Líder Técnico', nome: projetoAberto.lider_tecnico_nome || '—', cor: '#3b82f6' },
-                    { icon: Users, label: 'Membros', nome: projetoAberto.membros.map(m => m.nome).join(', ') || '—', cor: '#8b5cf6' },
-                  ].map(h => {
-                    const Icon = h.icon
-                    return (
-                      <div key={h.label} className="sf-glass border rounded-xl p-4 text-center">
-                        <div className="w-9 h-9 rounded-lg mx-auto mb-2 flex items-center justify-center" style={{ backgroundColor: `${h.cor}15` }}>
-                          <Icon size={16} style={{ color: h.cor }} strokeWidth={1.8} />
-                        </div>
-                        <p className="text-[10px] sf-text-ghost uppercase tracking-wider">{h.label}</p>
-                        <p className="text-sm font-medium sf-text-white mt-1">{h.nome}</p>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+              {/* Hierarquia Editavel */}
+              <SecaoHierarquia
+                projeto={projetoAberto}
+                onAtualizar={() => abrirProjeto(projetoAberto.id)}
+                onMensagem={setMensagem}
+              />
 
-              {/* Regras de Aprovação */}
-              <div className="sf-glass border rounded-xl p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <ShieldCheck size={14} className="sf-text-dim" />
-                  <p className="text-xs sf-text-dim font-semibold uppercase tracking-wider">Regras de Aprovação</p>
-                </div>
-                <div className="space-y-2.5">
-                  {[
-                    { tipo: 'Pequena', desc: 'Bug fix, UI tweak', quem: 'Líder Técnico', cor: '#10b981' },
-                    { tipo: 'Grande', desc: 'Feature, arquitetura', quem: 'Proprietário', cor: '#f59e0b' },
-                    { tipo: 'Crítica', desc: 'Deploy, banco, segurança', quem: 'Proprietário + Líder', cor: '#ef4444' },
-                  ].map(r => (
-                    <div key={r.tipo} className="flex items-center gap-3">
-                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-md border" style={{ color: r.cor, backgroundColor: `${r.cor}10`, borderColor: `${r.cor}25` }}>{r.tipo}</span>
-                      <span className="text-xs sf-text-dim flex-1">{r.desc}</span>
-                      <span className="text-xs sf-text-dim font-medium">{r.quem}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* Regras de Aprovacao Editaveis */}
+              <SecaoRegras
+                projeto={projetoAberto}
+                onAtualizar={() => abrirProjeto(projetoAberto.id)}
+                onMensagem={setMensagem}
+              />
 
               {/* Version Control */}
               {(projetoAberto.eh_proprietario || projetoAberto.eh_ceo) && (
                 <SecaoVCS projetoId={projetoAberto.id} />
               )}
 
-              {/* Solicitações */}
+              {/* Solicitacoes */}
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-[10px] sf-text-ghost uppercase tracking-wider">
-                    Solicitações ({projetoAberto.solicitacoes.length})
+                    Solicitacoes ({projetoAberto.solicitacoes.length})
                   </p>
                   <button onClick={() => setNovaSolicitacao(!novaSolicitacao)}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium transition-all ${
@@ -247,20 +238,20 @@ export default function Projetos() {
 
                 {novaSolicitacao && (
                   <div className="sf-glass border rounded-xl p-4 mb-4 space-y-3">
-                    <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Título da mudança" className={inputCls} />
+                    <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Titulo da mudanca" className={inputCls} />
                     <textarea value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Descreva em detalhes..." rows={3} className={inputCls} />
                     <div className="flex gap-3">
                       <select value={tipoMudanca} onChange={e => setTipoMudanca(e.target.value)} className={selectCls}>
                         <option value="pequena">Pequena</option>
                         <option value="grande">Grande</option>
-                        <option value="critica">Crítica</option>
+                        <option value="critica">Critica</option>
                       </select>
                       <select value={categoria} onChange={e => setCategoria(e.target.value)} className={selectCls}>
                         <option value="feature">Feature</option>
                         <option value="bugfix">Bug Fix</option>
-                        <option value="refactor">Refatoração</option>
+                        <option value="refactor">Refatoracao</option>
                         <option value="deploy">Deploy</option>
-                        <option value="seguranca">Segurança</option>
+                        <option value="seguranca">Seguranca</option>
                       </select>
                       <button onClick={() => criarSolicitacao(projetoAberto.id)} disabled={!titulo || !descricao}
                         className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-medium hover:bg-emerald-500/30 disabled:opacity-40">
@@ -292,7 +283,7 @@ export default function Projetos() {
                         </div>
                         <p className="text-xs sf-text-dim mb-2">{sol.descricao}</p>
                         <div className="flex items-center justify-between text-[10px] sf-text-ghost">
-                          <span>Por: {sol.solicitante_nome} · Requer: {sol.aprovador_necessario}</span>
+                          <span>Por: {sol.solicitante_nome} | Requer: {sol.aprovador_necessario}</span>
                           {sol.status === 'pendente' && (projetoAberto.eh_proprietario || projetoAberto.eh_lider || projetoAberto.eh_ceo) && (
                             <div className="flex gap-2">
                               <button onClick={() => acaoSolicitacao(sol.id, 'aprovar')}
@@ -316,7 +307,7 @@ export default function Projetos() {
                     )
                   })}
                   {projetoAberto.solicitacoes.length === 0 && (
-                    <p className="text-sm sf-text-ghost text-center py-6">Nenhuma solicitação.</p>
+                    <p className="text-sm sf-text-ghost text-center py-6">Nenhuma solicitacao.</p>
                   )}
                 </div>
               </div>
@@ -330,7 +321,373 @@ export default function Projetos() {
 
 
 /* ================================================================ */
-/* Seção Version Control (VCS)                                       */
+/* Secao Hierarquia Editavel                                         */
+/* ================================================================ */
+
+function SecaoHierarquia({
+  projeto, onAtualizar, onMensagem,
+}: {
+  projeto: ProjetoDetalhado
+  onAtualizar: () => void
+  onMensagem: (msg: string) => void
+}) {
+  const [editando, setEditando] = useState(false)
+  const [usuarios, setUsuarios] = useState<UsuarioSimples[]>([])
+  const [carregandoUsuarios, setCarregandoUsuarios] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+
+  // Dropdowns abertos
+  const [dropProp, setDropProp] = useState(false)
+  const [dropLider, setDropLider] = useState(false)
+  const [dropNovoMembro, setDropNovoMembro] = useState(false)
+  const [papelNovoMembro, setPapelNovoMembro] = useState('dev')
+
+  const podeEditar = projeto.eh_proprietario || projeto.eh_ceo
+
+  const carregarUsuarios = async () => {
+    setCarregandoUsuarios(true)
+    try {
+      const lista = await buscarUsuarios(false)
+      setUsuarios(lista)
+    } catch { /* ignore */ }
+    setCarregandoUsuarios(false)
+  }
+
+  const handleEditar = () => {
+    setEditando(true)
+    carregarUsuarios()
+  }
+
+  const handleMudarProprietario = async (userId: string | number) => {
+    setSalvando(true)
+    try {
+      const r = await nomearProprietario(projeto.id, Number(userId))
+      onMensagem(r.mensagem)
+      onAtualizar()
+    } catch (e) {
+      onMensagem(e instanceof Error ? e.message : 'Erro')
+    }
+    setSalvando(false)
+    setDropProp(false)
+  }
+
+  const handleMudarLider = async (userId: string | number) => {
+    setSalvando(true)
+    try {
+      const r = await nomearLider(projeto.id, Number(userId))
+      onMensagem(r.mensagem)
+      onAtualizar()
+    } catch (e) {
+      onMensagem(e instanceof Error ? e.message : 'Erro')
+    }
+    setSalvando(false)
+    setDropLider(false)
+  }
+
+  const handleAdicionarMembro = async (userId: string | number) => {
+    setSalvando(true)
+    try {
+      const r = await gerenciarMembro(projeto.id, 'adicionar', Number(userId), papelNovoMembro)
+      onMensagem(r.mensagem)
+      onAtualizar()
+    } catch (e) {
+      onMensagem(e instanceof Error ? e.message : 'Erro')
+    }
+    setSalvando(false)
+    setDropNovoMembro(false)
+  }
+
+  const handleRemoverMembro = async (userId: string | number) => {
+    setSalvando(true)
+    try {
+      const r = await gerenciarMembro(projeto.id, 'remover', Number(userId))
+      onMensagem(r.mensagem)
+      onAtualizar()
+    } catch (e) {
+      onMensagem(e instanceof Error ? e.message : 'Erro')
+    }
+    setSalvando(false)
+  }
+
+  // Filtrar usuarios que nao sao membros (comparar como number)
+  const membrosIds = new Set((projeto.membros || []).map(m => Number(m.id)))
+  const usuariosDisponiveis = usuarios.filter(u =>
+    Number(u.id) !== projeto.proprietario_id &&
+    Number(u.id) !== projeto.lider_tecnico_id &&
+    !membrosIds.has(Number(u.id))
+  )
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[10px] sf-text-ghost uppercase tracking-wider">Hierarquia</p>
+        {podeEditar && !editando && (
+          <button onClick={handleEditar}
+            className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 sf-text-dim transition-colors">
+            <Edit3 size={10} /> Editar
+          </button>
+        )}
+        {editando && (
+          <button onClick={() => setEditando(false)}
+            className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 transition-colors">
+            <CheckCircle2 size={10} /> Concluir
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        {/* Proprietario */}
+        <div className="sf-glass border rounded-xl p-4 text-center relative">
+          <div className="w-9 h-9 rounded-lg mx-auto mb-2 flex items-center justify-center" style={{ backgroundColor: '#10b98115' }}>
+            <Crown size={16} className="text-emerald-400" strokeWidth={1.8} />
+          </div>
+          <p className="text-[10px] sf-text-ghost uppercase tracking-wider">Proprietario</p>
+          <p className="text-sm font-medium sf-text-white mt-1">{projeto.proprietario_nome}</p>
+
+          {editando && projeto.eh_ceo && (
+            <div className="mt-2 relative">
+              <button onClick={() => { setDropProp(!dropProp); setDropLider(false); setDropNovoMembro(false) }}
+                className="text-[10px] px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors w-full flex items-center justify-center gap-1">
+                <Edit3 size={9} /> Alterar <ChevronDown size={9} />
+              </button>
+              {dropProp && (
+                <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-white/10 shadow-xl max-h-40 overflow-y-auto z-20" style={{ background: 'var(--sf-bg-tooltip)' }}>
+                  {carregandoUsuarios ? (
+                    <div className="p-2 text-center"><Loader2 size={12} className="animate-spin inline sf-text-dim" /></div>
+                  ) : usuarios.filter(u => Number(u.id) !== projeto.proprietario_id).map(u => (
+                    <button key={u.id} onClick={() => handleMudarProprietario(u.id)} disabled={salvando}
+                      className="w-full text-left px-3 py-2 text-[11px] sf-text-dim hover:bg-white/5 transition-colors truncate">
+                      {u.nome} <span className="sf-text-ghost">({u.cargo})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Lider Tecnico */}
+        <div className="sf-glass border rounded-xl p-4 text-center relative">
+          <div className="w-9 h-9 rounded-lg mx-auto mb-2 flex items-center justify-center" style={{ backgroundColor: '#3b82f615' }}>
+            <Wrench size={16} className="text-blue-400" strokeWidth={1.8} />
+          </div>
+          <p className="text-[10px] sf-text-ghost uppercase tracking-wider">Lider Tecnico</p>
+          <p className="text-sm font-medium sf-text-white mt-1">{projeto.lider_tecnico_nome || '(nenhum)'}</p>
+
+          {editando && (
+            <div className="mt-2 relative">
+              <button onClick={() => { setDropLider(!dropLider); setDropProp(false); setDropNovoMembro(false) }}
+                className="text-[10px] px-2 py-1 rounded bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors w-full flex items-center justify-center gap-1">
+                <Edit3 size={9} /> Alterar <ChevronDown size={9} />
+              </button>
+              {dropLider && (
+                <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-white/10 shadow-xl max-h-40 overflow-y-auto z-20" style={{ background: 'var(--sf-bg-tooltip)' }}>
+                  {carregandoUsuarios ? (
+                    <div className="p-2 text-center"><Loader2 size={12} className="animate-spin inline sf-text-dim" /></div>
+                  ) : usuarios.filter(u => Number(u.id) !== projeto.lider_tecnico_id).map(u => (
+                    <button key={u.id} onClick={() => handleMudarLider(u.id)} disabled={salvando}
+                      className="w-full text-left px-3 py-2 text-[11px] sf-text-dim hover:bg-white/5 transition-colors truncate">
+                      {u.nome} <span className="sf-text-ghost">({u.cargo})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Membros */}
+        <div className="sf-glass border rounded-xl p-4 text-center relative">
+          <div className="w-9 h-9 rounded-lg mx-auto mb-2 flex items-center justify-center" style={{ backgroundColor: '#8b5cf615' }}>
+            <Users size={16} className="text-purple-400" strokeWidth={1.8} />
+          </div>
+          <p className="text-[10px] sf-text-ghost uppercase tracking-wider">Membros ({(projeto.membros || []).length})</p>
+
+          {(projeto.membros || []).length > 0 ? (
+            <div className="mt-1 space-y-1">
+              {(projeto.membros || []).map(m => (
+                <div key={m.id} className="flex items-center justify-center gap-1">
+                  <span className="text-[11px] sf-text-dim">{m.nome}</span>
+                  <span className="text-[9px] sf-text-ghost">({m.papel})</span>
+                  {editando && (
+                    <button onClick={() => handleRemoverMembro(m.id)} disabled={salvando}
+                      className="text-red-400/60 hover:text-red-400 transition-colors ml-0.5">
+                      <UserMinus size={10} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] sf-text-ghost mt-1">(nenhum)</p>
+          )}
+
+          {editando && (
+            <div className="mt-2 relative">
+              <button onClick={() => { setDropNovoMembro(!dropNovoMembro); setDropProp(false); setDropLider(false) }}
+                className="text-[10px] px-2 py-1 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors w-full flex items-center justify-center gap-1">
+                <UserPlus size={9} /> Adicionar <ChevronDown size={9} />
+              </button>
+              {dropNovoMembro && (
+                <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-white/10 shadow-xl max-h-48 overflow-y-auto z-20" style={{ background: 'var(--sf-bg-tooltip)' }}>
+                  {/* Seletor de papel */}
+                  <div className="p-2 border-b border-white/5">
+                    <select value={papelNovoMembro} onChange={e => setPapelNovoMembro(e.target.value)}
+                      className="w-full text-[10px] bg-white/5 border border-white/10 rounded px-2 py-1 sf-text-dim outline-none">
+                      <option value="dev">Desenvolvedor</option>
+                      <option value="designer">Designer</option>
+                      <option value="qa">QA</option>
+                      <option value="membro">Membro</option>
+                      <option value="analista">Analista</option>
+                    </select>
+                  </div>
+                  {carregandoUsuarios ? (
+                    <div className="p-2 text-center"><Loader2 size={12} className="animate-spin inline sf-text-dim" /></div>
+                  ) : usuariosDisponiveis.length === 0 ? (
+                    <p className="p-2 text-[10px] sf-text-ghost text-center">Nenhum usuario disponivel</p>
+                  ) : usuariosDisponiveis.map(u => (
+                    <button key={u.id} onClick={() => handleAdicionarMembro(u.id)} disabled={salvando}
+                      className="w-full text-left px-3 py-2 text-[11px] sf-text-dim hover:bg-white/5 transition-colors truncate">
+                      {u.nome} <span className="sf-text-ghost">({u.cargo})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+/* ================================================================ */
+/* Secao Regras de Aprovacao Editaveis                               */
+/* ================================================================ */
+
+function SecaoRegras({
+  projeto, onAtualizar, onMensagem,
+}: {
+  projeto: ProjetoDetalhado
+  onAtualizar: () => void
+  onMensagem: (msg: string) => void
+}) {
+  const regras = projeto.regras_aprovacao && Object.keys(projeto.regras_aprovacao).length > 0
+    ? projeto.regras_aprovacao
+    : regras_padrao
+
+  const [editando, setEditando] = useState(false)
+  const [regraLocal, setRegraLocal] = useState<Record<string, RegraAprovacao>>({ ...regras })
+  const [salvando, setSalvando] = useState(false)
+
+  const podeEditar = projeto.eh_proprietario || projeto.eh_ceo
+
+  useEffect(() => {
+    const r = projeto.regras_aprovacao && Object.keys(projeto.regras_aprovacao).length > 0
+      ? projeto.regras_aprovacao
+      : regras_padrao
+    setRegraLocal({ ...r })
+  }, [projeto.regras_aprovacao])
+
+  const handleSalvar = async () => {
+    setSalvando(true)
+    try {
+      const r = await atualizarRegrasAprovacao(projeto.id, regraLocal)
+      onMensagem(r.mensagem)
+      onAtualizar()
+      setEditando(false)
+    } catch (e) {
+      onMensagem(e instanceof Error ? e.message : 'Erro ao salvar regras')
+    }
+    setSalvando(false)
+  }
+
+  const tipos = [
+    { key: 'pequena', label: 'Pequena', cor: '#10b981' },
+    { key: 'grande', label: 'Grande', cor: '#f59e0b' },
+    { key: 'critica', label: 'Critica', cor: '#ef4444' },
+  ]
+
+  return (
+    <div className="sf-glass border rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={14} className="sf-text-dim" />
+          <p className="text-xs sf-text-dim font-semibold uppercase tracking-wider">Regras de Aprovacao</p>
+        </div>
+        {podeEditar && !editando && (
+          <button onClick={() => setEditando(true)}
+            className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 sf-text-dim transition-colors">
+            <Edit3 size={10} /> Editar
+          </button>
+        )}
+        {editando && (
+          <div className="flex gap-1.5">
+            <button onClick={handleSalvar} disabled={salvando}
+              className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50">
+              {salvando ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} Salvar
+            </button>
+            <button onClick={() => { setEditando(false); setRegraLocal({ ...regras }) }}
+              className="text-[10px] px-2.5 py-1 rounded-lg bg-white/5 sf-text-dim hover:bg-white/10 transition-colors">
+              Cancelar
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2.5">
+        {tipos.map(t => {
+          const regra = regraLocal[t.key] || regras_padrao[t.key]
+          return (
+            <div key={t.key} className="flex items-center gap-3">
+              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-md border flex-shrink-0 w-16 text-center"
+                style={{ color: t.cor, backgroundColor: `${t.cor}10`, borderColor: `${t.cor}25` }}>
+                {t.label}
+              </span>
+
+              {editando ? (
+                <>
+                  <input
+                    value={regra.descricao}
+                    onChange={e => setRegraLocal(prev => ({
+                      ...prev,
+                      [t.key]: { ...prev[t.key], descricao: e.target.value },
+                    }))}
+                    className="flex-1 text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 sf-text-dim outline-none focus:border-emerald-500/50"
+                    placeholder="Descricao..."
+                  />
+                  <select
+                    value={regra.aprovador}
+                    onChange={e => setRegraLocal(prev => ({
+                      ...prev,
+                      [t.key]: { ...prev[t.key], aprovador: e.target.value },
+                    }))}
+                    className="text-[11px] bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 sf-text-dim outline-none focus:border-emerald-500/50"
+                  >
+                    <option value="lider_tecnico">Lider Tecnico</option>
+                    <option value="proprietario">Proprietario</option>
+                    <option value="ambos">Proprietario + Lider</option>
+                    <option value="nenhum">Auto-aprovacao</option>
+                  </select>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs sf-text-dim flex-1">{regra.descricao}</span>
+                  <span className="text-xs sf-text-dim font-medium">{aprovadorLabels[regra.aprovador] || regra.aprovador}</span>
+                </>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+
+/* ================================================================ */
+/* Secao Version Control (VCS)                                       */
 /* ================================================================ */
 
 function SecaoVCS({ projetoId }: { projetoId: number }) {
@@ -380,7 +737,7 @@ function SecaoVCS({ projetoId }: { projetoId: number }) {
   }
 
   const handleRemover = async () => {
-    if (!confirm('Remover configuração VCS deste projeto?')) return
+    if (!confirm('Remover configuracao VCS deste projeto?')) return
     try {
       await removerVCS(projetoId)
       setVcs({ configurado: false }); setRepoUrl(''); setToken(''); setBranch('main')
@@ -422,7 +779,6 @@ function SecaoVCS({ projetoId }: { projetoId: number }) {
       )}
 
       {vcs?.configurado && !editando ? (
-        /* VCS configurado — mostrar info */
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded"
@@ -431,10 +787,9 @@ function SecaoVCS({ projetoId }: { projetoId: number }) {
             </span>
             <span className="text-xs sf-text-dim font-mono truncate">{vcs.repo_url}</span>
           </div>
-          <p className="text-[10px] sf-text-ghost">Branch: <span className="sf-text-dim font-mono">{vcs.branch_padrao}</span> · Token: <span className="text-emerald-400">***configurado***</span></p>
+          <p className="text-[10px] sf-text-ghost">Branch: <span className="sf-text-dim font-mono">{vcs.branch_padrao}</span> | Token: <span className="text-emerald-400">***configurado***</span></p>
         </div>
       ) : (
-        /* Formulário de configuração */
         <div className="space-y-3">
           <div>
             <p className="text-[10px] sf-text-ghost mb-1">Tipo</p>
@@ -448,7 +803,7 @@ function SecaoVCS({ projetoId }: { projetoId: number }) {
             </div>
           </div>
           <div>
-            <p className="text-[10px] sf-text-ghost mb-1">URL do Repositório</p>
+            <p className="text-[10px] sf-text-ghost mb-1">URL do Repositorio</p>
             <input value={repoUrl} onChange={e => setRepoUrl(e.target.value)}
               placeholder={vcsTipo === 'github' ? 'https://github.com/owner/repo' : 'http://gitbucket.empresa.com/git/owner/repo'}
               className={inputCls} />
@@ -459,7 +814,7 @@ function SecaoVCS({ projetoId }: { projetoId: number }) {
               placeholder="ghp_xxxxx..." className={inputCls} />
           </div>
           <div>
-            <p className="text-[10px] sf-text-ghost mb-1">Branch Padrão</p>
+            <p className="text-[10px] sf-text-ghost mb-1">Branch Padrao</p>
             <input value={branch} onChange={e => setBranch(e.target.value)}
               placeholder="main" className={inputCls} />
           </div>

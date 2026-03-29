@@ -77,6 +77,11 @@ class GerenciarMembrosRequest(BaseModel):
     papel: str = "membro"  # membro, dev, designer, qa, etc.
 
 
+class AtualizarRegrasRequest(BaseModel):
+    """Atualizar regras de aprovação do projeto."""
+    regras: dict  # {"pequena": {"aprovador": "...", "descricao": "..."}, ...}
+
+
 class CriarSolicitacaoRequest(BaseModel):
     titulo: str
     descricao: str
@@ -112,15 +117,18 @@ def _pode_gerenciar(usuario: UsuarioDB, projeto: ProjetoDB) -> bool:
     return _eh_ceo(usuario) or _eh_proprietario(usuario, projeto)
 
 
-def _determinar_aprovador(tipo_mudanca: str) -> str:
-    """Determina quem precisa aprovar baseado no tipo de mudança."""
-    if tipo_mudanca == "pequena":
-        return "lider_tecnico"
-    elif tipo_mudanca == "grande":
-        return "proprietario"
-    elif tipo_mudanca == "critica":
-        return "ambos"
-    return "proprietario"
+def _determinar_aprovador(tipo_mudanca: str, projeto: ProjetoDB = None) -> str:
+    """Determina quem precisa aprovar baseado no tipo de mudança e regras do projeto."""
+    # Se o projeto tem regras customizadas, usar elas
+    if projeto and projeto.regras_aprovacao:
+        regras = projeto.regras_aprovacao
+        regra = regras.get(tipo_mudanca, {})
+        if isinstance(regra, dict) and "aprovador" in regra:
+            return regra["aprovador"]
+
+    # Regras padrão
+    padroes = {"pequena": "lider_tecnico", "grande": "proprietario", "critica": "ambos"}
+    return padroes.get(tipo_mudanca, "proprietario")
 
 
 # =====================================================================
@@ -151,6 +159,7 @@ def listar_projetos(
             "lider_tecnico_id": p.lider_tecnico_id,
             "lider_tecnico_nome": p.lider_tecnico_nome,
             "membros": p.membros or [],
+            "regras_aprovacao": p.regras_aprovacao or {},
             "fase_atual": p.fase_atual,
             "criado_em": p.criado_em.isoformat() if p.criado_em else None,
         }
@@ -186,6 +195,7 @@ def detalhar_projeto(
         "lider_tecnico_id": projeto.lider_tecnico_id,
         "lider_tecnico_nome": projeto.lider_tecnico_nome,
         "membros": projeto.membros or [],
+        "regras_aprovacao": projeto.regras_aprovacao or {},
         "fase_atual": projeto.fase_atual,
         "criado_em": projeto.criado_em.isoformat() if projeto.criado_em else None,
         "eh_proprietario": _eh_proprietario(usuario, projeto),
@@ -412,6 +422,49 @@ def gerenciar_membros(
     raise HTTPException(status_code=400, detail="Ação inválida. Use 'adicionar' ou 'remover'.")
 
 
+@router.put("/projetos/{projeto_id}/regras")
+def atualizar_regras(
+    projeto_id: int,
+    req: AtualizarRegrasRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+):
+    """Atualiza regras de aprovação do projeto. Proprietário ou CEO."""
+    projeto = db.query(ProjetoDB).filter_by(id=projeto_id).first()
+    if not projeto:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado.")
+
+    if not _pode_gerenciar(usuario, projeto):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário ou CEO pode alterar as regras.")
+
+    # Validar regras
+    aprovadores_validos = {"lider_tecnico", "proprietario", "ambos", "nenhum"}
+    for tipo, regra in req.regras.items():
+        if tipo not in ("pequena", "grande", "critica"):
+            raise HTTPException(status_code=400, detail=f"Tipo '{tipo}' inválido. Use: pequena, grande, critica")
+        if isinstance(regra, dict):
+            if regra.get("aprovador") not in aprovadores_validos:
+                raise HTTPException(status_code=400, detail=f"Aprovador '{regra.get('aprovador')}' inválido.")
+        else:
+            raise HTTPException(status_code=400, detail="Formato de regra inválido.")
+
+    projeto.regras_aprovacao = req.regras
+
+    db.add(AuditLogDB(
+        user_id=usuario.id,
+        email=usuario.email,
+        acao="ATUALIZAR_REGRAS_APROVACAO",
+        descricao=f"Regras de aprovação do projeto '{projeto.nome}' alteradas por {usuario.nome}",
+        ip=request.client.host if request.client else "",
+        company_id=usuario.company_id,
+    ))
+
+    db.commit()
+    logger.info(f"[PROJETO] Regras de aprovação atualizadas: {projeto.nome} por {usuario.nome}")
+    return {"mensagem": f"Regras de aprovação do projeto '{projeto.nome}' atualizadas!"}
+
+
 # =====================================================================
 # Rotas: Solicitações de Mudança
 # =====================================================================
@@ -437,7 +490,12 @@ def criar_solicitacao(
         status = "pendente"
         aprovador = ""
 
-    aprovador_necessario = _determinar_aprovador(req.tipo_mudanca)
+    aprovador_necessario = _determinar_aprovador(req.tipo_mudanca, projeto)
+
+    # Se regra é "nenhum", auto-aprova para todos
+    if aprovador_necessario == "nenhum":
+        status = "aprovada"
+        aprovador = usuario.nome
 
     solicitacao = SolicitacaoDB(
         projeto_id=projeto.id,
