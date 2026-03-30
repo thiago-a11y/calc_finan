@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Code2, Loader2, Eye, EyeOff, FolderKanban, ChevronDown, GitBranch, AlertCircle, RefreshCw, Download } from 'lucide-react'
+import { Code2, Loader2, Eye, EyeOff, FolderKanban, ChevronDown, GitBranch, AlertCircle, RefreshCw, Download, Upload } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import FileTree from '../components/code-studio/FileTree'
 import EditorTabs, { type TabInfo } from '../components/code-studio/EditorTabs'
@@ -10,6 +10,7 @@ import CodeEditor from '../components/code-studio/CodeEditor'
 import Toolbar from '../components/code-studio/Toolbar'
 import AgentPanel from '../components/code-studio/AgentPanel'
 import HistoricoPanel from '../components/code-studio/HistoricoPanel'
+import PushDialog from '../components/code-studio/PushDialog'
 import { buscarArvore, lerArquivo, salvarArquivo, gitPull, type ArquivoArvore } from '../services/codeStudio'
 
 interface ProjetoInfo {
@@ -142,6 +143,7 @@ export default function CodeStudio() {
   // Estado de git pull
   const [fazendoPull, setFazendoPull] = useState(false)
   const [mensagemPull, setMensagemPull] = useState('')
+  const [mostrarPushDialog, setMostrarPushDialog] = useState(false)
 
   const carregarArvore = useCallback(async () => {
     setCarregando(true)
@@ -421,22 +423,33 @@ export default function CodeStudio() {
           </div>
         )}
 
-        {/* Botao git pull */}
+        {/* Botoes git pull + push */}
         {projetoAtivo?.repositorio && (
-          <button
-            onClick={executarPull}
-            disabled={fazendoPull}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all hover:bg-white/5 disabled:opacity-50"
-            style={{ borderColor: 'var(--sf-border-subtle)', color: 'var(--sf-text-2)' }}
-            title="Atualizar repositorio (git pull)"
-          >
-            {fazendoPull ? (
-              <Loader2 size={11} className="animate-spin" />
-            ) : (
-              <Download size={11} />
-            )}
-            Pull
-          </button>
+          <>
+            <button
+              onClick={executarPull}
+              disabled={fazendoPull}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all hover:bg-white/5 disabled:opacity-50"
+              style={{ borderColor: 'var(--sf-border-subtle)', color: 'var(--sf-text-2)' }}
+              title="Atualizar repositorio (git pull)"
+            >
+              {fazendoPull ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : (
+                <Download size={11} />
+              )}
+              Pull
+            </button>
+            <button
+              onClick={() => setMostrarPushDialog(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all hover:bg-white/5"
+              style={{ borderColor: 'var(--sf-border-subtle)', color: '#10b981' }}
+              title="Enviar commits e criar Pull Request"
+            >
+              <Upload size={11} />
+              Push
+            </button>
+          </>
         )}
 
         {/* Mensagem do pull */}
@@ -620,6 +633,15 @@ export default function CodeStudio() {
           </div>
         )}
       </div>
+
+      {/* PushDialog modal */}
+      {mostrarPushDialog && projetoAtivo && (
+        <PushDialog
+          projetoId={projetoAtivo.id}
+          projetoNome={projetoAtivo.nome}
+          onFechar={() => setMostrarPushDialog(false)}
+        />
+      )}
     </div>
   )
 }

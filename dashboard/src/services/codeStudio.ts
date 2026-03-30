@@ -232,3 +232,62 @@ export async function buscarHistorico(projetoId = 0, limit = 50, page = 1): Prom
   }
   return res.json()
 }
+
+// ============================================================
+// Git Log + Push (commits pendentes + criar PR)
+// ============================================================
+
+export interface GitCommitInfo {
+  hash: string
+  hash_curto: string
+  mensagem: string
+  autor: string
+  data: string
+}
+
+export interface GitLogResponse {
+  commits: GitCommitInfo[]
+  branch: string
+  branch_remoto: string
+  total: number
+}
+
+export interface GitPushResponse {
+  sucesso: boolean
+  pr_url: string
+  pr_number: number
+  branch: string
+  commits_enviados: number
+  mensagem: string
+}
+
+export async function gitLog(projetoId = 0): Promise<GitLogResponse> {
+  const params = new URLSearchParams()
+  if (projetoId) params.set('project_id', String(projetoId))
+
+  const res = await fetch(`${API}/api/code-studio/git-log?${params.toString()}`, {
+    headers: headers(),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Erro ao buscar commits' }))
+    throw new Error(err.detail || 'Erro ao buscar commits')
+  }
+  return res.json()
+}
+
+export async function gitPush(projetoId = 0, commitHashes: string[] = [], tituloPr = ''): Promise<GitPushResponse> {
+  const res = await fetch(`${API}/api/code-studio/git-push`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({
+      project_id: projetoId,
+      commit_hashes: commitHashes,
+      titulo_pr: tituloPr,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Erro no push' }))
+    throw new Error(err.detail || 'Erro no push')
+  }
+  return res.json()
+}

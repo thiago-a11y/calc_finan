@@ -298,6 +298,119 @@ class VCSService:
 
         return None
 
+    # ----------------------------------------------------------
+    # Push branch + Criar PR
+    # ----------------------------------------------------------
+
+    def push_branch(
+        self,
+        caminho_projeto: str,
+        branch_nome: str,
+    ) -> ResultadoCommit:
+        """Faz push de uma branch para o remote (com token temporario)."""
+        cwd = caminho_projeto
+        remote_original = None
+
+        try:
+            remote_result = self._run_git(["remote", "get-url", "origin"], cwd)
+            if remote_result.returncode == 0:
+                remote_original = remote_result.stdout.decode().strip()
+
+            remote_url = self._construir_remote_url()
+            if remote_url:
+                self._run_git(["remote", "set-url", "origin", remote_url], cwd)
+
+            push_result = self._run_git(["push", "-u", "origin", branch_nome], cwd)
+            if push_result.returncode != 0:
+                stderr = push_result.stderr.decode("utf-8", errors="replace")
+                return ResultadoCommit(False, f"Push falhou: {stderr[:200]}", branch=branch_nome)
+
+            logger.info(f"[VCS] Push branch {branch_nome} OK")
+            return ResultadoCommit(True, f"Branch {branch_nome} enviada", branch=branch_nome)
+
+        except Exception as e:
+            return ResultadoCommit(False, f"Erro: {str(e)[:200]}", branch=branch_nome)
+        finally:
+            if remote_original:
+                try:
+                    self._run_git(["remote", "set-url", "origin", remote_original], cwd)
+                except Exception:
+                    pass
+
+    async def criar_pr(
+        self,
+        titulo: str,
+        descricao: str,
+        branch_origem: str,
+        branch_destino: str = "main",
+    ) -> dict:
+        """Cria Pull Request no GitHub ou GitBucket via API."""
+        owner_repo = self._extrair_owner_repo()
+        if not owner_repo:
+            return {"sucesso": False, "mensagem": "Nao foi possivel extrair owner/repo da URL"}
+
+        try:
+            if self.vcs_tipo == "github":
+                async with httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.post(
+                        f"https://api.github.com/repos/{owner_repo}/pulls",
+                        headers={
+                            "Authorization": f"Bearer {self.token}",
+                            "Accept": "application/vnd.github+json",
+                        },
+                        json={
+                            "title": titulo,
+                            "body": descricao,
+                            "head": branch_origem,
+                            "base": branch_destino,
+                        },
+                    )
+                if resp.status_code in (200, 201):
+                    data = resp.json()
+                    return {
+                        "sucesso": True,
+                        "pr_url": data.get("html_url", ""),
+                        "pr_number": data.get("number", 0),
+                        "mensagem": f"PR #{data.get('number')} criada",
+                    }
+                else:
+                    return {
+                        "sucesso": False,
+                        "mensagem": f"GitHub API {resp.status_code}: {resp.text[:200]}",
+                    }
+
+            elif self.vcs_tipo == "gitbucket":
+                base_url = self.repo_url.split("/git/")[0] if "/git/" in self.repo_url else ""
+                if not base_url:
+                    return {"sucesso": False, "mensagem": "URL GitBucket invalida"}
+                async with httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.post(
+                        f"{base_url}/api/v3/repos/{owner_repo}/pulls",
+                        headers={"Authorization": f"token {self.token}"},
+                        json={
+                            "title": titulo,
+                            "body": descricao,
+                            "head": branch_origem,
+                            "base": branch_destino,
+                        },
+                    )
+                if resp.status_code in (200, 201):
+                    data = resp.json()
+                    return {
+                        "sucesso": True,
+                        "pr_url": data.get("html_url", ""),
+                        "pr_number": data.get("number", 0),
+                        "mensagem": f"PR #{data.get('number')} criada",
+                    }
+                else:
+                    return {"sucesso": False, "mensagem": f"GitBucket {resp.status_code}"}
+
+            return {"sucesso": False, "mensagem": f"VCS tipo nao suportado: {self.vcs_tipo}"}
+
+        except Exception as e:
+            logger.error(f"[VCS] Erro ao criar PR: {e}")
+            return {"sucesso": False, "mensagem": str(e)[:200]}
+
     @staticmethod
     def _run_git(args: list[str], cwd: str) -> subprocess.CompletedProcess:
         """Executa comando git via subprocess."""

@@ -867,3 +867,208 @@ async def listar_historico(
         "pagina": page,
         "limite": limit,
     }
+
+
+# ============================================================
+# Git Log — commits pendentes de push
+# ============================================================
+
+@router.get("/git-log")
+async def git_log_pendentes(
+    project_id: int = Query(0),
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Lista commits locais que ainda nao foram pushados para o remote."""
+    base, proj_id, projeto = _obter_base_projeto(project_id, db, usuario)
+
+    git_dir = base / ".git"
+    if not git_dir.is_dir():
+        raise HTTPException(status_code=400, detail="Nao e um repositorio git.")
+
+    try:
+        # Branch atual
+        branch_r = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(base), capture_output=True, timeout=10,
+        )
+        branch = branch_r.stdout.decode().strip() if branch_r.returncode == 0 else "main"
+
+        # Buscar VCS config para saber branch padrao
+        vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=proj_id or 0, ativo=True).first()
+        branch_remoto = vcs.branch_padrao if vcs else "main"
+
+        # Fetch silencioso (atualiza refs sem baixar)
+        subprocess.run(
+            ["git", "fetch", "origin", "--quiet"],
+            cwd=str(base), capture_output=True, timeout=30,
+        )
+
+        # Commits pendentes: local mas nao no remote
+        log_r = subprocess.run(
+            ["git", "log", f"origin/{branch_remoto}..HEAD",
+             "--format=%H|%h|%s|%an|%ai", "--no-merges"],
+            cwd=str(base), capture_output=True, timeout=10,
+        )
+
+        commits = []
+        if log_r.returncode == 0 and log_r.stdout.decode().strip():
+            for linha in log_r.stdout.decode().strip().split("\n"):
+                partes = linha.split("|", 4)
+                if len(partes) >= 5:
+                    commits.append({
+                        "hash": partes[0],
+                        "hash_curto": partes[1],
+                        "mensagem": partes[2],
+                        "autor": partes[3],
+                        "data": partes[4],
+                    })
+
+        return {
+            "commits": commits,
+            "branch": branch,
+            "branch_remoto": branch_remoto,
+            "total": len(commits),
+        }
+
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Timeout no git log.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro: {str(e)[:200]}")
+
+
+# ============================================================
+# Git Push — criar branch + push + PR
+# ============================================================
+
+class GitPushRequest(BaseModel):
+    project_id: int = 0
+    commit_hashes: list[str] = []  # vazio = todos os pendentes
+    titulo_pr: str = ""
+
+
+@router.post("/git-push")
+async def git_push_e_pr(
+    dados: GitPushRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Cria branch, push e abre PR no GitHub/GitBucket."""
+    _verificar_escrita(usuario)
+
+    base, proj_id, projeto = _obter_base_projeto(dados.project_id, db, usuario)
+
+    git_dir = base / ".git"
+    if not git_dir.is_dir():
+        raise HTTPException(status_code=400, detail="Nao e um repositorio git.")
+
+    # Buscar VCS config
+    vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=proj_id or 0, ativo=True).first()
+    if not vcs:
+        raise HTTPException(status_code=400, detail="Projeto sem VCS configurado.")
+
+    try:
+        from core.vcs_service import descriptografar_token, VCSService
+
+        token = descriptografar_token(vcs.api_token_encrypted)
+        service = VCSService(vcs.vcs_tipo, vcs.repo_url, token, vcs.branch_padrao or "main")
+
+        branch_remoto = vcs.branch_padrao or "main"
+
+        # Branch atual
+        branch_r = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(base), capture_output=True, timeout=10,
+        )
+        branch_atual = branch_r.stdout.decode().strip() if branch_r.returncode == 0 else "main"
+
+        # Criar branch para o push
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        branch_push = f"sf/push-{ts}"
+
+        # Se tem commits especificos, criar branch e cherry-pick
+        if dados.commit_hashes:
+            # Criar branch a partir do remote
+            subprocess.run(
+                ["git", "checkout", "-b", branch_push, f"origin/{branch_remoto}"],
+                cwd=str(base), capture_output=True, timeout=10,
+            )
+            # Cherry-pick dos commits selecionados (ordem cronologica)
+            for h in reversed(dados.commit_hashes):
+                cp = subprocess.run(
+                    ["git", "cherry-pick", h],
+                    cwd=str(base), capture_output=True, timeout=30,
+                )
+                if cp.returncode != 0:
+                    # Abortar cherry-pick e voltar
+                    subprocess.run(["git", "cherry-pick", "--abort"], cwd=str(base), capture_output=True)
+                    subprocess.run(["git", "checkout", branch_atual], cwd=str(base), capture_output=True)
+                    subprocess.run(["git", "branch", "-D", branch_push], cwd=str(base), capture_output=True)
+                    stderr = cp.stderr.decode("utf-8", errors="replace")
+                    raise HTTPException(status_code=400, detail=f"Cherry-pick falhou: {stderr[:200]}")
+        else:
+            # Push de todos os commits pendentes — criar branch a partir de HEAD
+            subprocess.run(
+                ["git", "checkout", "-b", branch_push],
+                cwd=str(base), capture_output=True, timeout=10,
+            )
+
+        # Push da branch
+        push_result = service.push_branch(str(base), branch_push)
+        if not push_result.sucesso:
+            # Voltar para branch original e limpar
+            subprocess.run(["git", "checkout", branch_atual], cwd=str(base), capture_output=True)
+            subprocess.run(["git", "branch", "-D", branch_push], cwd=str(base), capture_output=True)
+            raise HTTPException(status_code=500, detail=f"Push falhou: {push_result.mensagem}")
+
+        # Criar PR via API
+        titulo = dados.titulo_pr or f"[Synerium Factory] Push de {usuario.nome} — {ts}"
+        n_commits = len(dados.commit_hashes) if dados.commit_hashes else "todos os"
+        descricao = (
+            f"## Push via Synerium Factory Code Studio\n\n"
+            f"- **Usuario:** {usuario.nome} ({usuario.email})\n"
+            f"- **Projeto:** {projeto.nome if projeto else 'Synerium Factory'}\n"
+            f"- **Commits:** {n_commits}\n"
+            f"- **Branch:** `{branch_push}` → `{branch_remoto}`\n\n"
+            f"🤖 Gerado pelo [Synerium Factory](https://synerium-factory.objetivasolucao.com.br)"
+        )
+
+        pr_result = await service.criar_pr(titulo, descricao, branch_push, branch_remoto)
+
+        # Voltar para branch original
+        subprocess.run(["git", "checkout", branch_atual], cwd=str(base), capture_output=True)
+
+        # Audit log
+        try:
+            db.add(AuditLogDB(
+                user_id=usuario.id,
+                email=usuario.email,
+                acao="code_studio_push",
+                descricao=f"[{projeto.nome if projeto else 'SF'}] Push {branch_push} + PR {pr_result.get('pr_url', '?')}",
+                ip="api",
+            ))
+            db.commit()
+        except Exception:
+            pass
+
+        logger.info(f"[CodeStudio/Push] {usuario.email} criou PR: {pr_result.get('pr_url', '?')}")
+
+        return {
+            "sucesso": pr_result.get("sucesso", False),
+            "pr_url": pr_result.get("pr_url", ""),
+            "pr_number": pr_result.get("pr_number", 0),
+            "branch": branch_push,
+            "commits_enviados": len(dados.commit_hashes) if dados.commit_hashes else -1,
+            "mensagem": pr_result.get("mensagem", ""),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Garantir volta para branch original
+        try:
+            subprocess.run(["git", "checkout", branch_atual], cwd=str(base), capture_output=True)
+        except Exception:
+            pass
+        logger.error(f"[CodeStudio/Push] Erro: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro no push: {str(e)[:200]}")
