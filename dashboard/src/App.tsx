@@ -17,6 +17,7 @@ import Agente from './pages/Agente'
 import Registrar from './pages/Registrar'
 import ThemeToggle from './components/ThemeToggle'
 import { ChatProvider } from './components/ChatManager'
+import TaskTray from './components/TaskTray'
 import Relatorios from './pages/Relatorios'
 import Escritorio from './pages/Escritorio'
 import Skills from './pages/Skills'
@@ -68,6 +69,7 @@ function LayoutPrincipal({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <TaskTray />
     </div>
   )
 }
