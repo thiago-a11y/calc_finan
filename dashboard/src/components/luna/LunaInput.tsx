@@ -24,8 +24,10 @@ export default function LunaInput({ onEnviar, carregando, disabled = false }: Lu
   const [gravando, setGravando] = useState(false)
   const [anexos, setAnexos] = useState<LunaAnexo[]>([])
   const [enviandoArquivo, setEnviandoArquivo] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const dragCounter = useRef(0)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
   const speechDisponivel = useRef(!!getSpeechRecognition())
@@ -158,8 +160,47 @@ export default function LunaInput({ onEnviar, carregando, disabled = false }: Lu
     imagem: '🖼️', video: '🎬', audio: '🎵', pdf: '📕', documento: '📄',
   }
 
+  // Drag & Drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    dragCounter.current++
+    if (e.dataTransfer.types.includes('Files')) setDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    dragCounter.current--
+    if (dragCounter.current <= 0) { setDragOver(false); dragCounter.current = 0 }
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation()
+  }, [])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    setDragOver(false); dragCounter.current = 0
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) await handleFileSelect(files)
+  }, [handleFileSelect])
+
   return (
-    <div className="px-4 pb-4 pt-2">
+    <div
+      className="px-4 pb-4 pt-2 relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Overlay drag & drop */}
+      {dragOver && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-2xl pointer-events-none"
+          style={{ background: 'rgba(16,185,129,0.1)', backdropFilter: 'blur(2px)' }}>
+          <div className="text-2xl mb-1">📎</div>
+          <p className="text-xs font-semibold" style={{ color: '#10b981' }}>Solte para anexar</p>
+        </div>
+      )}
+
       {/* Input oculto para arquivos */}
       <input
         ref={fileInputRef}
@@ -296,7 +337,7 @@ export default function LunaInput({ onEnviar, carregando, disabled = false }: Lu
         className="text-[11px] mt-1.5 text-center"
         style={{ color: 'var(--sf-text-4)' }}
       >
-        Enter para enviar &middot; Shift+Enter para nova linha &middot; 📎 para anexar
+        Enter para enviar &middot; Shift+Enter para nova linha &middot; 📎 ou arraste arquivos para anexar
       </p>
     </div>
   )

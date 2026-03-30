@@ -1,7 +1,7 @@
 /* ChatFloating — Janela de chat flutuante com modo expandido */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { executarTarefa, buscarTarefa, buscarHistoricoTarefas } from '../services/api'
+import { executarTarefa, buscarTarefa, buscarHistoricoTarefas, uploadArquivos } from '../services/api'
 import { FileUploadArea } from './FileUpload'
 import type { TarefaResultado, FileAttachment } from '../types'
 import { Maximize2, Minimize2, Minus, X, Send, Bot, Loader2, Paperclip } from 'lucide-react'
@@ -27,7 +27,46 @@ export default function ChatFloating({
   const [historico, setHistorico] = useState<TarefaResultado[]>([])
   const [anexos, setAnexos] = useState<FileAttachment[]>([])
   const [expandido, setExpandido] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const chatRef = useRef<HTMLDivElement>(null)
+  const dragCounter = useRef(0)
+
+  // Drag & Drop — upload automatico ao soltar arquivos na janela do chat
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current++
+    if (e.dataTransfer.types.includes('Files')) setDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current--
+    if (dragCounter.current <= 0) { setDragOver(false); dragCounter.current = 0 }
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOver(false)
+    dragCounter.current = 0
+    const files = e.dataTransfer.files
+    if (!files || files.length === 0) return
+    // Upload automatico
+    try {
+      const resultado = await uploadArquivos(Array.from(files))
+      const validos = resultado.filter((r: FileAttachment) => !r.erro)
+      if (validos.length > 0) setAnexos(prev => [...prev, ...validos])
+    } catch (err) {
+      console.error('Erro no upload drag&drop:', err)
+    }
+  }, [])
 
   const carregarHistorico = useCallback(async () => {
     try {
@@ -110,15 +149,29 @@ export default function ChatFloating({
   // === CHAT (normal ou expandido) ===
   return (
     <div
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       style={{
         right: rightOffset,
         width: expandido ? 'min(720px, calc(100vw - 280px))' : '320px',
         height: expandido ? 'calc(100vh - 100px)' : 'auto',
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        background: 'var(--sf-bg-1)',
+        border: dragOver ? '2px solid #10b981' : '1px solid var(--sf-border-default)',
       }}
       className="fixed bottom-4 z-50 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-      {...({ style: { ...{ right: rightOffset, width: expandido ? 'min(720px, calc(100vw - 280px))' : '320px', height: expandido ? 'calc(100vh - 100px)' : 'auto', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', background: 'var(--sf-bg-1)', border: '1px solid var(--sf-border-default)' } } } as any)}
     >
+      {/* Overlay drag & drop */}
+      {dragOver && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-2xl pointer-events-none"
+          style={{ background: 'rgba(16,185,129,0.12)', backdropFilter: 'blur(2px)' }}>
+          <div className="text-3xl mb-2">📎</div>
+          <p className="text-sm font-semibold" style={{ color: '#10b981' }}>Solte para anexar</p>
+          <p className="text-[10px] mt-1" style={{ color: '#34d399' }}>Imagens, PDFs, documentos</p>
+        </div>
+      )}
       {/* Header */}
       <div className="px-4 py-3 flex items-center gap-3 shrink-0" style={{ borderBottom: '1px solid var(--sf-border-default)', background: 'var(--sf-accent-dim)' }}>
         <AgentAvatar agentName={nomeAbreviado} size="md" showStatus status={historico.some(t => t.status === 'executando') ? 'ocupado' : 'online'} noHover />
