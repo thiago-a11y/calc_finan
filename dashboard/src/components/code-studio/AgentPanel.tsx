@@ -112,12 +112,20 @@ export default function AgentPanel({
   }, [toast])
 
   const enviar = async (instrucao: string, tipoAcao: Mensagem['tipoAcao'] = 'geral') => {
-    if (!caminhoAtivo || !conteudoAtivo || analisando) return
+    if (analisando) return
+    // Acoes de codigo (refatorar, otimizar, etc.) exigem arquivo aberto
+    if (tipoAcao !== 'geral' && (!caminhoAtivo || !conteudoAtivo)) return
 
-    const nomeArquivo = caminhoAtivo.split('/').pop() || ''
-    const lang = linguagem?.toUpperCase() || 'TEXT'
-    const projetoCtx = projetoNome ? ` | Projeto: ${projetoNome}${projetoStack ? ` (${projetoStack})` : ''}` : ''
-    const instrucaoComContexto = `[Arquivo: ${nomeArquivo} | Linguagem: ${lang} | Caminho: ${caminhoAtivo}${projetoCtx}]\n\n${instrucao}`
+    let instrucaoComContexto = instrucao
+    if (caminhoAtivo && conteudoAtivo) {
+      const nomeArquivo = caminhoAtivo.split('/').pop() || ''
+      const lang = linguagem?.toUpperCase() || 'TEXT'
+      const projetoCtx = projetoNome ? ` | Projeto: ${projetoNome}${projetoStack ? ` (${projetoStack})` : ''}` : ''
+      instrucaoComContexto = `[Arquivo: ${nomeArquivo} | Linguagem: ${lang} | Caminho: ${caminhoAtivo}${projetoCtx}]\n\n${instrucao}`
+    } else {
+      const projetoCtx = projetoNome ? `[Projeto: ${projetoNome}${projetoStack ? ` (${projetoStack})` : ''}]\n\n` : ''
+      instrucaoComContexto = `${projetoCtx}${instrucao}`
+    }
 
     setMensagens(prev => [...prev, { papel: 'user', conteudo: instrucao }])
     setInput('')
@@ -125,7 +133,9 @@ export default function AgentPanel({
 
     try {
       const contextLevel = contextoEmpresa ? 'full' : 'minimal'
-      const resultado = await analisarCodigo(caminhoAtivo, conteudoAtivo, instrucaoComContexto, 'auto', projetoId, contextLevel)
+      const caminho = caminhoAtivo || 'pergunta-geral'
+      const conteudo = conteudoAtivo || ''
+      const resultado = await analisarCodigo(caminho, conteudo, instrucaoComContexto, 'auto', projetoId, contextLevel)
       setMensagens(prev => [...prev, {
         papel: 'assistant',
         conteudo: resultado.resposta,
@@ -314,38 +324,39 @@ export default function AgentPanel({
         </button>
       </div>
 
-      {/* Ações rápidas */}
-      {caminhoAtivo && (
-        <div className="flex flex-wrap gap-1 px-2 py-2 flex-shrink-0"
-          style={{ borderBottom: '1px solid var(--sf-border-subtle)' }}>
-          {ACOES_RAPIDAS.map(acao => {
-            const Icon = acao.icon
-            return (
-              <button
-                key={acao.label}
-                onClick={() => enviar(acao.instrucao, acao.tipo)}
-                disabled={analisando || chamandoTime}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all hover:brightness-125 disabled:opacity-40"
-                style={{ background: 'rgba(139,92,246,0.1)', color: '#a78bfa' }}
-              >
-                <Icon size={10} />
-                {acao.label}
-              </button>
-            )
-          })}
-          {/* Botao Chamar Time */}
-          <button
-            onClick={() => setMostrarTeamDialog(true)}
-            disabled={analisando || chamandoTime}
-            className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold transition-all hover:brightness-125 disabled:opacity-40"
-            style={{ background: 'rgba(139,92,246,0.2)', color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.3)' }}
-            title="Chamar multiplos agentes para analise colaborativa"
-          >
-            <Users size={10} />
-            Chamar Time
+      {/* Ações rápidas — sempre visiveis, acoes de codigo desabilitadas sem arquivo */}
+      <div className="flex flex-wrap gap-1 px-2 py-2 flex-shrink-0"
+        style={{ borderBottom: '1px solid var(--sf-border-subtle)' }}>
+        {ACOES_RAPIDAS.map(acao => {
+          const Icon = acao.icon
+          const exigeArquivo = acao.tipo !== 'geral'
+          const desabilitado = analisando || chamandoTime || (exigeArquivo && !caminhoAtivo)
+          return (
+            <button
+              key={acao.label}
+              onClick={() => enviar(acao.instrucao, acao.tipo)}
+              disabled={desabilitado}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all hover:brightness-125 disabled:opacity-40"
+              style={{ background: 'rgba(139,92,246,0.1)', color: '#a78bfa' }}
+              title={exigeArquivo && !caminhoAtivo ? 'Selecione um arquivo para usar esta acao' : acao.label}
+            >
+              <Icon size={10} />
+              {acao.label}
+            </button>
+          )
+        })}
+        {/* Botao Chamar Time — exige arquivo */}
+        <button
+          onClick={() => setMostrarTeamDialog(true)}
+          disabled={analisando || chamandoTime || !caminhoAtivo}
+          className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold transition-all hover:brightness-125 disabled:opacity-40"
+          style={{ background: 'rgba(139,92,246,0.2)', color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.3)' }}
+          title={!caminhoAtivo ? 'Selecione um arquivo para chamar o time' : 'Chamar multiplos agentes para analise colaborativa'}
+        >
+          <Users size={10} />
+          Chamar Time
           </button>
         </div>
-      )}
 
       {/* Confirmacao inline */}
       {confirmacao && (
@@ -419,10 +430,12 @@ export default function AgentPanel({
             <p className="text-[11px]" style={{ color: 'var(--sf-text-3)' }}>
               {caminhoAtivo
                 ? `Analisando ${caminhoAtivo.split('/').pop()}`
-                : 'Selecione um arquivo para analisar'}
+                : 'Agente IA pronto'}
             </p>
             <p className="text-[10px] mt-1" style={{ color: 'var(--sf-text-3)', opacity: 0.6 }}>
-              Use os botões acima ou digite uma pergunta
+              {caminhoAtivo
+                ? 'Use os botoes acima ou digite uma pergunta'
+                : 'Pergunte qualquer coisa ou selecione um arquivo para analise'}
             </p>
           </div>
         )}
@@ -544,25 +557,23 @@ export default function AgentPanel({
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && input.trim()) enviar(input.trim()) }}
-            placeholder={caminhoAtivo ? 'Pergunte sobre o código...' : 'Selecione um arquivo'}
-            disabled={!caminhoAtivo || analisando}
+            placeholder={caminhoAtivo ? 'Pergunte sobre o codigo...' : 'Pergunte qualquer coisa...'}
+            disabled={analisando || chamandoTime}
             className="flex-1 bg-transparent border rounded-lg px-2 py-1.5 text-[11px] outline-none disabled:opacity-40"
             style={{ borderColor: 'var(--sf-border-subtle)', color: 'var(--sf-text-1)' }}
           />
           <button
             onClick={() => input.trim() && enviar(input.trim())}
-            disabled={!input.trim() || !caminhoAtivo || analisando}
+            disabled={!input.trim() || analisando || chamandoTime}
             className="p-1.5 rounded-lg transition-all disabled:opacity-30"
             style={{ background: 'rgba(139,92,246,0.2)', color: '#a78bfa' }}
           >
             <Send size={12} />
           </button>
         </div>
-        {caminhoAtivo && (
-          <p className="text-[9px] mt-1 px-1" style={{ color: 'var(--sf-text-3)', opacity: 0.5 }}>
-            {linguagem?.toUpperCase()} · Smart Router · Enter para enviar
-          </p>
-        )}
+        <p className="text-[9px] mt-1 px-1" style={{ color: 'var(--sf-text-3)', opacity: 0.5 }}>
+          {caminhoAtivo ? `${linguagem?.toUpperCase()} · ` : ''}Smart Router · Enter para enviar
+        </p>
       </div>
     </div>
   )
