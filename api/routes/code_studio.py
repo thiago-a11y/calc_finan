@@ -792,7 +792,7 @@ async def git_pull(
                     if token_real:
                         url_com_token = remote_url.replace("https://", f"https://x-access-token:{token_real}@")
                         result = subprocess.run(
-                            ["git", "pull", url_com_token, branch],
+                            ["git", "pull", "--rebase", "--autostash", url_com_token, branch],
                             cwd=str(base),
                             capture_output=True,
                             timeout=60,
@@ -811,7 +811,7 @@ async def git_pull(
         # Git pull sem token (fallback)
         env["GIT_TERMINAL_PROMPT"] = "0"
         result = subprocess.run(
-            ["git", "pull", "origin", branch],
+            ["git", "pull", "--rebase", "--autostash", "origin", branch],
             cwd=str(base),
             capture_output=True,
             timeout=60,
