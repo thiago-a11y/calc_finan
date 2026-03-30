@@ -1503,3 +1503,189 @@ def _executar_workflow_autonomo_bg(
         logger.error(f"[AUTONOMO] Erro: {e}")
     finally:
         db.close()
+
+
+# =====================================================================
+# COMMAND CENTER — Visao geral da fabrica + comando estrategico
+# =====================================================================
+
+class ComandoEstrategicoRequest(BaseModel):
+    visao: str             # "Lancar PlaniFactory completo em 30 dias"
+    squad_nome: str        # Squad do CEO
+    projeto_id: int = 0
+    paralelo: bool = False # True = todos ao mesmo tempo (custa mais)
+
+
+@router.get("/command-center")
+def command_center(
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Retorna visao completa da fabrica: workflows, tarefas, custos."""
+    # Workflows autonomos ativos
+    workflows = (
+        db.query(WorkflowAutonomoDB)
+        .filter(WorkflowAutonomoDB.status.in_(["em_execucao", "aguardando_gate", "montando_time"]))
+        .order_by(WorkflowAutonomoDB.criado_em.desc())
+        .all()
+    )
+
+    wf_ativos = []
+    for wf in workflows:
+        tarefa_atual = None
+        if wf.tarefa_atual_id:
+            t = db.query(TarefaDB).filter_by(id=wf.tarefa_atual_id).first()
+            if t:
+                tarefa_atual = {
+                    "agente_atual": t.agente_atual,
+                    "status": t.status,
+                }
+        wf_ativos.append({
+            "id": wf.id,
+            "titulo": wf.titulo,
+            "fase_atual": wf.fase_atual,
+            "fase_nome": FASES_BMAD.get(wf.fase_atual, "?"),
+            "status": wf.status,
+            "squad_nome": wf.squad_nome,
+            "tarefa_atual": tarefa_atual,
+            "criado_em": wf.criado_em.isoformat() if wf.criado_em else "",
+        })
+
+    # Workflows recentes (concluidos/erro)
+    wf_recentes = (
+        db.query(WorkflowAutonomoDB)
+        .filter(WorkflowAutonomoDB.status.in_(["concluido", "erro", "cancelado"]))
+        .order_by(WorkflowAutonomoDB.atualizado_em.desc())
+        .limit(10)
+        .all()
+    )
+    historico = [{
+        "id": wf.id,
+        "titulo": wf.titulo,
+        "status": wf.status,
+        "fase_atual": wf.fase_atual,
+        "criado_em": wf.criado_em.isoformat() if wf.criado_em else "",
+    } for wf in wf_recentes]
+
+    # Tarefas/reunioes ativas
+    tarefas_ativas = db.query(TarefaDB).filter(
+        TarefaDB.status.in_(["executando", "pendente", "aguardando_feedback"])
+    ).count()
+
+    # Custo estimado (do usage tracking)
+    from database.models import UsageTrackingDB
+    from sqlalchemy import func
+    custo_hoje = db.query(func.sum(UsageTrackingDB.custo_usd)).filter(
+        func.date(UsageTrackingDB.criado_em) == func.date(datetime.utcnow())
+    ).scalar() or 0
+
+    custo_total = db.query(func.sum(UsageTrackingDB.custo_usd)).scalar() or 0
+
+    return {
+        "workflows_ativos": wf_ativos,
+        "historico": historico,
+        "total_ativos": len(wf_ativos),
+        "tarefas_ativas": tarefas_ativas,
+        "custo_hoje_usd": round(float(custo_hoje), 4),
+        "custo_total_usd": round(float(custo_total), 4),
+    }
+
+
+@router.post("/command-center/estrategia")
+def comando_estrategico(
+    req: ComandoEstrategicoRequest,
+    fabrica=Depends(obter_fabrica),
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """
+    CEO da um comando de alto nivel e o sistema quebra em features
+    e spawna Autonomous Squads para cada uma.
+    """
+    # Usar LLM para quebrar a visao em features
+    try:
+        from langchain_anthropic import ChatAnthropic
+        from langchain_core.messages import HumanMessage, SystemMessage
+        import json as json_mod
+
+        llm = ChatAnthropic(model="claude-sonnet-4-20250514", max_tokens=2000, temperature=0.3)
+        mensagens = [
+            SystemMessage(content=(
+                "Voce e o PM Central (Alex) do Synerium Factory. "
+                "O CEO deu um comando estrategico. Quebre em features independentes. "
+                "Retorne APENAS JSON: {\"features\": [{\"titulo\": \"...\", \"descricao\": \"...\"}]}\n"
+                "Maximo 5 features. Cada feature deve ser autocontida e implementavel por um squad."
+            )),
+            HumanMessage(content=f"Comando do CEO: {req.visao}"),
+        ]
+        resposta = llm.invoke(mensagens)
+        texto = resposta.content
+
+        # Extrair JSON
+        import re as re_mod
+        json_match = re_mod.search(r'\{[\s\S]*\}', texto)
+        if json_match:
+            dados = json_mod.loads(json_match.group())
+            features = dados.get("features", [])[:5]
+        else:
+            features = [{"titulo": req.visao, "descricao": ""}]
+
+    except Exception as e:
+        logger.warning(f"[CommandCenter] LLM falhou: {e}")
+        features = [{"titulo": req.visao, "descricao": "Feature unica"}]
+
+    # Criar workflows para cada feature
+    workflows_criados = []
+    for feat in features:
+        workflow_id = str(uuid.uuid4())[:8]
+        wf = WorkflowAutonomoDB(
+            id=workflow_id,
+            titulo=feat["titulo"],
+            descricao=feat.get("descricao", ""),
+            fase_atual=1,
+            status="em_execucao",
+            agentes_ids=[],
+            outputs={},
+            gates={},
+            projeto_id=req.projeto_id,
+            squad_nome=req.squad_nome,
+            usuario_id=usuario.id,
+            usuario_nome=usuario.nome,
+            company_id=usuario.company_id or 1,
+        )
+        db.add(wf)
+        db.commit()
+        workflows_criados.append({"id": workflow_id, "titulo": feat["titulo"]})
+
+        # Iniciar execucao (sequencial por padrao, paralelo se solicitado)
+        if req.paralelo or len(features) == 1:
+            threading.Thread(
+                target=_executar_workflow_autonomo_bg,
+                args=(workflow_id, req.squad_nome, feat["titulo"], feat.get("descricao", ""), 1, fabrica),
+                daemon=True,
+            ).start()
+
+    # Se sequencial, iniciar apenas o primeiro (os proximos sao iniciados ao concluir)
+    if not req.paralelo and len(features) > 1:
+        primeiro = workflows_criados[0]
+        threading.Thread(
+            target=_executar_workflow_autonomo_bg,
+            args=(primeiro["id"], req.squad_nome, features[0]["titulo"], features[0].get("descricao", ""), 1, fabrica),
+            daemon=True,
+        ).start()
+        # Marcar os demais como "aguardando"
+        for wf_info in workflows_criados[1:]:
+            wf_db = db.query(WorkflowAutonomoDB).filter_by(id=wf_info["id"]).first()
+            if wf_db:
+                wf_db.status = "aguardando_fila"
+                db.commit()
+
+    logger.info(f"[CommandCenter] Estrategia: {len(workflows_criados)} features criadas a partir de: {req.visao[:60]}")
+
+    return {
+        "visao": req.visao,
+        "features": features,
+        "workflows": workflows_criados,
+        "total": len(workflows_criados),
+        "modo": "paralelo" if req.paralelo else "sequencial",
+    }
