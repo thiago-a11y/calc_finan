@@ -44,8 +44,8 @@ def obter_status(fabrica=Depends(obter_fabrica), usuario: UsuarioDB = Depends(ob
     usuarios_db = db.query(UsuarioDB).filter_by(ativo=True).all()
     lideranca = [
         UsuarioResumo(
-            id=u.id,
-            nome=u.nome,
+            id=str(u.id),
+            nome=u.nome or "",
             cargo=u.cargo or "",
             pode_aprovar=u.pode_aprovar or False,
         )
