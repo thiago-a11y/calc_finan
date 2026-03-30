@@ -122,8 +122,8 @@ PROVIDER_CONFIG = {
         "qualidade": 4,
     },
     Provider.GEMINI: {
-        "modelo": "gemini-2.0-flash",
-        "nome": "Gemini 2.0 Flash (Google)",
+        "modelo": "gemini-2.5-flash",
+        "nome": "Gemini 2.5 Flash (Google)",
         "api_key_env": "GOOGLE_API_KEY",
         "custo_input": 0.00015,
         "custo_output": 0.0006,
