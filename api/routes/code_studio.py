@@ -360,6 +360,7 @@ class AnalisarCodigoRequest(BaseModel):
     instrucao: str
     modelo: str = "auto"
     project_id: int = 0
+    context_level: str = "standard"  # minimal | standard | full
 
 
 class AplicarAcaoRequest(BaseModel):
@@ -500,12 +501,33 @@ async def analisar_codigo(
     usuario: UsuarioDB = Depends(obter_usuario_atual),
     db: Session = Depends(get_db),
 ):
-    """Analisa codigo usando o Smart Router Global + LLM."""
+    """Analisa codigo usando o Smart Router Global + LLM + Company Context."""
     # Obter contexto do projeto
     _, proj_id, projeto = _obter_base_projeto(dados.project_id, db, usuario)
     proj_contexto = ""
     if projeto:
         proj_contexto = f"\nProjeto: {projeto.nome} | Stack: {projeto.stack}\n"
+
+    # Construir contexto rico (Company Context Total)
+    contexto_rico = ""
+    context_level_usado = dados.context_level or "standard"
+    if context_level_usado not in ("minimal", "standard", "full"):
+        context_level_usado = "standard"
+
+    if context_level_usado != "minimal":
+        try:
+            from core.company_context import CompanyContextBuilder
+            builder = CompanyContextBuilder(db=db)
+            contexto_rico = builder.construir(
+                instrucao=dados.instrucao,
+                conteudo_arquivo=dados.conteudo,
+                projeto=projeto,
+                nivel=context_level_usado,
+            )
+            if contexto_rico:
+                logger.info(f"[CodeStudio] Company Context ({context_level_usado}): {len(contexto_rico)} chars injetados")
+        except Exception as e:
+            logger.warning(f"[CodeStudio] Company Context falhou: {e}")
 
     try:
         prompt = f"""Analise o seguinte codigo do arquivo `{dados.caminho}`:
@@ -537,9 +559,11 @@ Responda em portugues brasileiro. Seja direto e objetivo."""
         except Exception:
             pass  # Fallback para Sonnet
 
-        # System prompt do agente
+        # System prompt do agente com Company Context injetado
         system = f"""Voce e o agente de codigo do Synerium Factory — Code Studio.
 {f"Voce esta trabalhando no projeto: {projeto.nome} ({projeto.stack})" if projeto else ""}
+
+{contexto_rico}
 
 Regras obrigatorias:
 - Responda SEMPRE em portugues brasileiro
@@ -550,7 +574,9 @@ Regras obrigatorias:
   2. **Resposta** — responda a instrucao com codigo se necessario
   3. **Motivo** — por que essa e a melhor abordagem
 - Seja direto, profissional e completo
-- Quando sugerir codigo, mostre o codigo COMPLETO (nao parcial)"""
+- Quando sugerir codigo, mostre o codigo COMPLETO (nao parcial)
+- Use o contexto da empresa e do projeto para dar sugestoes alinhadas com a arquitetura e padroes reais
+- Nunca sugira tecnologias ou padroes que contradigam as decisoes tecnicas da empresa"""
 
         from langchain_core.messages import HumanMessage, SystemMessage
         mensagens = [SystemMessage(content=system), HumanMessage(content=prompt)]
@@ -572,6 +598,7 @@ Regras obrigatorias:
                     "provider": provider_nome,
                     "modelo": modelo,
                     "motivo": motivo,
+                    "context_level": context_level_usado,
                 }
             except Exception as e:
                 erros.append(f"{prov}/{modelo}: {str(e)[:100]}")

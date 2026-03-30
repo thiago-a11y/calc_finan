@@ -1,7 +1,7 @@
 /* AgentPanel — Painel lateral com chat do agente IA + ações automáticas */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Bot, Send, Sparkles, BookOpen, RefreshCw, FileCode, Loader2, X, TestTube2, Play, Copy, Check, AlertTriangle } from 'lucide-react'
+import { Bot, Send, Sparkles, BookOpen, RefreshCw, FileCode, Loader2, X, TestTube2, Play, Copy, Check, AlertTriangle, Building2 } from 'lucide-react'
 import MarkdownRenderer from '../luna/MarkdownRenderer'
 import { analisarCodigo, aplicarAcao, type DiffResumo, type VCSResultado } from '../../services/codeStudio'
 
@@ -10,6 +10,7 @@ interface Mensagem {
   conteudo: string
   provider?: string
   tipoAcao?: 'refatorar' | 'documentar' | 'otimizar' | 'testar' | 'geral'
+  contextLevel?: string
 }
 
 interface ToastDetalhado {
@@ -76,6 +77,7 @@ export default function AgentPanel({
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [input, setInput] = useState('')
   const [analisando, setAnalisando] = useState(false)
+  const [contextoEmpresa, setContextoEmpresa] = useState(true)  // Company Context Total ON por padrao
   const [aplicando, setAplicando] = useState<number | null>(null)  // indice da mensagem sendo aplicada
   const [toast, setToast] = useState<ToastDetalhado | null>(null)
   const [copiado, setCopiado] = useState<number | null>(null)
@@ -108,12 +110,14 @@ export default function AgentPanel({
     setAnalisando(true)
 
     try {
-      const resultado = await analisarCodigo(caminhoAtivo, conteudoAtivo, instrucaoComContexto, 'auto', projetoId)
+      const contextLevel = contextoEmpresa ? 'full' : 'minimal'
+      const resultado = await analisarCodigo(caminhoAtivo, conteudoAtivo, instrucaoComContexto, 'auto', projetoId, contextLevel)
       setMensagens(prev => [...prev, {
         papel: 'assistant',
         conteudo: resultado.resposta,
         provider: `${resultado.provider} · ${resultado.modelo}`,
         tipoAcao,
+        contextLevel: resultado.context_level,
       }])
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Falha na análise'
@@ -219,6 +223,34 @@ export default function AgentPanel({
         <button onClick={onFechar} className="p-1 rounded hover:bg-white/5"
           style={{ color: 'var(--sf-text-3)' }}>
           <X size={14} />
+        </button>
+      </div>
+
+      {/* Toggle Company Context */}
+      <div className="flex items-center justify-between px-3 py-1.5 flex-shrink-0"
+        style={{ borderBottom: '1px solid var(--sf-border-subtle)' }}>
+        <div className="flex items-center gap-1.5">
+          <Building2 size={12} style={{ color: contextoEmpresa ? '#8b5cf6' : 'var(--sf-text-3)' }} />
+          <span className="text-[10px] font-medium" style={{ color: 'var(--sf-text-2)' }}>
+            Contexto Empresa
+          </span>
+          {contextoEmpresa && (
+            <span className="text-[8px] px-1 py-0.5 rounded font-bold"
+              style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>
+              TOTAL
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => setContextoEmpresa(prev => !prev)}
+          className="w-7 h-4 rounded-full relative transition-colors"
+          style={{ background: contextoEmpresa ? '#8b5cf6' : 'rgba(255,255,255,0.1)' }}
+          title={contextoEmpresa ? 'Desativar: respostas genericas' : 'Ativar: conhecimento total da empresa'}
+        >
+          <div
+            className="w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all"
+            style={{ left: contextoEmpresa ? '14px' : '2px' }}
+          />
         </button>
       </div>
 
@@ -387,8 +419,13 @@ export default function AgentPanel({
                 )}
 
                 {msg.provider && (
-                  <p className="text-[9px] mt-1" style={{ color: 'var(--sf-text-3)', opacity: 0.5 }}>
+                  <p className="text-[9px] mt-1 flex items-center gap-1.5" style={{ color: 'var(--sf-text-3)', opacity: 0.5 }}>
                     {msg.provider}
+                    {msg.contextLevel && msg.contextLevel !== 'minimal' && (
+                      <span className="inline-flex items-center gap-0.5" style={{ color: '#8b5cf6', opacity: 1 }}>
+                        · <Building2 size={8} /> Contexto {msg.contextLevel === 'full' ? 'Total' : 'Padrao'}
+                      </span>
+                    )}
                   </p>
                 )}
               </div>

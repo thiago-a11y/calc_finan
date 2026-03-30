@@ -38,6 +38,7 @@ export interface AnaliseResposta {
   resposta: string
   provider: string
   modelo: string
+  context_level?: string
 }
 
 export interface ArvoreResponse {
@@ -143,12 +144,13 @@ export async function analisarCodigo(
   conteudo: string,
   instrucao: string,
   modelo = 'auto',
-  projetoId = 0
+  projetoId = 0,
+  contextLevel = 'standard',
 ): Promise<AnaliseResposta> {
   const res = await fetch(`${API}/api/code-studio/analyze`, {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ caminho, conteudo, instrucao, modelo, project_id: projetoId }),
+    body: JSON.stringify({ caminho, conteudo, instrucao, modelo, project_id: projetoId, context_level: contextLevel }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Erro na analise' }))
