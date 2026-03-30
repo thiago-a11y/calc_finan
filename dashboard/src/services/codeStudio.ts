@@ -147,16 +147,30 @@ export async function analisarCodigo(
   projetoId = 0,
   contextLevel = 'standard',
 ): Promise<AnaliseResposta> {
-  const res = await fetch(`${API}/api/code-studio/analyze`, {
-    method: 'POST',
-    headers: headers(),
-    body: JSON.stringify({ caminho, conteudo, instrucao, modelo, project_id: projetoId, context_level: contextLevel }),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Erro na analise' }))
-    throw new Error(err.detail || 'Erro na analise')
+  // Timeout de 120s para chamadas de LLM (podem demorar 30-90s)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 120000)
+
+  try {
+    const res = await fetch(`${API}/api/code-studio/analyze`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ caminho, conteudo, instrucao, modelo, project_id: projetoId, context_level: contextLevel }),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Erro na analise' }))
+      throw new Error(err.detail || 'Erro na analise')
+    }
+    return res.json()
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error('Timeout: a analise demorou mais de 2 minutos. Tente novamente.')
+    }
+    throw e
+  } finally {
+    clearTimeout(timeout)
   }
-  return res.json()
 }
 
 export interface GitPullResponse {
