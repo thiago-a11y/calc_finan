@@ -27,6 +27,7 @@
 - **Pull no Code Studio** com token VCS + auto-pull após merge
 - **Push dialog** — Invalid Date corrigido + commits já mergeados somem da lista
 - **Regex extrairBlocoCodigo** com 3 fallbacks para robustez
+- **Fix: review session + fila no gate approval** — Review session e fila agora disparam quando gate final é aprovado via endpoint (antes só disparava via bg function)
 
 ---
 

@@ -52,6 +52,7 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 | 35 | Rota `/{tarefa_id}` conflitava com `/command-center` | FastAPI resolvia `/command-center` como `{tarefa_id}="command-center"` por ordem de registro | Renomeada para `/detalhe/{tarefa_id}` para evitar colisão | 2026-03-30 |
 | 36 | `langchain_groq` não instalado no servidor | Import falhava com `ModuleNotFoundError` ao tentar usar fallback Groq | `pip install langchain-groq` no servidor de produção | 2026-03-30 |
 | 37 | `load_dotenv` faltando no `llm_fallback.py` | Chaves de API não eram carregadas do `.env`, causando falha em todos os providers | Adicionado `load_dotenv()` no início do módulo | 2026-03-30 |
+| 38 | Review session e fila não disparavam no endpoint aprovar_gate | `_executar_review_session()` e lógica de fila só existiam na bg function, não no endpoint `aprovar_gate` — quando conclusão vinha do endpoint, review e fila eram ignorados | Adicionado `_executar_review_session()` e lógica de fila no bloco `proxima_fase > 4` do endpoint `aprovar_gate` | 2026-03-30 |
 
 ### Lições Aprendidas
 

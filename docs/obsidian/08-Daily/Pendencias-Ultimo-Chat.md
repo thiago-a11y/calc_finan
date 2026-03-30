@@ -131,8 +131,8 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 ## Pendencias / Proximos passos
 
 - [ ] CrewAI com fallback (integrar llm_fallback.py no CrewAI para agentes)
-- [ ] Fila pos-gate (apos aprovacao de gate, disparar proxima fase automaticamente)
-- [ ] Review pos-gate (Factory Optimizer analisa resultado apos cada gate aprovado)
+- [x] ~~Fila pos-gate~~ — Resolvido: fila agora avanca via bg function e via endpoint aprovar_gate
+- [x] ~~Review pos-gate~~ — Resolvido: _executar_review_session() adicionado no bloco proxima_fase > 4 do aprovar_gate
 - [ ] Testar integracao VCS com repositorio GitBucket real
 - [ ] Testar exclusao permanente de usuarios em producao
 - [ ] Atribuir agentes ao Marcos e Rhammon via dashboard

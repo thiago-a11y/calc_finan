@@ -131,6 +131,8 @@ Workflow A (executando) → conclui/falha
     └── Verifica fila → Workflow B (aguardando_fila) → inicia automaticamente
 ```
 
+A fila agora avança tanto via bg function (`_executar_workflow_autonomo_bg`) quanto via endpoint `aprovar_gate`. A review session (`_executar_review_session`) também dispara em ambos os caminhos de conclusão, garantindo que nenhum workflow fique sem review independentemente de como a última fase foi aprovada.
+
 ---
 
 ## Progresso Percentual por Fase
