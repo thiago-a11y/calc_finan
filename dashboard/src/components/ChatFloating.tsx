@@ -65,7 +65,14 @@ export default function ChatFloating({
     try {
       let descricao = mensagem.trim()
       if (anexos.length > 0) {
-        const listaAnexos = anexos.map(a => `[Anexo: ${a.nome_original} (${a.url})]`).join('\n')
+        // Imagens: informar ao agente sem enviar URL (evita tokens excessivos)
+        // Documentos: enviar referencia normalmente
+        const listaAnexos = anexos.map(a => {
+          if (a.tipo === 'imagem') {
+            return `[Imagem anexada: ${a.nome_original} — o usuario enviou um screenshot/imagem para contexto visual]`
+          }
+          return `[Anexo: ${a.nome_original} (${a.url})]`
+        }).join('\n')
         descricao = descricao
           ? `${descricao}\n\nArquivos anexados:\n${listaAnexos}`
           : `Arquivos anexados:\n${listaAnexos}`
