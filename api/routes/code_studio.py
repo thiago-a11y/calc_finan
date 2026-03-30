@@ -766,12 +766,47 @@ async def git_pull(
         )
         branch = branch_result.stdout.decode().strip() if branch_result.returncode == 0 else "main"
 
-        # Git pull
+        # Verificar se tem VCS com token para autenticar
+        env = dict(os.environ)
+        if proj_id:
+            from database.models import ProjetoVCSDB
+            vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=proj_id, ativo=True).first()
+            if vcs and vcs.token:
+                # Injetar token via GIT_ASKPASS para nao pedir senha
+                remote_result = subprocess.run(
+                    ["git", "remote", "get-url", "origin"],
+                    cwd=str(base), capture_output=True, timeout=5,
+                )
+                remote_url = remote_result.stdout.decode().strip() if remote_result.returncode == 0 else ""
+                if remote_url.startswith("https://"):
+                    # Configurar credencial temporaria via env
+                    env["GIT_TERMINAL_PROMPT"] = "0"
+                    # Usar URL com token embutido
+                    url_com_token = remote_url.replace("https://", f"https://x-access-token:{vcs.token}@")
+                    # Fazer pull usando URL com token diretamente
+                    result = subprocess.run(
+                        ["git", "pull", url_com_token, branch],
+                        cwd=str(base),
+                        capture_output=True,
+                        timeout=60,
+                        env=env,
+                    )
+                    stdout = result.stdout.decode("utf-8", errors="replace").strip()
+                    stderr = result.stderr.decode("utf-8", errors="replace").strip()
+                    if result.returncode != 0:
+                        logger.warning(f"[CodeStudio] git pull (token) falhou em {base}: {stderr[:300]}")
+                        return {"sucesso": False, "mensagem": stderr[:300], "branch": branch}
+                    logger.info(f"[CodeStudio] git pull OK (token) em {base} ({branch})")
+                    return {"sucesso": True, "mensagem": stdout[:300], "branch": branch}
+
+        # Git pull sem token (fallback)
+        env["GIT_TERMINAL_PROMPT"] = "0"
         result = subprocess.run(
             ["git", "pull", "origin", branch],
             cwd=str(base),
             capture_output=True,
             timeout=60,
+            env=env,
         )
 
         stdout = result.stdout.decode("utf-8", errors="replace").strip()
