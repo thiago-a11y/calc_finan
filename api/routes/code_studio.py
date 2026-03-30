@@ -770,8 +770,9 @@ async def git_pull(
         env = dict(os.environ)
         if proj_id:
             from database.models import ProjetoVCSDB
+            from core.vcs_service import descriptografar_token
             vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=proj_id, ativo=True).first()
-            if vcs and vcs.token:
+            if vcs and vcs.api_token_encrypted:
                 # Injetar token via GIT_ASKPASS para nao pedir senha
                 remote_result = subprocess.run(
                     ["git", "remote", "get-url", "origin"],
@@ -781,23 +782,29 @@ async def git_pull(
                 if remote_url.startswith("https://"):
                     # Configurar credencial temporaria via env
                     env["GIT_TERMINAL_PROMPT"] = "0"
-                    # Usar URL com token embutido
-                    url_com_token = remote_url.replace("https://", f"https://x-access-token:{vcs.token}@")
-                    # Fazer pull usando URL com token diretamente
-                    result = subprocess.run(
-                        ["git", "pull", url_com_token, branch],
-                        cwd=str(base),
-                        capture_output=True,
-                        timeout=60,
-                        env=env,
-                    )
-                    stdout = result.stdout.decode("utf-8", errors="replace").strip()
-                    stderr = result.stderr.decode("utf-8", errors="replace").strip()
-                    if result.returncode != 0:
-                        logger.warning(f"[CodeStudio] git pull (token) falhou em {base}: {stderr[:300]}")
-                        return {"sucesso": False, "mensagem": stderr[:300], "branch": branch}
-                    logger.info(f"[CodeStudio] git pull OK (token) em {base} ({branch})")
-                    return {"sucesso": True, "mensagem": stdout[:300], "branch": branch}
+                    # Descriptografar token e usar na URL
+                    try:
+                        token_real = descriptografar_token(vcs.api_token_encrypted)
+                    except Exception as e:
+                        logger.warning(f"[CodeStudio] Erro ao descriptografar token VCS: {e}")
+                        token_real = None
+
+                    if token_real:
+                        url_com_token = remote_url.replace("https://", f"https://x-access-token:{token_real}@")
+                        result = subprocess.run(
+                            ["git", "pull", url_com_token, branch],
+                            cwd=str(base),
+                            capture_output=True,
+                            timeout=60,
+                            env=env,
+                        )
+                        stdout = result.stdout.decode("utf-8", errors="replace").strip()
+                        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+                        if result.returncode != 0:
+                            logger.warning(f"[CodeStudio] git pull (token) falhou em {base}: {stderr[:300]}")
+                            return {"sucesso": False, "mensagem": stderr[:300], "branch": branch}
+                        logger.info(f"[CodeStudio] git pull OK (token) em {base} ({branch})")
+                        return {"sucesso": True, "mensagem": stdout[:300], "branch": branch}
 
         # Git pull sem token (fallback)
         env["GIT_TERMINAL_PROMPT"] = "0"
