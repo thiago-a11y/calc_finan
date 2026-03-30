@@ -116,9 +116,12 @@ def criar_llm_tracked(
     # Salvar referencia ao call original
     call_original = llm.call
 
-    def call_tracked(messages, callbacks=None, available_tools=None):
+    def call_tracked(messages, callbacks=None, available_tools=None, **kwargs):
         """
         Chama o LLM real e registra o consumo no UsageTracker.
+
+        Aceita **kwargs para compatibilidade com versoes do CrewAI
+        que passam parametros extras (tools, tool_choice, etc.).
         """
         # Estimar tokens de input
         texto_input = ""
@@ -138,13 +141,14 @@ def criar_llm_tracked(
         provider_id = _extrair_provider(modelo_ref)
         modelo_limpo = _extrair_modelo_limpo(modelo_ref)
 
-        # Chamar o LLM real
+        # Chamar o LLM real (repassando kwargs extras como tools, tool_choice, etc.)
         inicio = time.time()
         try:
             resultado = call_original(
                 messages=messages,
                 callbacks=callbacks,
                 available_tools=available_tools,
+                **kwargs,
             )
         except Exception as e:
             # Registrar tentativa falhada
