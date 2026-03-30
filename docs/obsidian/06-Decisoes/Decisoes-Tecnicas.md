@@ -232,4 +232,67 @@ O CompanyContextBuilder é chamado por múltiplas requests simultâneas do FastA
 
 ---
 
+## Por que Test Master obrigatório e bloqueante no pipeline Apply+Deploy?
+
+O pipeline One-Click Apply+Deploy executa 5 etapas sequenciais: backup → aplicar → Test Master → commit → push. O Test Master é a terceira etapa e é **obrigatória e bloqueante** — se os testes falharem, o pipeline para e o backup é restaurado. Nem o CEO pode bypassar essa etapa. Motivos:
+1. Código que quebra testes nunca deve chegar ao repositório remoto
+2. O backup automático garante rollback sem perda de trabalho
+3. A obrigatoriedade elimina a tentação de "pular testes desta vez"
+4. Em uma fábrica com 45 squads, um push quebrado pode paralisar múltiplas equipes
+
+---
+
+## Por que conversas separadas no AgentPanel (não uma conversa contínua)?
+
+O AgentPanel do Code Studio inicialmente tinha uma única conversa contínua por sessão. Problemas:
+1. Contexto misturado — perguntas sobre arquivos diferentes na mesma thread confundiam o agente
+2. Histórico poluído — difícil encontrar uma resposta específica em uma conversa longa
+3. Sem separação por tarefa — refatoração, documentação e debugging tudo junto
+
+A solução foi implementar conversas separadas com persistência em localStorage por projeto. Cada conversa tem título editável, preview e pode ser retomada a qualquer momento. O botão "Novo Chat" limpa o contexto para uma nova tarefa. Isso espelha o padrão de ChatGPT/Claude (múltiplas conversas), que os usuários já conhecem.
+
+---
+
+## Por que scroll inteligente vai ao início da resposta (não ao final)?
+
+O comportamento padrão de chat (scroll para o final) não funciona bem para respostas longas de agentes de código. O usuário quer ler a resposta do início — se o scroll vai direto ao final, ele precisa rolar para cima manualmente. O scroll inteligente detecta quando uma nova resposta do agente começa e posiciona o viewport no início dessa resposta, permitindo leitura natural de cima para baixo.
+
+---
+
+## Por que ThreadPoolExecutor para reuniões paralelas (não asyncio)?
+
+Reuniões com múltiplos agentes precisam executar tarefas em paralelo (cada agente processa sua parte). O `ThreadPoolExecutor` foi escolhido em vez de `asyncio` porque:
+1. CrewAI é síncrono — usar asyncio exigiria wrappers `run_in_executor` em todo lugar
+2. ThreadPoolExecutor integra naturalmente com código síncrono existente
+3. O GIL do Python não é problema aqui — a maior parte do tempo é I/O (chamadas a APIs de LLM)
+4. Controle fino de workers: `max_workers` limita concorrência para evitar rate limits
+
+---
+
+## Por que 15 agentes mapeados no BMAD com fases e palavras-chave?
+
+O framework BMAD (Business, Marketing, Architecture, Development) organiza o trabalho em fases. Cada agente foi mapeado para uma ou mais fases, com palavras-chave que ativam o roteamento automático. Com 15 agentes (9 originais + 3 do Jonatas + 3 Elite), o mapeamento garante:
+1. **Roteamento automático** — o sistema sabe qual agente chamar com base no tipo de tarefa
+2. **Cobertura completa** — todas as fases do BMAD têm pelo menos 2 agentes capacitados
+3. **Especialização** — Test Master para testes, GitHub Master para VCS, etc.
+4. **Escalabilidade** — novos agentes são adicionados ao mapa com palavras-chave, sem mudar código
+
+---
+
+## Por que fetch com token VCS no git log (origin/main desatualizado sem token)?
+
+O PushDialog lista commits pendentes usando `git log origin/main..HEAD`. Porém, o `origin/main` local pode estar desatualizado se o repositório remoto recebeu commits (merge de PR, push de outro dev). Para sincronizar, o Code Studio executa `git fetch origin` antes de listar commits. Em repositórios HTTPS privados, o fetch precisa de autenticação — sem o token VCS, falhava silenciosamente e mostrava commits já mergeados. A solução injeta o token VCS na URL temporariamente para o fetch, restaurando o remote limpo no finally.
+
+---
+
+## Por que auto-pull após merge (sincronizar local automaticamente)?
+
+Após um merge de PR via GitHub API, o repositório local fica desatualizado (o merge aconteceu no remote). Sem auto-pull, o PushDialog continuaria mostrando os commits antigos como "pendentes". O auto-pull automático após merge garante que:
+1. O repositório local reflete o estado real do remote
+2. O PushDialog mostra apenas commits genuinamente pendentes
+3. Não há confusão do usuário com commits duplicados
+4. O próximo push/PR parte de um estado limpo
+
+---
+
 > Última atualização: 2026-03-30

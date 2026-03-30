@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from api.dependencias import obter_fabrica, obter_usuario_atual
 from database.session import get_db, SessionLocal
-from database.models import UsuarioDB, TarefaDB, AgenteCatalogoDB
+from database.models import UsuarioDB, TarefaDB, AgenteCatalogoDB, WorkflowAutonomoDB
 
 logger = logging.getLogger("synerium.tarefas")
 
@@ -1026,3 +1026,480 @@ async def montar_time(
         "auto_iniciar": confianca >= 0.85,
         "catalogo_completo": agentes_lista,  # Para ajuste manual
     }
+
+
+# =====================================================================
+# AUTONOMOUS SQUADS — Workflow BMAD completo automatizado
+# =====================================================================
+
+# Nomes das fases BMAD
+FASES_BMAD = {
+    1: "Analise",
+    2: "Planejamento",
+    3: "Solucao",
+    4: "Implementacao",
+}
+
+# Prompts por fase (o que cada fase deve produzir)
+PROMPTS_FASE = {
+    1: (
+        "FASE 1 — ANALISE\n"
+        "Tarefa: {titulo}\nDescricao: {descricao}\n\n"
+        "Voce deve:\n"
+        "1. Analisar o problema/feature solicitado\n"
+        "2. Pesquisar viabilidade tecnica\n"
+        "3. Identificar riscos e dependencias\n"
+        "4. Produzir um Product Brief com escopo, objetivo e criterios de sucesso\n"
+        "Responda de forma estruturada em portugues brasileiro."
+    ),
+    2: (
+        "FASE 2 — PLANEJAMENTO\n"
+        "Tarefa: {titulo}\nDescricao: {descricao}\n\n"
+        "Resultado da Fase 1 (Analise):\n{output_anterior}\n\n"
+        "Voce deve:\n"
+        "1. Criar um PRD (Product Requirements Document) completo\n"
+        "2. Definir requisitos funcionais e nao-funcionais\n"
+        "3. Criar epicos e stories com criterios de aceitacao BDD (Given/When/Then)\n"
+        "4. Priorizar e estimar complexidade\n"
+        "Responda de forma estruturada em portugues brasileiro."
+    ),
+    3: (
+        "FASE 3 — SOLUCAO (Arquitetura)\n"
+        "Tarefa: {titulo}\nDescricao: {descricao}\n\n"
+        "Resultado do Planejamento:\n{output_anterior}\n\n"
+        "Voce deve:\n"
+        "1. Definir arquitetura tecnica (componentes, patterns, stack)\n"
+        "2. Criar ADRs (Architecture Decision Records) para decisoes criticas\n"
+        "3. Fazer Implementation Readiness Check\n"
+        "4. Listar arquivos que serao criados/modificados\n"
+        "Responda de forma estruturada em portugues brasileiro."
+    ),
+    4: (
+        "FASE 4 — IMPLEMENTACAO\n"
+        "Tarefa: {titulo}\nDescricao: {descricao}\n\n"
+        "Arquitetura definida:\n{output_anterior}\n\n"
+        "Voce deve:\n"
+        "1. Implementar a solucao seguindo a arquitetura\n"
+        "2. Escrever testes para cada componente\n"
+        "3. Fazer code review cruzado\n"
+        "4. Validar que todos os criterios de aceitacao passam\n"
+        "5. Preparar para deploy\n"
+        "Responda com codigo completo quando aplicavel. Portugues brasileiro."
+    ),
+}
+
+# Agentes por fase (perfis do catalogo)
+AGENTES_POR_FASE = {
+    1: ["product_manager", "tech_lead"],
+    2: ["product_manager", "frontend_dev", "tech_lead"],
+    3: ["tech_lead", "backend_dev", "qa_seguranca"],
+    4: ["backend_dev", "frontend_dev", "qa_seguranca"],
+}
+
+# Gates por fase
+GATES_FASE = {
+    1: "soft",   # Auto-pass (opcional)
+    2: "hard",   # CEO/Operations Lead deve aprovar PRD
+    3: "hard",   # Implementation Readiness Check
+    4: "hard",   # Deploy requer aprovacao
+}
+
+
+class IniciarAutonomoRequest(BaseModel):
+    titulo: str
+    descricao: str = ""
+    squad_nome: str
+    projeto_id: int = 0
+    pular_analise: bool = False
+
+
+class AprovarGateRequest(BaseModel):
+    decisao: str  # "aprovar", "rejeitar", "ajustar"
+    feedback: str = ""
+
+
+@router.post("/autonomo")
+def iniciar_autonomo(
+    req: IniciarAutonomoRequest,
+    fabrica=Depends(obter_fabrica),
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Inicia workflow autonomo BMAD completo."""
+    squad = fabrica.squads.get(req.squad_nome)
+    if not squad:
+        raise HTTPException(status_code=404, detail=f"Squad '{req.squad_nome}' nao encontrado.")
+
+    workflow_id = str(uuid.uuid4())[:8]
+    fase_inicial = 2 if req.pular_analise else 1
+
+    workflow = WorkflowAutonomoDB(
+        id=workflow_id,
+        titulo=req.titulo,
+        descricao=req.descricao,
+        fase_atual=fase_inicial,
+        status="em_execucao",
+        agentes_ids=[],
+        outputs={},
+        gates={},
+        projeto_id=req.projeto_id,
+        squad_nome=req.squad_nome,
+        usuario_id=usuario.id,
+        usuario_nome=usuario.nome,
+        company_id=usuario.company_id or 1,
+    )
+
+    if req.pular_analise:
+        workflow.gates["fase_1"] = {"status": "pulado", "por": "usuario"}
+
+    db.add(workflow)
+    db.commit()
+    db.refresh(workflow)
+
+    # Iniciar execucao em background
+    threading.Thread(
+        target=_executar_workflow_autonomo_bg,
+        args=(workflow_id, req.squad_nome, req.titulo, req.descricao, fase_inicial, fabrica),
+        daemon=True,
+    ).start()
+
+    logger.info(f"[AUTONOMO] Workflow {workflow_id} iniciado: {req.titulo} (fase {fase_inicial})")
+
+    return {
+        "id": workflow_id,
+        "titulo": req.titulo,
+        "fase_atual": fase_inicial,
+        "status": "em_execucao",
+    }
+
+
+@router.get("/autonomo/{workflow_id}")
+def buscar_autonomo(
+    workflow_id: str,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Busca status completo do workflow autonomo."""
+    wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow nao encontrado.")
+
+    # Buscar tarefa atual (reuniao em andamento)
+    tarefa_atual = None
+    if wf.tarefa_atual_id:
+        t = db.query(TarefaDB).filter_by(id=wf.tarefa_atual_id).first()
+        if t:
+            tarefa_atual = {
+                "id": t.id,
+                "status": t.status,
+                "agente_atual": t.agente_atual,
+                "rodadas": t.rodadas or [],
+                "resultado": t.resultado,
+            }
+
+    return {
+        "id": wf.id,
+        "titulo": wf.titulo,
+        "descricao": wf.descricao,
+        "fase_atual": wf.fase_atual,
+        "fase_nome": FASES_BMAD.get(wf.fase_atual, "?"),
+        "status": wf.status,
+        "outputs": wf.outputs or {},
+        "gates": wf.gates or {},
+        "agentes_ids": wf.agentes_ids or [],
+        "tarefa_atual": tarefa_atual,
+        "projeto_id": wf.projeto_id,
+        "criado_em": wf.criado_em.isoformat() if wf.criado_em else "",
+        "atualizado_em": wf.atualizado_em.isoformat() if wf.atualizado_em else "",
+    }
+
+
+@router.get("/autonomo")
+def listar_autonomos(
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Lista workflows autonomos do usuario."""
+    wfs = (
+        db.query(WorkflowAutonomoDB)
+        .filter_by(usuario_id=usuario.id)
+        .order_by(WorkflowAutonomoDB.criado_em.desc())
+        .limit(20)
+        .all()
+    )
+    return [
+        {
+            "id": wf.id,
+            "titulo": wf.titulo,
+            "fase_atual": wf.fase_atual,
+            "fase_nome": FASES_BMAD.get(wf.fase_atual, "?"),
+            "status": wf.status,
+            "criado_em": wf.criado_em.isoformat() if wf.criado_em else "",
+        }
+        for wf in wfs
+    ]
+
+
+@router.post("/autonomo/{workflow_id}/aprovar-gate")
+def aprovar_gate(
+    workflow_id: str,
+    req: AprovarGateRequest,
+    fabrica=Depends(obter_fabrica),
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Aprova, rejeita ou ajusta um gate do workflow."""
+    wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow nao encontrado.")
+    if wf.status != "aguardando_gate":
+        raise HTTPException(status_code=400, detail=f"Workflow nao esta aguardando gate (status: {wf.status})")
+
+    fase = wf.fase_atual
+    gates = wf.gates or {}
+
+    if req.decisao == "aprovar":
+        gates[f"fase_{fase}"] = {"status": "aprovado", "por": usuario.nome, "feedback": req.feedback}
+        wf.gates = gates
+        proxima_fase = fase + 1
+
+        if proxima_fase > 4:
+            wf.status = "concluido"
+            wf.atualizado_em = datetime.utcnow()
+            db.commit()
+            logger.info(f"[AUTONOMO] Workflow {workflow_id} CONCLUIDO!")
+            return {"mensagem": "Workflow concluido com sucesso!", "status": "concluido"}
+
+        wf.fase_atual = proxima_fase
+        wf.status = "em_execucao"
+        wf.atualizado_em = datetime.utcnow()
+        db.commit()
+
+        # Continuar execucao em background
+        threading.Thread(
+            target=_executar_workflow_autonomo_bg,
+            args=(workflow_id, wf.squad_nome, wf.titulo, wf.descricao, proxima_fase, fabrica),
+            daemon=True,
+        ).start()
+
+        logger.info(f"[AUTONOMO] Gate fase {fase} aprovado → iniciando fase {proxima_fase}")
+        return {"mensagem": f"Fase {fase} aprovada! Iniciando fase {proxima_fase}.", "status": "em_execucao", "fase": proxima_fase}
+
+    elif req.decisao == "rejeitar":
+        gates[f"fase_{fase}"] = {"status": "rejeitado", "por": usuario.nome, "feedback": req.feedback}
+        wf.gates = gates
+        wf.status = "em_execucao"
+        wf.atualizado_em = datetime.utcnow()
+        db.commit()
+
+        # Refazer a mesma fase com feedback
+        threading.Thread(
+            target=_executar_workflow_autonomo_bg,
+            args=(workflow_id, wf.squad_nome, wf.titulo, wf.descricao + f"\n\nFEEDBACK DO CEO: {req.feedback}", fase, fabrica),
+            daemon=True,
+        ).start()
+
+        return {"mensagem": f"Fase {fase} rejeitada. Refazendo com feedback.", "status": "em_execucao"}
+
+    elif req.decisao == "cancelar":
+        wf.status = "cancelado"
+        wf.atualizado_em = datetime.utcnow()
+        db.commit()
+        return {"mensagem": "Workflow cancelado.", "status": "cancelado"}
+
+    raise HTTPException(status_code=400, detail="Decisao invalida. Use: aprovar, rejeitar, cancelar")
+
+
+@router.post("/autonomo/{workflow_id}/cancelar")
+def cancelar_autonomo(
+    workflow_id: str,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Cancela workflow em andamento."""
+    wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow nao encontrado.")
+    wf.status = "cancelado"
+    wf.atualizado_em = datetime.utcnow()
+    db.commit()
+    return {"mensagem": "Workflow cancelado.", "status": "cancelado"}
+
+
+def _executar_workflow_autonomo_bg(
+    workflow_id: str,
+    squad_nome: str,
+    titulo: str,
+    descricao: str,
+    fase_inicial: int,
+    fabrica,
+):
+    """
+    Executa o workflow BMAD autonomo em background.
+    Para cada fase: monta time → executa reuniao → salva output → verifica gate.
+    """
+    from crewai import Task, Crew, Process
+
+    db = SessionLocal()
+    try:
+        wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+        if not wf or wf.status == "cancelado":
+            return
+
+        squad = fabrica.squads.get(squad_nome)
+        if not squad:
+            wf.status = "erro"
+            wf.outputs = {**(wf.outputs or {}), "erro": f"Squad '{squad_nome}' nao encontrado"}
+            db.commit()
+            return
+
+        fase = fase_inicial
+        outputs = wf.outputs or {}
+
+        while fase <= 4:
+            if wf.status == "cancelado":
+                break
+
+            logger.info(f"[AUTONOMO] Workflow {workflow_id} — Iniciando Fase {fase}: {FASES_BMAD[fase]}")
+
+            # Atualizar status
+            wf.fase_atual = fase
+            wf.status = "em_execucao"
+            wf.atualizado_em = datetime.utcnow()
+            db.commit()
+
+            # Selecionar agentes para esta fase
+            perfis_fase = AGENTES_POR_FASE.get(fase, ["tech_lead", "backend_dev"])
+            agentes_disponiveis = [
+                a for i, a in enumerate(squad.agentes)
+                if i < len(squad.agentes)
+            ]
+
+            # Usar ate 3 agentes (limite de economia)
+            agentes_fase = agentes_disponiveis[:min(3, len(agentes_disponiveis))]
+            if not agentes_fase:
+                wf.status = "erro"
+                outputs[f"fase_{fase}"] = "Erro: nenhum agente disponivel no squad"
+                wf.outputs = outputs
+                db.commit()
+                break
+
+            # Montar prompt da fase
+            output_anterior = outputs.get(f"fase_{fase - 1}", "")
+            prompt = PROMPTS_FASE.get(fase, "").format(
+                titulo=titulo,
+                descricao=descricao,
+                output_anterior=output_anterior[:3000],
+            )
+
+            # Executar agentes em paralelo
+            resultados_fase = []
+            tarefa_id = str(uuid.uuid4())[:8]
+            tarefa_db = TarefaDB(
+                id=tarefa_id, squad_nome=squad_nome, agente_nome=f"Fase {fase}: {FASES_BMAD[fase]}",
+                agente_indice=-1, descricao=prompt,
+                status="executando", tipo="reuniao",
+                participantes=[a.role for a in agentes_fase],
+                rodadas=[], rodada_atual=1,
+                usuario_id=wf.usuario_id, usuario_nome=wf.usuario_nome,
+                company_id=wf.company_id,
+            )
+            db.add(tarefa_db)
+            wf.tarefa_atual_id = tarefa_id
+            db.commit()
+
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                def executar_agente(agente, idx):
+                    try:
+                        tarefa_upd = db.query(TarefaDB).filter_by(id=tarefa_id).first()
+                        if tarefa_upd:
+                            tarefa_upd.agente_atual = f"⚡ {agente.role}"
+                            db.commit()
+
+                        crewai_tarefa = Task(
+                            description=prompt,
+                            expected_output=f"Resultado da {FASES_BMAD[fase]} — completo e estruturado.",
+                            agent=agente,
+                        )
+                        crew = Crew(agents=[agente], tasks=[crewai_tarefa],
+                                     process=Process.sequential, verbose=True)
+                        resultado = crew.kickoff()
+                        return {"agente": agente.role, "resposta": str(resultado), "sucesso": True}
+                    except Exception as e:
+                        return {"agente": agente.role, "resposta": f"Erro: {str(e)[:200]}", "sucesso": False}
+
+                futures = {executor.submit(executar_agente, ag, i): ag for i, ag in enumerate(agentes_fase)}
+                for future in as_completed(futures):
+                    result = future.result()
+                    resultados_fase.append(result)
+
+                    # Salvar progresso incremental
+                    tarefa_upd = db.query(TarefaDB).filter_by(id=tarefa_id).first()
+                    if tarefa_upd:
+                        rodadas = tarefa_upd.rodadas or []
+                        rodadas.append({
+                            "rodada": 1,
+                            "agente": result["agente"],
+                            "resposta": result["resposta"],
+                            "timestamp": datetime.utcnow().isoformat(),
+                        })
+                        tarefa_upd.rodadas = rodadas
+                        tarefa_upd.agente_atual = f"⚡ {len(resultados_fase)}/{len(agentes_fase)} concluidos"
+                        db.commit()
+
+            # Compilar output da fase
+            output_fase = f"=== FASE {fase}: {FASES_BMAD[fase].upper()} ===\n\n"
+            for r in resultados_fase:
+                output_fase += f"**{r['agente']}:**\n{r['resposta']}\n\n"
+
+            outputs[f"fase_{fase}"] = output_fase
+            wf.outputs = outputs
+
+            # Finalizar tarefa
+            tarefa_upd = db.query(TarefaDB).filter_by(id=tarefa_id).first()
+            if tarefa_upd:
+                tarefa_upd.status = "concluida"
+                tarefa_upd.resultado = output_fase[:5000]
+                tarefa_upd.agente_atual = None
+                tarefa_upd.concluido_em = datetime.utcnow()
+
+            db.commit()
+            logger.info(f"[AUTONOMO] Fase {fase} concluida ({len(resultados_fase)} agentes)")
+
+            # Verificar gate
+            gate_tipo = GATES_FASE.get(fase, "soft")
+            if gate_tipo == "soft":
+                gates = wf.gates or {}
+                gates[f"fase_{fase}"] = {"status": "auto_pass", "por": "sistema"}
+                wf.gates = gates
+                db.commit()
+                fase += 1
+                continue
+
+            # Gate hard — pausar e aguardar aprovacao
+            wf.status = "aguardando_gate"
+            wf.atualizado_em = datetime.utcnow()
+            db.commit()
+            logger.info(f"[AUTONOMO] Workflow {workflow_id} — Aguardando aprovacao do gate da Fase {fase}")
+            break  # Sai do loop — sera retomado quando CEO aprovar
+
+        # Se completou todas as fases
+        wf_final = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+        if wf_final and wf_final.fase_atual > 4:
+            wf_final.status = "concluido"
+            wf_final.atualizado_em = datetime.utcnow()
+            db.commit()
+            logger.info(f"[AUTONOMO] Workflow {workflow_id} CONCLUIDO!")
+
+    except Exception as e:
+        wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+        if wf:
+            wf.status = "erro"
+            outputs = wf.outputs or {}
+            outputs["erro"] = str(e)[:500]
+            wf.outputs = outputs
+            wf.atualizado_em = datetime.utcnow()
+            db.commit()
+        logger.error(f"[AUTONOMO] Erro: {e}")
+    finally:
+        db.close()

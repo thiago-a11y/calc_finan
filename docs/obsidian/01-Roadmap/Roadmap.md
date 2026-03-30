@@ -1,7 +1,7 @@
 # Roadmap — Synerium Factory
 
 > Fases de desenvolvimento da fábrica de SaaS da Objetiva.
-> Atualizado em: 25/03/2026
+> Atualizado em: 30/03/2026
 
 ---
 
@@ -59,6 +59,9 @@
 - [x] Atribuição dinâmica — admin atribui agentes do catálogo a usuários
 - [x] Solicitação de agentes — usuário pede, admin aprova/rejeita
 - [x] Hot-reload de squads ao atribuir/remover agentes
+- [x] 3 Agentes Elite: Test Master, GitHub Master, GitBucket Master (v0.46.0)
+- [x] BMAD mapeamento completo — 15 agentes com fases e palavras-chave (v0.46.0)
+- [x] Live Agents — progresso rotativo, balão de status, shimmer (v0.43.0)
 - [ ] Mapear os 45 funcionários da Objetiva
 - [ ] Criar squad personalizado para cada um
 - [ ] Sistema de registro e gestão escalável de squads

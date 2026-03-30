@@ -4,6 +4,101 @@
 
 ---
 
+## v0.48.0 — Preview de Arquivos por Commit + Horário Brasília (2026-03-30)
+
+### Funcionalidades
+- **Preview de arquivos por commit** no PushDialog — Ao selecionar um commit, lista os arquivos alterados com diff visual
+- **Horário Brasília** — Timestamps de commits exibidos em fuso horário America/Sao_Paulo (UTC-3) no PushDialog
+- **Seleção visual de commits** — Checkboxes para selecionar quais commits incluir no push
+
+---
+
+## v0.47.0 — Botão Novo Projeto + Modal de Criação (2026-03-30)
+
+### Funcionalidades
+- **Botão "Novo Projeto"** na página Projetos — Visível apenas para CEO/proprietários
+- **Modal de criação de projeto** — Formulário completo com nome, descrição, stack, membros
+- **Validação de permissão** — Apenas CEO pode criar novos projetos via dashboard
+
+---
+
+## v0.46.0 — 3 Agentes Elite + BMAD Mapeamento Completo (2026-03-30)
+
+### Funcionalidades
+- **Test Master** — Agente especializado em testes automatizados, obrigatório e bloqueante no pipeline Apply+Deploy
+- **GitHub Master** — Agente especializado em operações GitHub (PRs, issues, reviews, merges)
+- **GitBucket Master** — Agente especializado em operações GitBucket (repositórios on-premise)
+- **BMAD mapeamento completo** — 15 agentes mapeados com fases, palavras-chave e especialidades definidas
+- **Catálogo expandido** — De 12 para 15 templates de agentes reutilizáveis
+
+---
+
+## v0.45.0 — Sistema de Conversas Separadas no AgentPanel (2026-03-30)
+
+### Funcionalidades
+- **Conversas separadas** no AgentPanel do Code Studio — Cada conversa é independente com histórico próprio
+- **Botão "Novo Chat"** — Inicia nova conversa sem perder as anteriores
+- **Histórico de conversas** — Lista lateral com título e preview de cada conversa
+- **Scroll inteligente** — Scrolla para o início da resposta do agente (não para o final), facilitando leitura
+- **Persistência em localStorage** — Conversas salvas por projeto, sobrevivem a reload
+- **Indicador de conversa ativa** — Destaque visual na conversa selecionada
+
+---
+
+## v0.44.0 — Painéis Redimensionáveis no Code Studio (2026-03-30)
+
+### Funcionalidades
+- **Painéis redimensionáveis** — Drag handle entre os painéis do Code Studio para ajustar largura
+- **Largura mínima garantida** — Editor central mantém tamanho mínimo confortável mesmo ao redimensionar
+- **Persistência de tamanho** — Largura dos painéis salva em localStorage
+- **Cursor visual de resize** — Indicador visual ao passar sobre a borda entre painéis
+
+---
+
+## v0.43.0 — Live Agents (2026-03-30)
+
+### Funcionalidades
+- **Progresso rotativo no AgentPanel** — Indicador visual de que o agente está processando com animação de rotação
+- **Balão de status no Escritório Virtual** — Mostra status do agente (pensando, digitando, ocioso) com ícone animado
+- **Shimmer no ChatFloating** — Efeito shimmer durante carregamento de resposta do agente
+- **Animações contextuais** — Diferentes animações para diferentes estados do agente (idle, thinking, responding)
+
+---
+
+## v0.42.0 — Push & PR & Merge direto do Code Studio (2026-03-30)
+
+### Funcionalidades
+- **Push direto do Code Studio** — Botão "Push" que envia commits selecionados para o remote
+- **Criação de Pull Request** — Gera PR no GitHub/GitBucket diretamente pelo dashboard
+- **Merge via GitHub API** — Merge de PRs sem sair do Code Studio
+- **Seleção de commits** — Interface com checkboxes para escolher quais commits enviar
+- **PushDialog** — Modal completo com preview de commits, seleção e ações (push, PR, merge)
+- **Integração GitHub API** — Usa token VCS criptografado para operações autenticadas
+
+---
+
+## v0.41.0 — One-Click Apply+Deploy (2026-03-30)
+
+### Funcionalidades
+- **One-Click Apply+Deploy** — Pipeline completo acionado por um único clique no Code Studio
+- **Pipeline de 5 etapas**: backup → aplicar alteração → Test Master (obrigatório) → commit → push
+- **Test Master bloqueante** — Testes automatizados executados antes do commit; se falharem, pipeline para
+- **Backup automático** — Arquivo original salvo antes de aplicar alteração do agente IA
+- **Feedback em tempo real** — Progresso visual de cada etapa do pipeline no frontend
+- **Rollback em caso de falha** — Se qualquer etapa falhar, o backup é restaurado automaticamente
+
+### Correções
+- **Convites inválidos (naive vs aware datetime)** — Corrigido em `convites.py` e `auth.py` para usar timezone-aware datetime
+- **permissoes.py corrompido no servidor** — Arquivo continha conteúdo de IA misturado; restaurado do Git
+- **Painel Geral mostrava usuários deletados** — Buscava config estático em vez do banco; corrigido para buscar dinâmico
+- **Push dialog: Invalid Date** — Parsing de data de commits corrigido para formato ISO 8601
+- **Commits já mergeados aparecendo no PushDialog** — Filtro adicionado para excluir commits já presentes em origin/main
+- **VCS remote corrompido após commit** — URL do remote era sobrescrita; restaurada no bloco finally
+- **CEO não podia excluir outros proprietários** — Regra de permissão corrigida para permitir CEO deletar qualquer usuário
+- **Git pull HTTPS sem token** — Fetch com token VCS para sincronizar origin/main corretamente
+
+---
+
 ## v0.40.0 — Chat Resiliente + Timeout + Retomar Conversa (2026-03-30)
 
 ### Funcionalidades

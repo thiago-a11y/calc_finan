@@ -8,11 +8,12 @@
 
 import { useCallback, useState, useMemo, useEffect, memo } from 'react'
 import { usePolling } from '../hooks/usePolling'
-import { buscarSquads, buscarHistoricoTarefas } from '../services/api'
+import { buscarSquads, buscarHistoricoTarefas, iniciarAutonomo } from '../services/api'
 import { useChatManager } from '../components/ChatManager'
+import AutonomoPanel from '../components/AutonomoPanel'
 import type { TarefaResultado } from '../types'
 import { useAuth } from '../contexts/AuthContext'
-import { Users, MessageSquare, Crown, X, User, Eye, ChevronDown, Video, Zap, Code2 } from 'lucide-react'
+import { Users, MessageSquare, Crown, X, User, Eye, ChevronDown, Video, Zap, Code2, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import ReuniaoVideo from '../components/ReuniaoVideo'
 import AgentAvatarPhoto from '../components/AgentAvatar'
@@ -751,6 +752,13 @@ export default function Escritorio() {
   const [squadSelecionado, setSquadSelecionado] = useState<string | null>(null)
   const [mostrarSeletor, setMostrarSeletor] = useState(false)
   const [videoCall, setVideoCall] = useState<{ sala: string; participantes: string[] } | null>(null)
+  // Modo Autonomo
+  const [modalAutonomo, setModalAutonomo] = useState(false)
+  const [autonomoTitulo, setAutonomoTitulo] = useState('')
+  const [autonomoDesc, setAutonomoDesc] = useState('')
+  const [autonomoPularAnalise, setAutonomoPularAnalise] = useState(false)
+  const [iniciandoAutonomo, setIniciandoAutonomo] = useState(false)
+  const [workflowAtivoId, setWorkflowAtivoId] = useState<string | null>(null)
 
   const squads = (squadsData || []) as SquadComMeta[]
   const tarefas = (tarefasData || []) as TarefaResultado[]
@@ -816,6 +824,27 @@ export default function Escritorio() {
     if (ctxMenu) window.addEventListener('click', fechar)
     return () => window.removeEventListener('click', fechar)
   }, [ctxMenu])
+
+  const handleIniciarAutonomo = useCallback(async () => {
+    if (!autonomoTitulo.trim() || !meuSquad || iniciandoAutonomo) return
+    setIniciandoAutonomo(true)
+    try {
+      const res = await iniciarAutonomo({
+        titulo: autonomoTitulo.trim(),
+        descricao: autonomoDesc.trim(),
+        squad_nome: meuSquad.nome,
+        pular_analise: autonomoPularAnalise,
+      })
+      setWorkflowAtivoId(res.id)
+      setModalAutonomo(false)
+      setAutonomoTitulo('')
+      setAutonomoDesc('')
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Erro ao iniciar')
+    } finally {
+      setIniciandoAutonomo(false)
+    }
+  }, [autonomoTitulo, autonomoDesc, autonomoPularAnalise, meuSquad, iniciandoAutonomo])
 
   const handleReunir = useCallback(() => {
     if (emReuniao) { setEmReuniao(false); setVisitando(null) }
@@ -930,6 +959,15 @@ export default function Escritorio() {
               : { background: 'rgba(16,185,129,.1)', color: '#34d399', border: '1px solid rgba(16,185,129,.15)' }
             }>
             {emReuniao ? <><X size={13} /> Encerrar Reunião</> : <><Users size={13} /> Reunir todos</>}
+          </button>
+          {/* Modo Autonomo */}
+          <button
+            onClick={() => setModalAutonomo(true)}
+            disabled={emReuniao}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all disabled:opacity-40"
+            style={{ background: 'rgba(168,85,247,.1)', color: '#d8b4fe', border: '1px solid rgba(168,85,247,.15)' }}
+          >
+            <Zap size={13} /> Modo Autonomo
           </button>
         </div>
       </div>
@@ -1396,6 +1434,68 @@ export default function Escritorio() {
       {/* Video Call Modal */}
       {videoCall && (
         <ReuniaoVideo sala={videoCall.sala} participantes={videoCall.participantes} onFechar={() => setVideoCall(null)} />
+      )}
+
+      {/* Modal Modo Autonomo */}
+      {modalAutonomo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6"
+            style={{ background: 'var(--sf-bg-1)', border: '1px solid rgba(168,85,247,0.2)' }}>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <Zap size={18} style={{ color: '#a855f7' }} />
+                <h3 className="text-[16px] font-bold" style={{ color: 'var(--sf-text-0)' }}>Modo Autonomo</h3>
+              </div>
+              <button onClick={() => setModalAutonomo(false)} className="p-1 rounded hover:bg-white/5" style={{ color: 'var(--sf-text-3)' }}>
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-[11px] mb-4" style={{ color: 'var(--sf-text-3)' }}>
+              Descreva a feature ou tarefa. O squad vai executar o ciclo BMAD completo de forma autonoma.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-medium uppercase tracking-wider mb-1 block" style={{ color: 'var(--sf-text-3)' }}>O que voce quer? *</label>
+                <input value={autonomoTitulo} onChange={e => setAutonomoTitulo(e.target.value)}
+                  placeholder="Ex: Implementar busca por voz no SyneriumX"
+                  className="w-full px-4 py-2.5 rounded-xl text-sm sf-glass border sf-border sf-text-white"
+                  style={{ background: 'var(--sf-bg-2)' }}
+                  autoFocus />
+              </div>
+              <div>
+                <label className="text-[10px] font-medium uppercase tracking-wider mb-1 block" style={{ color: 'var(--sf-text-3)' }}>Detalhes (opcional)</label>
+                <textarea value={autonomoDesc} onChange={e => setAutonomoDesc(e.target.value)}
+                  placeholder="Contexto adicional, requisitos, restricoes..."
+                  rows={3}
+                  className="w-full px-4 py-2.5 rounded-xl text-sm sf-glass border sf-border sf-text-white resize-none"
+                  style={{ background: 'var(--sf-bg-2)' }} />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={autonomoPularAnalise} onChange={e => setAutonomoPularAnalise(e.target.checked)}
+                  className="rounded" />
+                <span className="text-[11px]" style={{ color: 'var(--sf-text-2)' }}>Quick Flow (pular analise, ir direto para planejamento)</span>
+              </label>
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <button onClick={() => setModalAutonomo(false)}
+                className="px-4 py-2 rounded-lg text-[11px] font-medium hover:bg-white/5"
+                style={{ color: 'var(--sf-text-3)', border: '1px solid var(--sf-border-subtle)' }}>
+                Cancelar
+              </button>
+              <button onClick={handleIniciarAutonomo} disabled={!autonomoTitulo.trim() || iniciandoAutonomo}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[11px] font-bold transition-all hover:brightness-110 disabled:opacity-40"
+                style={{ background: '#a855f7', color: '#fff' }}>
+                {iniciandoAutonomo ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+                {iniciandoAutonomo ? 'Iniciando...' : 'Iniciar Squad Autonomo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Painel Autonomo (flutuante) */}
+      {workflowAtivoId && (
+        <AutonomoPanel workflowId={workflowAtivoId} onFechar={() => setWorkflowAtivoId(null)} />
       )}
 
       {/* ── Legend Bar ── */}

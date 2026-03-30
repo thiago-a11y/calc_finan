@@ -384,6 +384,46 @@ export const atualizarRegrasAprovacao = (projetoId: number, regras: Record<strin
   put<{ mensagem: string }>(`/projetos/${projetoId}/regras`, { regras })
 
 // ============================================================
+// Autonomous Squads — Workflow BMAD completo
+// ============================================================
+
+export interface WorkflowAutonomo {
+  id: string
+  titulo: string
+  descricao: string
+  fase_atual: number
+  fase_nome: string
+  status: string
+  outputs: Record<string, string>
+  gates: Record<string, { status: string; por: string; feedback?: string }>
+  agentes_ids: number[]
+  tarefa_atual: {
+    id: string; status: string; agente_atual: string
+    rodadas: any[]; resultado: string
+  } | null
+  projeto_id: number
+  criado_em: string
+  atualizado_em: string
+}
+
+export const iniciarAutonomo = (dados: {
+  titulo: string; descricao?: string; squad_nome: string;
+  projeto_id?: number; pular_analise?: boolean
+}) => post<{ id: string; titulo: string; fase_atual: number; status: string }>('/tarefas/autonomo', dados)
+
+export const buscarAutonomo = (id: string) =>
+  get<WorkflowAutonomo>(`/tarefas/autonomo/${id}`)
+
+export const listarAutonomos = () =>
+  get<{ id: string; titulo: string; fase_atual: number; fase_nome: string; status: string; criado_em: string }[]>('/tarefas/autonomo')
+
+export const aprovarGate = (id: string, decisao: string, feedback = '') =>
+  post<{ mensagem: string; status: string }>(`/tarefas/autonomo/${id}/aprovar-gate`, { decisao, feedback })
+
+export const cancelarAutonomo = (id: string) =>
+  post<{ mensagem: string }>(`/tarefas/autonomo/${id}/cancelar`, {})
+
+// ============================================================
 // Version Control (VCS) — GitHub + GitBucket
 // ============================================================
 

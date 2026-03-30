@@ -1,53 +1,103 @@
 # Pendencias do Ultimo Chat — 30/Mar/2026
 
-> Atualizado em 30/Mar/2026 (sessao 20)
+> Atualizado em 30/Mar/2026 (sessao 21)
 
 ## Concluido nesta sessao
 
+### v0.48.0 — Preview de Arquivos por Commit + Horario Brasilia
+- [x] Preview de arquivos alterados por commit no PushDialog
+- [x] Timestamps em horario Brasilia (UTC-3) no PushDialog
+- [x] Selecao visual de commits com checkboxes
+
+### v0.47.0 — Botao Novo Projeto + Modal de Criacao
+- [x] Botao "Novo Projeto" na pagina Projetos (visivel so para CEO)
+- [x] Modal de criacao com formulario completo (nome, descricao, stack, membros)
+- [x] Validacao de permissao (apenas CEO cria projetos)
+
+### v0.46.0 — 3 Agentes Elite + BMAD Mapeamento Completo
+- [x] Test Master — agente de testes automatizados, obrigatorio no pipeline
+- [x] GitHub Master — agente especializado em operacoes GitHub
+- [x] GitBucket Master — agente especializado em operacoes GitBucket on-premise
+- [x] BMAD mapeamento completo — 15 agentes com fases, palavras-chave e especialidades
+- [x] Catalogo expandido de 12 para 15 templates
+
+### v0.45.0 — Sistema de Conversas Separadas no AgentPanel
+- [x] Conversas separadas no AgentPanel (cada uma independente)
+- [x] Botao "Novo Chat" para iniciar nova conversa
+- [x] Historico de conversas com titulo e preview
+- [x] Scroll inteligente (inicio da resposta, nao final)
+- [x] Persistencia em localStorage por projeto
+- [x] Indicador de conversa ativa
+
+### v0.44.0 — Paineis Redimensionaveis no Code Studio
+- [x] Drag handle entre paineis para ajustar largura
+- [x] Largura minima garantida no editor central
+- [x] Persistencia de tamanho em localStorage
+- [x] Cursor visual de resize
+
+### v0.43.0 — Live Agents
+- [x] Progresso rotativo no AgentPanel (animacao de processamento)
+- [x] Balao de status no Escritorio Virtual (pensando, digitando, ocioso)
+- [x] Shimmer no ChatFloating durante carregamento
+- [x] Animacoes contextuais por estado do agente
+
+### v0.42.0 — Push & PR & Merge direto do Code Studio
+- [x] Push direto do Code Studio com botao dedicado
+- [x] Criacao de Pull Request via dashboard
+- [x] Merge via GitHub API sem sair do Code Studio
+- [x] Selecao de commits com checkboxes
+- [x] PushDialog com preview e acoes completas
+- [x] Integracao GitHub API com token VCS criptografado
+
+### v0.41.0 — One-Click Apply+Deploy
+- [x] Pipeline completo: backup → aplicar → Test Master → commit → push
+- [x] Test Master bloqueante (nem CEO pode bypassar)
+- [x] Backup automatico antes de aplicar alteracao
+- [x] Feedback em tempo real de cada etapa
+- [x] Rollback automatico em caso de falha
+
 ### v0.40.0 — Chat Resiliente + Timeout + Retomar Conversa
 - [x] Timeout de tarefas/reunioes aumentado de 10 para 30 minutos
-- [x] Novo endpoint POST /tarefas/{id}/retomar — re-executa tarefa ou reabre reuniao
-- [x] Botao "Retomar conversa" no ChatFloating do Escritorio Virtual quando agente da erro
-- [x] Botao "Retomar de onde parou" no ReuniaoModal quando reuniao da timeout/erro
-- [x] Git Pull no Code Studio agora usa token VCS para autenticacao HTTPS
-- [x] GIT_TERMINAL_PROMPT=0 evita travar esperando input do usuario
+- [x] Novo endpoint POST /tarefas/{id}/retomar
+- [x] Botao "Retomar conversa" no ChatFloating
+- [x] Botao "Retomar de onde parou" no ReuniaoModal
+- [x] Git Pull no Code Studio com token VCS para autenticacao HTTPS
+- [x] GIT_TERMINAL_PROMPT=0 evita travar esperando input
 
 ### v0.39.0 — Company Context Total
-- [x] Novo modulo core/company_context.py com CompanyContextBuilder (3 niveis: minimal/standard/full)
-- [x] Nivel standard: detalhes profundos do projeto (membros, regras, VCS, fase, lider tecnico)
-- [x] Nivel full: empresa + todos projetos + busca RAG semantica (top 3 chunks do ChromaDB)
-- [x] Toggle "Contexto Empresa" no AgentPanel com switch ON/OFF (ligado por padrao)
-- [x] Badge visual "Contexto Total" nas respostas do assistente quando contexto ativo
-- [x] Cache inteligente: 5 minutos para lista de projetos, empresa estatico
-- [x] Integracao RAG: ChromaDB + Obsidian vaults, filtrando vault por projeto automaticamente
-- [x] Budget de tokens limitado a 4000 chars para nao exceder context window
+- [x] CompanyContextBuilder com 3 niveis (minimal/standard/full)
+- [x] Toggle "Contexto Empresa" no AgentPanel
+- [x] Badge "Contexto Total" nas respostas do assistente
+- [x] Cache inteligente (5min projetos, empresa estatico)
+- [x] Integracao RAG com ChromaDB + Obsidian vaults
+- [x] Budget de tokens limitado a 4000 chars
 
-### v0.38.0 — Historico de Atividades + Feedback Detalhado no Code Studio
-- [x] Novo endpoint GET /api/code-studio/historico com paginacao e filtro por projeto
-- [x] Calculo de diff no apply-action via difflib (linhas adicionadas/removidas)
-- [x] Novo componente HistoricoPanel — lista cronologica com icones, tempo relativo, paginacao
-- [x] Toast detalhado ao aplicar acao IA: mostra diff (+N/-N linhas), commit hash e branch VCS
-- [x] Confirmacao inline antes de aplicar acoes (Confirmar/Cancelar)
-- [x] Botao Historico na Toolbar (toggle mutuamente exclusivo com AgentPanel)
-- [x] Clique em arquivo no historico abre diretamente no editor
-- [x] Deployado e ativo na AWS
+### v0.38.0 — Historico de Atividades + Feedback Detalhado
+- [x] Endpoint GET /api/code-studio/historico com paginacao
+- [x] Calculo de diff no apply-action via difflib
+- [x] HistoricoPanel com lista cronologica
+- [x] Toast detalhado ao aplicar acao IA (diff, commit hash, branch)
+- [x] Confirmacao inline antes de aplicar acoes
+- [x] Botao Historico na Toolbar
 
 ### Bugs corrigidos nesta sessao
-- [x] LLM tracked incompativel com CrewAI 1.11+ (available_tools) — Corrigido com **kwargs
-- [x] Gemini 2.0-flash descontinuado — Atualizado para Gemini 2.5-flash
-- [x] LangSmith 403 no RAG — Removido @traceable do query
-- [x] Chroma deprecation warning — Migrado para langchain_chroma
-- [x] Estimador de tokens inflado ($55 fantasma) — Corrigido para valores reais
-- [x] Botao "Aplicar" so aparecia em Otimizar, nao em Refatorar/Documentar — Regex corrigida
-- [x] NetworkError no fetch do analyze — Timeout aumentado para 120s com AbortController
-- [x] Estouro de 213K tokens ao enviar imagem no chat — Imagens tratadas como descricao textual
-- [x] Texto muted com baixo contraste no dark/light mode — Cores ajustadas
-- [x] Git Pull no Code Studio falhava com "could not read Username" em repos HTTPS — Corrigido com injecao de token VCS
-- [x] Agente do Escritorio enviava emails sem pedir — Bloqueado com regras obrigatorias no prompt
-
-### Administrativo
-- [x] Creditos Anthropic recarregados ($29.90)
-- [x] Chave Gemini confirmada como paga (Nivel 1 pos-pagamento)
+- [x] LLM tracked incompativel com CrewAI 1.11+ (available_tools → **kwargs)
+- [x] Gemini 2.0-flash descontinuado → 2.5-flash
+- [x] LangSmith 403 no RAG → removido @traceable
+- [x] Chroma deprecation → migrado para langchain_chroma
+- [x] Tokens inflados no tracker ($55 fantasma → $0.70 real)
+- [x] Regex do botao Aplicar (so aparecia em Otimizar)
+- [x] NetworkError no fetch do analyze (timeout 120s)
+- [x] Estouro de 213K tokens ao enviar imagem
+- [x] Contraste texto muted no dark/light mode
+- [x] Git pull HTTPS sem token (could not read Username)
+- [x] Convites invalidos (naive vs aware datetime em convites.py E auth.py)
+- [x] permissoes.py corrompido no servidor (conteudo de IA misturado)
+- [x] Painel Geral mostrava usuarios deletados (buscava config estatico)
+- [x] Push dialog: Invalid Date + commits ja mergeados aparecendo
+- [x] VCS remote corrompido apos commit (restaura no finally)
+- [x] CEO nao podia excluir outros proprietarios
+- [x] Agente do Escritorio enviava emails sem pedir autorizacao
 
 ### Sessoes anteriores (ja concluidas)
 - [x] v0.37.1 — Auto-Clone VCS no Code Studio
@@ -70,15 +120,16 @@
 
 ## Status Atual
 - Tudo em producao (AWS)
-- Chat resiliente com timeout de 30min e botoes de retomar conversa (v0.40.0)
-- Company Context Total: agente IA com conhecimento completo da empresa e projetos (v0.39.0)
-- Code Studio com historico de atividades, feedback detalhado e confirmacao inline (v0.38.0)
-- Code Studio multi-projeto com auto-clone VCS (v0.37.1)
-- VCS integrado ao Code Studio com commit + push automatico
-- Git Pull autenticado com token VCS via HTTPS
-- Avatares reais dos agentes implementados em todas as telas
-- Luna funcional com downloads e geracao de arquivos
-- JWT com auto-refresh transparente — sessao de 8h
+- Versao atual: v0.48.0
+- 15 agentes no catalogo (incluindo Test Master, GitHub Master, GitBucket Master)
+- Code Studio completo: Company Context, Apply+Deploy, Push/PR/Merge, conversas separadas, paineis redimensionaveis
+- Sistema de conversas separadas no AgentPanel com persistencia localStorage
+- One-Click Apply+Deploy com Test Master bloqueante no pipeline
+- Push, PR e Merge direto do Code Studio via GitHub API
+- Live Agents com animacoes de status no Escritorio Virtual
+- Chat resiliente com timeout de 30min e botoes de retomar conversa
+- Company Context Total: agente IA com conhecimento completo da empresa e projetos
+- BMAD mapeamento completo com 15 agentes e fases definidas
 
 ## Pendencias / Proximos passos
 - [ ] Testar integracao VCS com repositorio GitBucket real
@@ -91,3 +142,6 @@
 - [ ] Melhorar escritorio: interacao com sala de reuniao (vidro transparente vendo agentes dentro)
 - [ ] Adicionar historico de conversas Luna ao RAG para contexto cruzado
 - [ ] Implementar sistema de migrations automaticas no bootstrap (Alembic ou ALTER TABLE strategy)
+- [ ] Implementar busca global no Code Studio (Ctrl+Shift+F)
+- [ ] Terminal integrado no Code Studio
+- [ ] Monitoramento de saude dos agentes (heartbeat)

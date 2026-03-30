@@ -37,6 +37,14 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 | 21 | NetworkError no fetch do endpoint analyze do Code Studio | Timeout padrão do fetch (sem AbortController) expirava antes da resposta do LLM para arquivos grandes | Timeout aumentado para 120s com AbortController explícito | 2026-03-30 |
 | 22 | Estouro de 213K tokens ao enviar imagem no chat do agente | Imagem era convertida em base64 e enviada inteira no contexto do LLM, estourando o context window | Imagens passaram a ser tratadas como descrição textual em vez de base64 completo | 2026-03-30 |
 | 23 | Texto muted com baixo contraste em dark/light mode | Cor de texto `muted` não atendia padrões de acessibilidade WCAG em ambos os temas | Cores de texto muted ajustadas para contraste adequado em dark e light mode | 2026-03-30 |
+| 24 | Convites inválidos (naive vs aware datetime) em convites.py E auth.py | `datetime.utcnow()` retorna naive datetime, mas comparação era feita com aware datetime (timezone-aware), causando TypeError | Corrigido para usar `datetime.now(timezone.utc)` em ambos os arquivos (`convites.py` e `auth.py`) | 2026-03-30 |
+| 25 | permissoes.py corrompido no servidor AWS | Arquivo continha conteúdo de resposta de IA misturado com código Python, provavelmente resultado de um apply incorreto | Restaurado do Git com conteúdo limpo e correto | 2026-03-30 |
+| 26 | Painel Geral mostrava usuários deletados | Dashboard buscava lista de usuários de config estático (`usuarios.py`) em vez do banco de dados dinâmico | Corrigido para buscar usuários ativos diretamente do banco via SQLAlchemy | 2026-03-30 |
+| 27 | Push dialog: Invalid Date nos commits | Parsing de data de commits usava formato incompatível; `new Date()` do JavaScript não reconhecia o formato do git log | Corrigido parsing para formato ISO 8601 compatível com todos os navegadores | 2026-03-30 |
+| 28 | Commits já mergeados aparecendo no PushDialog | Lista de commits não filtrava os que já estavam em `origin/main`, mostrando commits antigos | Adicionado filtro `git log origin/main..HEAD` para mostrar apenas commits pendentes; fetch com token VCS para sincronizar origin/main | 2026-03-30 |
+| 29 | VCS remote corrompido após commit automático | URL do remote git era sobrescrita durante operação de commit com token injetado, deixando o remote com credenciais na URL | Remote restaurado no bloco `finally` para garantir URL limpa mesmo em caso de erro | 2026-03-30 |
+| 30 | CEO não podia excluir outros proprietários | Regra de permissão bloqueava exclusão de usuários com role `proprietario`, mas o CEO também é proprietário e precisa poder excluir outros | Corrigido: CEO (por ID específico) pode excluir qualquer usuário exceto a si mesmo | 2026-03-30 |
+| 31 | Git pull HTTPS sem token no fetch (origin/main desatualizado) | Comando `git fetch` para sincronizar `origin/main` não incluía token VCS, falhando com "could not read Username" | Fetch agora injeta token VCS na URL temporariamente para sincronizar origin/main antes de listar commits | 2026-03-30 |
 
 ### Lições Aprendidas
 
@@ -54,6 +62,13 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 - **Bug #19**: Estimadores de custo devem ser validados contra valores reais da API periodicamente para evitar alarmes falsos.
 - **Bug #21**: Chamadas a LLMs para arquivos grandes precisam de timeouts generosos (120s+) com AbortController para controle fino.
 - **Bug #22**: Nunca enviar imagens em base64 como contexto de LLM — converter para descrição textual ou usar API de vision separada.
+- **Bug #24**: `datetime.utcnow()` é naive (sem timezone). Sempre usar `datetime.now(timezone.utc)` para comparações consistentes. Bug reincidente — encontrado em dois arquivos diferentes (`convites.py` e `auth.py`). Auditar todo o código para eliminar `utcnow()`.
+- **Bug #25**: Nunca aplicar output bruto de IA diretamente em arquivos de código sem validação. Um apply incorreto misturou explicação textual da IA com código Python, corrompendo o módulo de permissões.
+- **Bug #26**: Dados de seed/config estáticos não devem ser usados para renderizar informações dinâmicas no dashboard. Sempre buscar do banco de dados para refletir estado real (exclusões, adições, atualizações).
+- **Bug #27-28**: Timestamps do git log devem ser parseados em formato ISO 8601 para compatibilidade cross-browser. E listas de commits devem filtrar por `origin/main..HEAD` para mostrar apenas pendentes.
+- **Bug #29**: Operações que modificam o remote git temporariamente (injeção de token) devem SEMPRE restaurar o remote original em bloco `finally`, garantindo que credenciais nunca persistam na configuração do repositório.
+- **Bug #30**: Regras de permissão hierárquicas devem considerar exceções por papel — o CEO precisa poder gerenciar outros proprietários. Usar ID explícito para exceções em vez de lógica genérica por role.
+- **Bug #31**: `git fetch` também precisa de autenticação em repos HTTPS privados. Não basta autenticar apenas `git pull` — qualquer operação de rede (fetch, push, clone) precisa do token.
 
 ---
 

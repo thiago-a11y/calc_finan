@@ -525,3 +525,44 @@ class SolicitacaoAgenteDB(Base):
 
     def __repr__(self):
         return f"<SolicitacaoAgente {self.id}: user={self.usuario_nome} [{self.status}]>"
+
+
+class WorkflowAutonomoDB(Base):
+    """
+    Workflow Autonomo — Execucao completa do ciclo BMAD.
+
+    O usuario da uma tarefa de alto nivel e o sistema executa
+    as 4 fases BMAD autonomamente, parando apenas nos gates.
+    """
+    __tablename__ = "workflows_autonomos"
+
+    id = Column(String(20), primary_key=True)
+    titulo = Column(String(255), nullable=False)
+    descricao = Column(Text, default="")
+
+    # Progresso
+    fase_atual = Column(Integer, default=1)  # 1=Analise, 2=Planejamento, 3=Solucao, 4=Implementacao
+    status = Column(String(50), default="em_execucao")
+    # Status: montando_time, em_execucao, aguardando_gate, concluido, erro, cancelado
+
+    # Agentes e execucao
+    agentes_ids = Column(JSON, default=list)  # IDs do catalogo selecionados
+    outputs = Column(JSON, default=dict)      # {"fase_1": "output...", "fase_2": "output..."}
+    gates = Column(JSON, default=dict)        # {"fase_1": {"status": "pass", "por": "auto"}}
+    tarefa_atual_id = Column(String(20))      # ID da TarefaDB (reuniao) em execucao
+
+    # Projeto alvo
+    projeto_id = Column(Integer, default=0)
+    squad_nome = Column(String(100), default="")
+
+    # Usuario
+    usuario_id = Column(Integer, nullable=False)
+    usuario_nome = Column(String(100), default="")
+    company_id = Column(Integer, default=1)
+
+    # Timestamps
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Workflow {self.id}: {self.titulo} [Fase {self.fase_atual} - {self.status}]>"
