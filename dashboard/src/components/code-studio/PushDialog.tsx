@@ -15,7 +15,14 @@ interface PushDialogProps {
 function formatarBrasilia(dataStr: string): string {
   if (!dataStr) return ''
   try {
-    const d = new Date(dataStr.replace(' ', 'T'))
+    // Suporta ISO 8601 (2026-03-30T13:45:01-03:00) e formato git (2026-03-30 13:45:01 -0300)
+    let str = dataStr.trim()
+    // Converter formato git "2026-03-30 13:45:01 -0300" para ISO
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4}$/.test(str)) {
+      str = str.replace(' ', 'T').replace(/ ([+-]\d{2})(\d{2})$/, '$1:$2')
+    }
+    const d = new Date(str)
+    if (isNaN(d.getTime())) return dataStr
     return d.toLocaleString('pt-BR', {
       timeZone: 'America/Sao_Paulo',
       day: '2-digit', month: '2-digit', year: 'numeric',

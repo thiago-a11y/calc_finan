@@ -1155,16 +1155,18 @@ async def git_log_pendentes(
         )
 
         # Commits pendentes: local mas nao no remote
+        # Usar separador que nao aparece em mensagens de commit
+        SEP = "§§§"
         log_r = subprocess.run(
             ["git", "log", f"origin/{branch_remoto}..HEAD",
-             "--format=%H|%h|%s|%an|%ai", "--no-merges"],
+             f"--format=%H{SEP}%h{SEP}%s{SEP}%an{SEP}%aI", "--no-merges"],
             cwd=str(base), capture_output=True, timeout=10,
         )
 
         commits = []
         if log_r.returncode == 0 and log_r.stdout.decode().strip():
             for linha in log_r.stdout.decode().strip().split("\n"):
-                partes = linha.split("|", 4)
+                partes = linha.split(SEP, 4)
                 if len(partes) >= 5:
                     commit_hash = partes[0]
                     # Buscar arquivos alterados neste commit
@@ -1409,6 +1411,21 @@ async def git_merge_pr(
                     pass
 
                 logger.info(f"[CodeStudio/Merge] PR #{dados.pr_number} merged por {usuario.email}")
+
+                # Auto-pull para sincronizar local com remote apos merge
+                try:
+                    base, _, _ = _obter_base_projeto(dados.project_id, db, usuario)
+                    env = dict(os.environ)
+                    env["GIT_TERMINAL_PROMPT"] = "0"
+                    url_com_token = vcs.repo_url.replace("https://", f"https://x-access-token:{token}@")
+                    subprocess.run(
+                        ["git", "pull", "--rebase", url_com_token, vcs.branch_padrao or "main"],
+                        cwd=str(base), capture_output=True, timeout=30, env=env,
+                    )
+                    logger.info(f"[CodeStudio/Merge] Auto-pull apos merge OK")
+                except Exception as ep:
+                    logger.warning(f"[CodeStudio/Merge] Auto-pull falhou: {ep}")
+
                 return {
                     "sucesso": True,
                     "mensagem": f"PR #{dados.pr_number} merged com sucesso (squash)",
