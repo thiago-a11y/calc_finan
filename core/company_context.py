@@ -11,7 +11,7 @@ tenha conhecimento completo da empresa e dos projetos.
 """
 
 import logging
-import time
+import threading
 
 from sqlalchemy.orm import Session
 
@@ -22,33 +22,34 @@ logger = logging.getLogger("synerium.company_context")
 # Niveis validos de contexto
 NIVEIS_VALIDOS = {"minimal", "standard", "full"}
 
-# Cache em nivel de modulo (compartilhado entre requests)
-_cache_empresa: str = ""
-_cache_projetos: str = ""
-_cache_projetos_ts: float = 0
-_CACHE_TTL = 300  # 5 minutos
+# ============================================================
+# Cache thread-safe com TTLCache (cachetools)
+# ============================================================
+
+try:
+    from cachetools import TTLCache
+except ImportError:
+    # Fallback minimo se cachetools nao estiver instalado
+    TTLCache = None
+
+_cache_lock = threading.Lock()
+_cache_projetos: "TTLCache | dict" = TTLCache(maxsize=8, ttl=300) if TTLCache else {}
+
 
 # Resumo estatico da empresa (derivado de CONTEXTO-SYNERIUM-FACTORY.md)
-_CONTEXTO_EMPRESA_FIXO = """## Empresa: Objetiva Solucao Empresarial
-- Localizacao: Ipatinga, MG
-- CEO: Thiago Xavier (thiago@objetivasolucao.com.br)
-- Diretor Tecnico / Operations Lead: Jonatas (jonatas@objetivasolucao.com.br) — aprovacao final em tudo critico
+# Otimizado: sem redundancias, compacto, maximo de informacao por char
+_CONTEXTO_EMPRESA = """## Empresa: Objetiva Solucao Empresarial (Ipatinga/MG)
+- CEO: Thiago Xavier | Diretor Tecnico: Jonatas (aprovacao final)
 - 45 funcionarios, cada um com squad de agentes IA
-- Objetivo: eficiencia multiplicada por 10x, zero contratacao operacional
-
-## Produtos
-- SyneriumX: CRM completo (PHP 7.4 + React 18 + MySQL)
-- DiamondOne: Add-on industrial para SAP B1
-- FinancialOne: Modulo financeiro (credito, captacao, endividamento)
-- Softwares industriais: producao, qualidade, custeio, manutencao
-- Synerium Factory: Fabrica de SaaS impulsionada por agentes IA
+- Objetivo: eficiencia 10x, zero contratacao operacional
+- Produtos: SyneriumX (CRM, PHP+React+MySQL), DiamondOne (SAP B1), FinancialOne (credito/captacao), Softwares industriais, Synerium Factory (fabrica de SaaS com agentes IA)
 
 ## Padroes Obrigatorios
-- Todo codigo em portugues brasileiro (comentarios, variaveis descritivas)
-- Multi-tenant desde o inicio (company_id em todas tabelas)
-- LGPD: audit log em todas operacoes criticas
-- Approval Gates: deploy, gastos IA, mudancas de arquitetura precisam de aprovacao humana
-- Stack padrao: Python 3.13 + FastAPI (backend) | React 18 + TypeScript + Tailwind (frontend) | SQLite + SQLAlchemy (banco)"""
+- Codigo em portugues brasileiro (comentarios, variaveis)
+- Multi-tenant (company_id em todas tabelas)
+- LGPD: audit log em operacoes criticas
+- Approval Gates: deploy, gastos IA, arquitetura → aprovacao humana
+- Stack: Python 3.13 + FastAPI | React 18 + TypeScript + Tailwind | SQLite + SQLAlchemy"""
 
 
 class CompanyContextBuilder:
@@ -63,7 +64,7 @@ class CompanyContextBuilder:
         conteudo_arquivo: str,
         projeto: ProjetoDB | None,
         nivel: str = "standard",
-        max_chars: int = 4000,
+        max_chars: int = 6000,
     ) -> str:
         """
         Monta o contexto completo baseado no nivel solicitado.
@@ -85,7 +86,7 @@ class CompanyContextBuilder:
             return ""
 
         partes: list[str] = []
-        partes.append("=== CONTEXTO DA EMPRESA E PROJETO (use para dar sugestoes assertivas) ===")
+        partes.append("=== CONTEXTO DA EMPRESA E PROJETO (use para sugestoes assertivas) ===")
 
         # Standard: contexto profundo do projeto atual
         if projeto:
@@ -95,7 +96,7 @@ class CompanyContextBuilder:
 
         # Full: empresa + todos projetos + RAG
         if nivel == "full":
-            partes.append(self._contexto_empresa())
+            partes.append(_CONTEXTO_EMPRESA)
             partes.append(self._contexto_projetos())
 
             # RAG semantico — buscar documentos relevantes
@@ -108,35 +109,32 @@ class CompanyContextBuilder:
         resultado = "\n\n".join(filter(None, partes))
         return self._truncar(resultado, max_chars)
 
-    def _contexto_empresa(self) -> str:
-        """Retorna resumo estatico da empresa (cache em modulo)."""
-        global _cache_empresa
-        if not _cache_empresa:
-            _cache_empresa = _CONTEXTO_EMPRESA_FIXO
-        return _cache_empresa
-
     def _contexto_projetos(self) -> str:
-        """Lista todos os projetos ativos do banco. Cache por 5 minutos."""
-        global _cache_projetos, _cache_projetos_ts
+        """Lista todos os projetos ativos do banco. Cache TTL 5 minutos (thread-safe)."""
+        cache_key = "projetos_lista"
 
-        agora = time.time()
-        if _cache_projetos and (agora - _cache_projetos_ts) < _CACHE_TTL:
-            return _cache_projetos
+        with _cache_lock:
+            cached = _cache_projetos.get(cache_key)
+            if cached:
+                return cached
 
         try:
             projetos = self.db.query(ProjetoDB).filter_by(ativo=True).all()
             if not projetos:
                 return ""
 
-            linhas = ["## Projetos da Empresa"]
+            linhas = ["## Projetos"]
             for p in projetos:
-                owner = p.proprietario_nome or "nao definido"
+                owner = p.proprietario_nome or "?"
                 fase = p.fase_atual or "em andamento"
-                linhas.append(f"- {p.nome}: {p.stack or 'stack nao definida'} | Fase: {fase} | Proprietario: {owner}")
+                linhas.append(f"- {p.nome}: {p.stack or '?'} | {fase} | {owner}")
 
-            _cache_projetos = "\n".join(linhas)
-            _cache_projetos_ts = agora
-            return _cache_projetos
+            resultado = "\n".join(linhas)
+
+            with _cache_lock:
+                _cache_projetos[cache_key] = resultado
+
+            return resultado
         except Exception as e:
             logger.warning(f"[CompanyContext] Erro ao listar projetos: {e}")
             return ""
@@ -147,7 +145,7 @@ class CompanyContextBuilder:
             linhas = [f"## Projeto Atual: {projeto.nome}"]
 
             if projeto.descricao:
-                linhas.append(f"Descricao: {projeto.descricao[:200]}")
+                linhas.append(f"Descricao: {projeto.descricao[:300]}")
             if projeto.stack:
                 linhas.append(f"Stack: {projeto.stack}")
             if projeto.fase_atual:
@@ -166,11 +164,11 @@ class CompanyContextBuilder:
             # Regras de aprovacao
             regras = projeto.regras_aprovacao
             if regras:
-                linhas.append("Regras de aprovacao:")
+                regras_resumo = []
                 for tipo, regra in regras.items():
                     aprovador = regra.get("aprovador", "?") if isinstance(regra, dict) else str(regra)
-                    desc = regra.get("descricao", "") if isinstance(regra, dict) else ""
-                    linhas.append(f"  - {tipo}: {aprovador} ({desc})")
+                    regras_resumo.append(f"{tipo}→{aprovador}")
+                linhas.append(f"Aprovacao: {' | '.join(regras_resumo)}")
 
             # VCS
             try:
@@ -178,13 +176,13 @@ class CompanyContextBuilder:
                     projeto_id=projeto.id, ativo=True
                 ).first()
                 if vcs:
-                    linhas.append(f"Repositorio: {vcs.repo_url} (branch: {vcs.branch_padrao or 'main'})")
+                    linhas.append(f"Repo: {vcs.repo_url} ({vcs.branch_padrao or 'main'})")
             except Exception:
                 pass
 
             return "\n".join(linhas)
         except Exception as e:
-            logger.warning(f"[CompanyContext] Erro ao montar contexto do projeto: {e}")
+            logger.warning(f"[CompanyContext] Erro contexto projeto: {e}")
             return ""
 
     def _contexto_rag(
@@ -192,26 +190,17 @@ class CompanyContextBuilder:
     ) -> str:
         """
         Busca semantica no RAG (ChromaDB) por documentos relevantes.
-
-        Usa a instrucao do usuario + trecho do arquivo para encontrar
-        documentacao, decisoes tecnicas e padroes relacionados.
+        Usa singleton para embeddings/store (evita re-instanciacao por request).
         """
         try:
-            from rag.embeddings import criar_embeddings
-            from rag.store import RAGStore
-            from rag.query import RAGQuery
+            store, rag_query = _obter_rag_singleton()
 
-            # Inicializar RAG (reutiliza ChromaDB existente em data/chromadb)
-            embeddings = criar_embeddings()
-            store = RAGStore("data/chromadb", embeddings)
-            rag_query = RAGQuery(store, company_id="synerium")
-
-            # Construir pergunta combinada
-            trecho = conteudo_arquivo[:500] if conteudo_arquivo else ""
-            pergunta = f"{instrucao}\n\nTrecho do codigo:\n{trecho}"
+            # Construir pergunta combinada (compacta)
+            trecho = conteudo_arquivo[:400] if conteudo_arquivo else ""
+            pergunta = f"{instrucao}\n\n{trecho}"
 
             # Filtrar vault por projeto
-            vaults = None  # todos
+            vaults = None
             if projeto:
                 nome_lower = (projeto.nome or "").lower()
                 if "syneriumx" in nome_lower or "propostasap" in nome_lower:
@@ -219,14 +208,8 @@ class CompanyContextBuilder:
                 elif "factory" in nome_lower or "synerium factory" in nome_lower:
                     vaults = ["factory"]
 
-            # Buscar top 3 chunks mais relevantes
-            resultado = rag_query.consultar(
-                pergunta=pergunta,
-                vaults=vaults,
-                k=3,
-            )
+            resultado = rag_query.consultar(pergunta=pergunta, vaults=vaults, k=3)
 
-            # Verificar se retornou algo util
             if "Nenhum resultado" in resultado:
                 return ""
 
@@ -240,9 +223,41 @@ class CompanyContextBuilder:
         """Trunca o texto para respeitar o budget de tokens."""
         if len(texto) <= max_chars:
             return texto
-        # Truncar preservando linhas completas
         truncado = texto[:max_chars]
         ultima_quebra = truncado.rfind("\n")
         if ultima_quebra > max_chars * 0.7:
             truncado = truncado[:ultima_quebra]
-        return truncado + "\n[... contexto truncado por limite de tokens ...]"
+        return truncado + "\n[... contexto truncado ...]"
+
+
+# ============================================================
+# Singleton para RAG (evita re-instanciacao de embeddings por request)
+# ============================================================
+
+_rag_store = None
+_rag_query = None
+_rag_lock = threading.Lock()
+
+
+def _obter_rag_singleton():
+    """Retorna singleton de RAGStore + RAGQuery (thread-safe)."""
+    global _rag_store, _rag_query
+
+    if _rag_query is not None:
+        return _rag_store, _rag_query
+
+    with _rag_lock:
+        # Double-check locking
+        if _rag_query is not None:
+            return _rag_store, _rag_query
+
+        from rag.embeddings import criar_embeddings
+        from rag.store import RAGStore
+        from rag.query import RAGQuery
+
+        embeddings = criar_embeddings()
+        _rag_store = RAGStore("data/chromadb", embeddings)
+        _rag_query = RAGQuery(_rag_store, company_id="synerium")
+
+        logger.info("[CompanyContext] RAG singleton inicializado")
+        return _rag_store, _rag_query

@@ -3,18 +3,33 @@ Interface de consulta do RAG.
 
 Fornece uma API simples para consultar a base de conhecimento
 e retornar contexto formatado para os agentes LLM consumirem.
-
-Integra com LangSmith para tracing de cada consulta.
 """
 
 import logging
+import os
 
 from langchain_core.documents import Document
-from langsmith import traceable
 
 from rag.store import RAGStore
 
 logger = logging.getLogger("synerium.rag.query")
+
+
+def _traceable_noop(name: str = ""):
+    """Decorator noop — substitui @traceable quando LangSmith nao esta disponivel."""
+    def decorator(func):
+        return func
+    return decorator
+
+
+# Usar @traceable real apenas se LangSmith estiver habilitado e funcional
+try:
+    if os.getenv("LANGSMITH_TRACING", "").lower() == "true":
+        from langsmith import traceable
+    else:
+        traceable = _traceable_noop
+except ImportError:
+    traceable = _traceable_noop
 
 
 class RAGQuery:
