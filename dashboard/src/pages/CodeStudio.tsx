@@ -11,6 +11,7 @@ import Toolbar from '../components/code-studio/Toolbar'
 import AgentPanel from '../components/code-studio/AgentPanel'
 import HistoricoPanel from '../components/code-studio/HistoricoPanel'
 import PushDialog from '../components/code-studio/PushDialog'
+import ResizableHandle from '../components/code-studio/ResizableHandle'
 import { buscarArvore, lerArquivo, salvarArquivo, gitPull, type ArquivoArvore } from '../services/codeStudio'
 
 interface ProjetoInfo {
@@ -73,6 +74,33 @@ export default function CodeStudio() {
 
   // Estado do preview
   const [previewAberto, setPreviewAberto] = useState(false)
+
+  // Paineis redimensionaveis (larguras em px, persistidas no localStorage)
+  const [larguraArvore, setLarguraArvore] = useState(() => {
+    const salvo = localStorage.getItem('sf_cs_arvore_w')
+    return salvo ? Math.max(160, Math.min(500, parseInt(salvo, 10))) : 240
+  })
+  const [larguraPainel, setLarguraPainel] = useState(() => {
+    const salvo = localStorage.getItem('sf_cs_painel_w')
+    return salvo ? Math.max(240, Math.min(600, parseInt(salvo, 10))) : 320
+  })
+
+  const redimensionarArvore = useCallback((delta: number) => {
+    setLarguraArvore(prev => {
+      const nova = Math.max(160, Math.min(500, prev + delta))
+      localStorage.setItem('sf_cs_arvore_w', String(nova))
+      return nova
+    })
+  }, [])
+
+  const redimensionarPainel = useCallback((delta: number) => {
+    setLarguraPainel(prev => {
+      // Delta negativo = arrastar para esquerda = painel fica MAIOR
+      const nova = Math.max(240, Math.min(600, prev - delta))
+      localStorage.setItem('sf_cs_painel_w', String(nova))
+      return nova
+    })
+  }, [])
 
   // Linguagens que suportam preview
   const suportaPreview = (lang: string) =>
@@ -482,8 +510,8 @@ export default function CodeStudio() {
 
       {/* Layout principal: 3 paineis */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Painel esquerdo: Arvore de arquivos */}
-        <div className="flex-shrink-0" style={{ width: '240px', borderRight: '1px solid var(--sf-border-subtle)' }}>
+        {/* Painel esquerdo: Arvore de arquivos (redimensionavel) */}
+        <div className="flex-shrink-0 overflow-hidden" style={{ width: `${larguraArvore}px` }}>
           {carregando || carregandoProjetos ? (
             <div className="flex flex-col items-center justify-center h-full gap-2">
               <Loader2 size={20} className="animate-spin" style={{ color: 'var(--sf-accent)' }} />
@@ -522,6 +550,9 @@ export default function CodeStudio() {
             <FileTree arvore={arvore} arquivoAtivo={abaAtiva} onSelect={abrirArquivo} />
           )}
         </div>
+
+        {/* Handle: Arvore ↔ Editor */}
+        <ResizableHandle onResize={redimensionarArvore} />
 
         {/* Painel central: Editor */}
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -602,9 +633,11 @@ export default function CodeStudio() {
           </div>
         </div>
 
-        {/* Painel direito: Agente IA ou Historico */}
+        {/* Handle + Painel direito: Agente IA ou Historico */}
         {agentePainel && (
-          <div className="flex-shrink-0" style={{ width: '320px' }}>
+          <>
+          <ResizableHandle onResize={redimensionarPainel} />
+          <div className="flex-shrink-0 overflow-hidden" style={{ width: `${larguraPainel}px` }}>
             <AgentPanel
               caminhoAtivo={abaAtiva || undefined}
               conteudoAtivo={abaAtiva ? conteudoAtivo : undefined}
@@ -622,15 +655,19 @@ export default function CodeStudio() {
               } : undefined}
             />
           </div>
+          </>
         )}
         {historicoPainel && (
-          <div className="flex-shrink-0" style={{ width: '320px' }}>
+          <>
+          <ResizableHandle onResize={redimensionarPainel} />
+          <div className="flex-shrink-0 overflow-hidden" style={{ width: `${larguraPainel}px` }}>
             <HistoricoPanel
               projetoId={projetoId}
               onFechar={() => setHistoricoPainel(false)}
               onAbrirArquivo={abrirArquivo}
             />
           </div>
+          </>
         )}
       </div>
 
