@@ -3,13 +3,23 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Bot, Send, Sparkles, BookOpen, RefreshCw, FileCode, Loader2, X, TestTube2, Play, Copy, Check, AlertTriangle } from 'lucide-react'
 import MarkdownRenderer from '../luna/MarkdownRenderer'
-import { analisarCodigo, aplicarAcao } from '../../services/codeStudio'
+import { analisarCodigo, aplicarAcao, type DiffResumo, type VCSResultado } from '../../services/codeStudio'
 
 interface Mensagem {
   papel: 'user' | 'assistant'
   conteudo: string
   provider?: string
   tipoAcao?: 'refatorar' | 'documentar' | 'otimizar' | 'testar' | 'geral'
+}
+
+interface ToastDetalhado {
+  msg: string
+  tipo: 'ok' | 'erro'
+  detalhes?: {
+    arquivo: string
+    diff?: DiffResumo | null
+    vcs?: VCSResultado | null
+  }
 }
 
 interface AgentPanelProps {
@@ -66,19 +76,21 @@ export default function AgentPanel({
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [input, setInput] = useState('')
   const [analisando, setAnalisando] = useState(false)
-  const [aplicando, setAplicando] = useState<number | null>(null)  // índice da mensagem sendo aplicada
-  const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
+  const [aplicando, setAplicando] = useState<number | null>(null)  // indice da mensagem sendo aplicada
+  const [toast, setToast] = useState<ToastDetalhado | null>(null)
   const [copiado, setCopiado] = useState<number | null>(null)
+  const [confirmacao, setConfirmacao] = useState<{ idx: number; msg: Mensagem } | null>(null)
   const chatRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' })
   }, [mensagens])
 
-  // Auto-hide toast
+  // Auto-hide toast (8s para detalhado, 4s para simples)
   useEffect(() => {
     if (toast) {
-      const t = setTimeout(() => setToast(null), 4000)
+      const duracao = toast.detalhes ? 8000 : 4000
+      const t = setTimeout(() => setToast(null), duracao)
       return () => clearTimeout(t)
     }
   }, [toast])
@@ -123,33 +135,59 @@ export default function AgentPanel({
     setTimeout(() => setCopiado(null), 2000)
   }, [])
 
-  const handleAplicar = useCallback(async (idx: number, msg: Mensagem) => {
+  // Pedir confirmacao antes de aplicar
+  const pedirConfirmacao = useCallback((idx: number, msg: Mensagem) => {
     if (!caminhoAtivo || aplicando !== null) return
     const codigo = extrairBlocoCodigo(msg.conteudo)
     if (!codigo) {
-      setToast({ msg: 'Nenhum bloco de código encontrado na resposta', tipo: 'erro' })
+      setToast({ msg: 'Nenhum bloco de codigo encontrado na resposta', tipo: 'erro' })
       return
     }
+    setConfirmacao({ idx, msg })
+  }, [caminhoAtivo, aplicando])
 
+  // Executar aplicacao confirmada
+  const handleAplicar = useCallback(async (idx: number, msg: Mensagem) => {
+    if (!caminhoAtivo || aplicando !== null) return
+    const codigo = extrairBlocoCodigo(msg.conteudo)
+    if (!codigo) return
+
+    setConfirmacao(null)
     setAplicando(idx)
     try {
+      const nomeLabel = msg.tipoAcao === 'refatorar' ? 'Refatoracao' : msg.tipoAcao === 'documentar' ? 'Documentacao' : msg.tipoAcao === 'testar' ? 'Teste' : 'Otimizacao'
+
       if (msg.tipoAcao === 'testar') {
-        // Criar arquivo de teste
         const caminhoTeste = gerarCaminhoTeste(caminhoAtivo)
-        await aplicarAcao(caminhoTeste, codigo, 'criar', projetoId)
-        setToast({ msg: `Teste criado em ${caminhoTeste}`, tipo: 'ok' })
+        const resultado = await aplicarAcao(caminhoTeste, codigo, 'criar', projetoId)
+        setToast({
+          msg: `Teste criado em ${caminhoTeste}`,
+          tipo: 'ok',
+          detalhes: {
+            arquivo: resultado.caminho,
+            diff: resultado.diff_resumo,
+            vcs: resultado.vcs,
+          },
+        })
       } else {
-        // Substituir arquivo atual
-        await aplicarAcao(caminhoAtivo, codigo, 'substituir', projetoId)
-        setToast({ msg: `✅ ${msg.tipoAcao === 'refatorar' ? 'Refatoração' : msg.tipoAcao === 'documentar' ? 'Documentação' : 'Otimização'} aplicada!`, tipo: 'ok' })
+        const resultado = await aplicarAcao(caminhoAtivo, codigo, 'substituir', projetoId)
+        setToast({
+          msg: `${nomeLabel} aplicada!`,
+          tipo: 'ok',
+          detalhes: {
+            arquivo: resultado.caminho,
+            diff: resultado.diff_resumo,
+            vcs: resultado.vcs,
+          },
+        })
         onArquivoAtualizado?.()
       }
     } catch (e) {
-      setToast({ msg: `❌ ${e instanceof Error ? e.message : 'Erro ao aplicar'}`, tipo: 'erro' })
+      setToast({ msg: `${e instanceof Error ? e.message : 'Erro ao aplicar'}`, tipo: 'erro' })
     } finally {
       setAplicando(null)
     }
-  }, [caminhoAtivo, linguagem, aplicando, onArquivoAtualizado])
+  }, [caminhoAtivo, linguagem, aplicando, onArquivoAtualizado, projetoId])
 
   /** Qual label mostrar no botão de aplicar */
   const labelAplicar = (tipo?: Mensagem['tipoAcao']) => {
@@ -206,15 +244,67 @@ export default function AgentPanel({
         </div>
       )}
 
-      {/* Toast */}
-      {toast && (
-        <div className="mx-2 mt-2 px-3 py-2 rounded-lg text-[11px] font-medium animate-pulse"
+      {/* Confirmacao inline */}
+      {confirmacao && (
+        <div className="mx-2 mt-2 px-3 py-2.5 rounded-lg text-[11px]"
           style={{
-            background: toast.tipo === 'ok' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-            color: toast.tipo === 'ok' ? '#10b981' : '#ef4444',
-            border: `1px solid ${toast.tipo === 'ok' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
+            background: 'rgba(245,158,11,0.1)',
+            border: '1px solid rgba(245,158,11,0.2)',
+            color: 'var(--sf-text-1)',
           }}>
-          {toast.msg}
+          <p className="font-medium mb-2" style={{ color: '#f59e0b' }}>
+            Aplicar {confirmacao.msg.tipoAcao === 'testar' ? 'teste' : confirmacao.msg.tipoAcao || 'acao'} em{' '}
+            <span className="font-mono">{caminhoAtivo?.split('/').pop()}</span>?
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleAplicar(confirmacao.idx, confirmacao.msg)}
+              className="px-3 py-1 rounded text-[10px] font-semibold transition-all hover:brightness-110"
+              style={{ background: '#10b981', color: '#fff' }}
+            >
+              Confirmar
+            </button>
+            <button
+              onClick={() => setConfirmacao(null)}
+              className="px-3 py-1 rounded text-[10px] font-medium transition-all hover:bg-white/5"
+              style={{ color: 'var(--sf-text-3)', border: '1px solid var(--sf-border-subtle)' }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Toast detalhado */}
+      {toast && (
+        <div className="mx-2 mt-2 px-3 py-2 rounded-lg text-[11px] relative"
+          style={{
+            background: toast.tipo === 'ok' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+            border: `1px solid ${toast.tipo === 'ok' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
+            color: toast.tipo === 'ok' ? '#10b981' : '#ef4444',
+          }}>
+          {/* Botao fechar */}
+          <button onClick={() => setToast(null)} className="absolute top-1.5 right-1.5 p-0.5 rounded hover:bg-white/10">
+            <X size={10} />
+          </button>
+
+          <p className="font-semibold pr-4">{toast.tipo === 'ok' ? '✅' : '❌'} {toast.msg}</p>
+
+          {/* Detalhes do diff */}
+          {toast.detalhes?.diff && (
+            <div className="flex items-center gap-3 mt-1.5">
+              <span style={{ color: '#10b981' }}>+{toast.detalhes.diff.linhas_adicionadas} linhas</span>
+              <span style={{ color: '#ef4444' }}>-{toast.detalhes.diff.linhas_removidas} linhas</span>
+            </div>
+          )}
+
+          {/* Detalhes do VCS */}
+          {toast.detalhes?.vcs?.sucesso && (
+            <p className="mt-1 text-[10px]" style={{ color: 'var(--sf-text-3)' }}>
+              Commit: <span className="font-mono">{toast.detalhes.vcs.commit_hash}</span>
+              {toast.detalhes.vcs.branch && <span> ({toast.detalhes.vcs.branch})</span>}
+            </p>
+          )}
         </div>
       )}
 
@@ -253,8 +343,8 @@ export default function AgentPanel({
                     style={{ borderTop: '1px solid var(--sf-border-subtle)' }}>
                     {/* Aplicar */}
                     <button
-                      onClick={() => handleAplicar(i, msg)}
-                      disabled={aplicando !== null}
+                      onClick={() => pedirConfirmacao(i, msg)}
+                      disabled={aplicando !== null || confirmacao !== null}
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all hover:brightness-110 disabled:opacity-40"
                       style={{
                         background: msg.tipoAcao === 'testar' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)',

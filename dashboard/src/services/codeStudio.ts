@@ -92,12 +92,35 @@ export async function salvarArquivo(caminho: string, conteudo: string, projetoId
   return res.json()
 }
 
+export interface VCSResultado {
+  sucesso: boolean
+  mensagem: string
+  commit_hash: string | null
+  branch: string
+}
+
+export interface DiffResumo {
+  linhas_antes: number
+  linhas_depois: number
+  linhas_adicionadas: number
+  linhas_removidas: number
+}
+
+export interface AplicarAcaoResponse {
+  ok: boolean
+  caminho: string
+  tipo: string
+  tamanho: number
+  vcs?: VCSResultado | null
+  diff_resumo?: DiffResumo | null
+}
+
 export async function aplicarAcao(
   caminhoDestino: string,
   conteudoNovo: string,
   tipoAcao: 'substituir' | 'criar' = 'substituir',
   projetoId = 0
-): Promise<{ ok: boolean; caminho: string; tipo: string; tamanho: number }> {
+): Promise<AplicarAcaoResponse> {
   const res = await fetch(`${API}/api/code-studio/apply-action`, {
     method: 'POST',
     headers: headers(),
@@ -152,6 +175,44 @@ export async function gitPull(projetoId = 0): Promise<GitPullResponse> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Erro no git pull' }))
     throw new Error(err.detail || 'Erro no git pull')
+  }
+  return res.json()
+}
+
+// ============================================================
+// Historico de atividades
+// ============================================================
+
+export interface AtividadeHistorico {
+  id: number
+  usuario_nome: string
+  usuario_email: string
+  acao: string
+  acao_label: string
+  descricao: string
+  arquivo: string
+  criado_em: string
+}
+
+export interface HistoricoResponse {
+  atividades: AtividadeHistorico[]
+  total: number
+  pagina: number
+  limite: number
+}
+
+export async function buscarHistorico(projetoId = 0, limit = 50, page = 1): Promise<HistoricoResponse> {
+  const params = new URLSearchParams()
+  if (projetoId) params.set('project_id', String(projetoId))
+  params.set('limit', String(limit))
+  params.set('page', String(page))
+
+  const res = await fetch(`${API}/api/code-studio/historico?${params.toString()}`, {
+    headers: headers(),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Erro ao carregar historico' }))
+    throw new Error(err.detail || 'Erro ao carregar historico')
   }
   return res.json()
 }

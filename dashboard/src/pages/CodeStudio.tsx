@@ -9,6 +9,7 @@ import EditorTabs, { type TabInfo } from '../components/code-studio/EditorTabs'
 import CodeEditor from '../components/code-studio/CodeEditor'
 import Toolbar from '../components/code-studio/Toolbar'
 import AgentPanel from '../components/code-studio/AgentPanel'
+import HistoricoPanel from '../components/code-studio/HistoricoPanel'
 import { buscarArvore, lerArquivo, salvarArquivo, gitPull, type ArquivoArvore } from '../services/codeStudio'
 
 interface ProjetoInfo {
@@ -50,8 +51,24 @@ export default function CodeStudio() {
   const [modificados, setModificados] = useState<Set<string>>(new Set())
   const [salvando, setSalvando] = useState(false)
 
-  // Estado do painel de agente
+  // Estado dos paineis laterais (mutuamente exclusivos)
   const [agentePainel, setAgentePainel] = useState(!!agenteNome)
+  const [historicoPainel, setHistoricoPainel] = useState(false)
+
+  // Toggle mutuamente exclusivo
+  const toggleAgente = useCallback(() => {
+    setAgentePainel(prev => {
+      if (!prev) setHistoricoPainel(false)
+      return !prev
+    })
+  }, [])
+
+  const toggleHistorico = useCallback(() => {
+    setHistoricoPainel(prev => {
+      if (!prev) setAgentePainel(false)
+      return !prev
+    })
+  }, [])
 
   // Estado do preview
   const [previewAberto, setPreviewAberto] = useState(false)
@@ -504,8 +521,10 @@ export default function CodeStudio() {
             salvando={salvando}
             editavel={editavelAtivo}
             onSalvar={handleSalvar}
-            onToggleAgente={() => setAgentePainel(!agentePainel)}
+            onToggleAgente={toggleAgente}
             agentePainelAberto={agentePainel}
+            onToggleHistorico={toggleHistorico}
+            historicoPainelAberto={historicoPainel}
             onTogglePreview={() => setPreviewAberto(!previewAberto)}
             previewAberto={previewAberto}
             suportaPreview={abaAtiva ? suportaPreview(linguagemAtiva) : false}
@@ -570,7 +589,7 @@ export default function CodeStudio() {
           </div>
         </div>
 
-        {/* Painel direito: Agente IA */}
+        {/* Painel direito: Agente IA ou Historico */}
         {agentePainel && (
           <div className="flex-shrink-0" style={{ width: '320px' }}>
             <AgentPanel
@@ -588,6 +607,15 @@ export default function CodeStudio() {
                   setConteudosOriginal(prev => new Map(prev).set(abaAtiva, arq.conteudo))
                 }).catch(() => {})
               } : undefined}
+            />
+          </div>
+        )}
+        {historicoPainel && (
+          <div className="flex-shrink-0" style={{ width: '320px' }}>
+            <HistoricoPanel
+              projetoId={projetoId}
+              onFechar={() => setHistoricoPainel(false)}
+              onAbrirArquivo={abrirArquivo}
             />
           </div>
         )}

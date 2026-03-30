@@ -1,6 +1,6 @@
 /* Toolbar — Barra de ferramentas do Code Studio */
 
-import { Save, Undo2, Redo2, Bot, Check, Loader2, Eye } from 'lucide-react'
+import { Save, Undo2, Redo2, Bot, Check, Loader2, Eye, History } from 'lucide-react'
 
 interface ToolbarProps {
   caminho?: string
@@ -11,6 +11,8 @@ interface ToolbarProps {
   onSalvar: () => void
   onToggleAgente: () => void
   agentePainelAberto: boolean
+  onToggleHistorico: () => void
+  historicoPainelAberto: boolean
   onTogglePreview?: () => void
   previewAberto?: boolean
   suportaPreview?: boolean
@@ -19,6 +21,7 @@ interface ToolbarProps {
 export default function Toolbar({
   caminho, linguagem, modificado, salvando, editavel,
   onSalvar, onToggleAgente, agentePainelAberto,
+  onToggleHistorico, historicoPainelAberto,
   onTogglePreview, previewAberto, suportaPreview,
 }: ToolbarProps) {
   return (
@@ -97,6 +100,20 @@ export default function Toolbar({
 
         {/* Separador */}
         <div className="w-px h-4 mx-1" style={{ background: 'var(--sf-border-subtle)' }} />
+
+        {/* Toggle Historico */}
+        <button
+          onClick={onToggleHistorico}
+          className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-all"
+          style={{
+            color: historicoPainelAberto ? '#fff' : 'var(--sf-text-3)',
+            background: historicoPainelAberto ? 'rgba(245,158,11,0.2)' : 'transparent',
+          }}
+          title="Historico de atividades"
+        >
+          <History size={13} />
+          Historico
+        </button>
 
         {/* Toggle Agente */}
         <button

@@ -16,6 +16,7 @@ Seguranca:
 - Multi-projeto: cada projeto tem seu caminho base isolado
 """
 
+import difflib
 import logging
 import os
 import re
@@ -594,6 +595,7 @@ async def aplicar_acao(
     db: Session = Depends(get_db),
 ):
     """Aplica uma acao do agente IA — substituir conteudo ou criar novo arquivo."""
+    conteudo_original = ""
     try:
         _verificar_escrita(usuario)
         base, proj_id, projeto = _obter_base_projeto(dados.project_id, db, usuario)
@@ -607,10 +609,12 @@ async def aplicar_acao(
         if dados.tipo_acao == "criar":
             caminho.parent.mkdir(parents=True, exist_ok=True)
             if caminho.exists():
+                conteudo_original = caminho.read_text(encoding="utf-8", errors="replace")
                 shutil.copy2(str(caminho), str(backup_dir / f"{caminho.name}.{ts}.bak"))
         else:
             if not caminho.exists():
                 raise HTTPException(status_code=404, detail=f"Arquivo nao encontrado: {dados.caminho_destino}")
+            conteudo_original = caminho.read_text(encoding="utf-8", errors="replace")
             shutil.copy2(str(caminho), str(backup_dir / f"{caminho.name}.{ts}.bak"))
 
         # Escrever
@@ -679,12 +683,31 @@ async def aplicar_acao(
     except Exception as e:
         logger.warning(f"[CodeStudio/VCS] Git nao executado: {str(e)[:200]}")
 
+    # Calcular resumo de diff (limitado a 5000 linhas)
+    diff_resumo = None
+    try:
+        linhas_antes = conteudo_original.splitlines() if conteudo_original else []
+        linhas_depois = dados.conteudo_novo.splitlines()
+        if len(linhas_antes) <= 5000 and len(linhas_depois) <= 5000:
+            diff = list(difflib.unified_diff(linhas_antes, linhas_depois, lineterm=""))
+            adicionadas = sum(1 for l in diff if l.startswith("+") and not l.startswith("+++"))
+            removidas = sum(1 for l in diff if l.startswith("-") and not l.startswith("---"))
+            diff_resumo = {
+                "linhas_antes": len(linhas_antes),
+                "linhas_depois": len(linhas_depois),
+                "linhas_adicionadas": adicionadas,
+                "linhas_removidas": removidas,
+            }
+    except Exception:
+        pass
+
     return {
         "ok": True,
         "caminho": dados.caminho_destino,
         "tipo": dados.tipo_acao,
         "tamanho": len(dados.conteudo_novo),
         "vcs": vcs_resultado,
+        "diff_resumo": diff_resumo,
     }
 
 
@@ -737,3 +760,83 @@ async def git_pull(
         raise HTTPException(status_code=504, detail="Timeout no git pull (60s).")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro no git pull: {str(e)[:200]}")
+
+
+# ============================================================
+# Historico de atividades do Code Studio
+# ============================================================
+
+# Mapeamento de acoes para labels em PT-BR
+_ACAO_LABELS = {
+    "code_studio_apply_substituir": "Otimizacao/Refatoracao via IA",
+    "code_studio_apply_criar": "Arquivo criado via IA",
+    "CODE_STUDIO_WRITE": "Edicao manual",
+}
+
+# Regex para extrair caminho do arquivo da descricao
+_RE_ARQUIVO = re.compile(r"(?:Arquivo editado:|Acao IA em)\s*(\S+)")
+
+
+@router.get("/historico")
+async def listar_historico(
+    project_id: int = Query(0, description="ID do projeto (0 = todos)"),
+    limit: int = Query(50, ge=1, le=200),
+    page: int = Query(1, ge=1),
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Retorna o historico de atividades do Code Studio (paginado)."""
+    from sqlalchemy import or_, func
+
+    # Filtro base: acoes do code studio
+    filtro = or_(
+        AuditLogDB.acao.like("code_studio%"),
+        AuditLogDB.acao == "CODE_STUDIO_WRITE",
+    )
+
+    # Filtro por projeto (se informado)
+    if project_id:
+        projeto = db.query(ProjetoDB).filter_by(id=project_id, ativo=True).first()
+        if projeto:
+            filtro = filtro & AuditLogDB.descricao.like(f"[{projeto.nome}]%")
+
+    # Total de registros
+    total = db.query(func.count(AuditLogDB.id)).filter(filtro).scalar() or 0
+
+    # Buscar com paginacao + join com usuario
+    offset = (page - 1) * limit
+    registros = (
+        db.query(AuditLogDB, UsuarioDB.nome)
+        .outerjoin(UsuarioDB, AuditLogDB.user_id == UsuarioDB.id)
+        .filter(filtro)
+        .order_by(AuditLogDB.criado_em.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    atividades = []
+    for audit, usuario_nome in registros:
+        # Extrair caminho do arquivo
+        arquivo = ""
+        match = _RE_ARQUIVO.search(audit.descricao or "")
+        if match:
+            arquivo = match.group(1)
+
+        atividades.append({
+            "id": audit.id,
+            "usuario_nome": usuario_nome or audit.email or "Sistema",
+            "usuario_email": audit.email or "",
+            "acao": audit.acao,
+            "acao_label": _ACAO_LABELS.get(audit.acao, audit.acao),
+            "descricao": audit.descricao or "",
+            "arquivo": arquivo,
+            "criado_em": audit.criado_em.isoformat() if audit.criado_em else "",
+        })
+
+    return {
+        "atividades": atividades,
+        "total": total,
+        "pagina": page,
+        "limite": limit,
+    }
