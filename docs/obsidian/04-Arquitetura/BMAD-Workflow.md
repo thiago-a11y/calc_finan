@@ -47,6 +47,23 @@ Ideia → mini-spec → implementa com TDD → review → deploy
 | Amelia (Dev) | Amara + Carlos | 4 |
 | Quinn (QA) | Fatima (QA) | 4 |
 
+## Agentes Elite (Big Tech 2026)
+
+| Agente | Nivel | Fase | Obrigatorio em |
+|--------|-------|------|---------------|
+| Test Master | Principal Engineer | 4 (Implementacao) | Apply+Deploy (bloqueante), Quick Flow, Code Review |
+| GitHub Master | Staff Engineer | 3 (Solucao) | Push+PR quando VCS = GitHub |
+| GitBucket Master | Staff Engineer | 3 (Solucao) | Push+PR quando VCS = GitBucket |
+
+### Pipeline One-Click Apply+Deploy
+```
+Backup → Aplicar → 🛡️ Test Master (BLOQUEANTE) → Commit → Push/PR
+                         ↓ falhou?
+                    REVERT automatico
+```
+
+O Test Master é o UNICO agente que pode bloquear o pipeline. Nem o CEO pode bypassar.
+
 ## Gates de Aprovação
 
 | Gate | Fase | Quem aprova | Resultado |
@@ -54,18 +71,21 @@ Ideia → mini-spec → implementa com TDD → review → deploy
 | Product Brief | 1→2 | CEO ou Operations Lead | Aprovado/Rejeitado |
 | PRD Completo | 2→3 | CEO ou Operations Lead | Aprovado/Rejeitado |
 | Implementation Readiness | 3→4 | CEO + Tech Lead | PASS / CONCERNS / FAIL |
+| Test Master | 4 (pre-deploy) | Automatico | APROVADO / BLOQUEADO |
 | Deploy Produção | 4→done | Operations Lead | Aprovado/Rejeitado |
 
 ## Arquivos
 
 | Arquivo | Função |
 |---------|--------|
-| `workflows/main-workflow.yaml` | Definição completa das 4 fases |
+| `workflows/main-workflow.yaml` | Definição completa das 4 fases + agentes elite + pipeline |
 | `templates/PRD.md` | Template PRD (12 etapas) |
 | `templates/story.md` | Template Story (BDD + Dev Notes) |
 | `state/sprint-status.yaml` | Kanban central |
 | `gates/approval_gates.py` | Implementation Readiness Check |
+| `scripts/seed_agentes_elite.py` | Seed dos 3 agentes elite no banco |
 
 ---
 
 Criado em: 2026-03-25
+Atualizado em: 2026-03-30 (agentes elite + pipeline)

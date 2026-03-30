@@ -258,3 +258,131 @@ mapeamento_agentes:
   bmad_amelia_dev: "Amara (Backend) + Carlos (Frontend) — desenvolvimento"
   bmad_quinn_qa: "Fatima (QA) — testes e segurança"
   bmad_barry_quick_flow: "Qualquer agente do squad — quick flow"
+
+# ==============================================================
+# AGENTES ELITE — Big Tech 2026 (v1.0)
+# ==============================================================
+# Registrados no AgenteCatalogoDB via scripts/seed_agentes_elite.py
+# Integrados automaticamente no One-Click Apply+Deploy e Dynamic Team Assembly
+
+agentes_elite:
+  test_master:
+    nome: "Test Master — Principal Engineer de Testes"
+    perfil: "qa_seguranca"
+    categoria: "qualidade"
+    fase_bmad: "fase_4_implementacao"
+    obrigatorio_em:
+      - "One-Click Apply+Deploy (etapa test_master antes de commit)"
+      - "Quick Flow (validacao antes de deploy)"
+      - "Code Review (analise de cobertura de testes)"
+    pipeline_position: "ANTES de commit/push/merge — bloqueante"
+    decisao: >
+      O Test Master é o UNICO agente que pode bloquear o pipeline.
+      Se os testes falharem, o deploy é revertido automaticamente.
+      Sem exceção — nem o CEO pode bypassar o Test Master.
+    execucao:
+      - "Detecta framework de testes: pytest, vitest, jest, PHPUnit"
+      - "Roda testes automatizados com timeout 90s"
+      - "Se sem framework: validacao sintatica (Python compile, JSON parse)"
+      - "Resultado: APROVADO (pipeline continua) ou BLOQUEADO (revert)"
+    convocado_por_dynamic_team:
+      - "Palavras-chave: teste, testes, coverage, cobertura, QA, qualidade"
+      - "Problemas de codigo: bug, erro, quebrou, falha"
+      - "Pipeline: deploy, push, merge, CI/CD"
+
+  github_master:
+    nome: "GitHub Master — Staff Engineer de Platform"
+    perfil: "devops"
+    categoria: "infraestrutura"
+    fase_bmad: "fase_3_solucao"
+    obrigatorio_em:
+      - "Push+PR via Code Studio (quando VCS tipo = github)"
+      - "Deploy via GitHub Actions"
+    condicao_ativacao: "vcs_tipo == 'github'"
+    decisao: >
+      O GitHub Master é ativado automaticamente quando o projeto usa GitHub.
+      Ele gerencia PRs, branches, Actions e code review via API.
+      Se o projeto usa GitBucket, o GitBucket Master é convocado em vez dele.
+    execucao:
+      - "Cria branch feature a partir da main"
+      - "Faz push da branch"
+      - "Cria PR via GitHub API com titulo e descricao"
+      - "Monitora CI/CD (GitHub Actions)"
+      - "Faz merge (squash) quando aprovado"
+    convocado_por_dynamic_team:
+      - "Palavras-chave: PR, pull request, merge, branch, GitHub"
+      - "Problemas de git: conflito, push falhou, Actions falharam"
+      - "Deploy: deploy producao, release, tag"
+
+  gitbucket_master:
+    nome: "GitBucket Master — Staff Engineer de Platform"
+    perfil: "devops"
+    categoria: "infraestrutura"
+    fase_bmad: "fase_3_solucao"
+    obrigatorio_em:
+      - "Push+PR via Code Studio (quando VCS tipo = gitbucket)"
+      - "Deploy via webhooks internos"
+    condicao_ativacao: "vcs_tipo == 'gitbucket'"
+    decisao: >
+      O GitBucket Master é ativado quando o projeto usa GitBucket on-premise.
+      API compativel com GitHub v3 mas com endpoints proprios.
+      Gerencia repos corporativos com restricoes de rede e compliance.
+    execucao:
+      - "Cria branch e push via API REST"
+      - "Cria PR via GitBucket API"
+      - "Configura webhooks para CI interno"
+      - "Resolve conflitos de merge"
+    convocado_por_dynamic_team:
+      - "Palavras-chave: GitBucket, repo interno, on-premise"
+      - "Problemas de git: push falhou, webhook, CI interno"
+
+# ==============================================================
+# PIPELINE: One-Click Apply+Deploy (via Code Studio)
+# ==============================================================
+# Orquestrado pelo BMAD, executa Quick Flow automaticamente
+pipeline_apply_deploy:
+  nome: "One-Click Apply+Deploy"
+  tipo: "quick_flow"
+  etapas_em_ordem:
+    - id: "backup"
+      agente: null  # Sistema automatico
+      descricao: "Backup do arquivo original"
+      bloqueante: true
+
+    - id: "aplicar"
+      agente: null  # Sistema automatico
+      descricao: "Aplicar codigo novo no arquivo"
+      bloqueante: true
+
+    - id: "test_master"
+      agente: "Test Master"
+      descricao: "Validacao obrigatoria — testes + sintaxe"
+      bloqueante: true  # Se falhar → REVERT automatico
+      fallback: "Reverter arquivo para backup"
+
+    - id: "commit_push"
+      agente: "GitHub Master OU GitBucket Master (conforme VCS)"
+      descricao: "Commit + Push + PR (se branch protection ativa)"
+      bloqueante: false  # Commit pode falhar sem reverter codigo
+
+  regra_vcs: >
+    Se projeto.vcs_tipo == "github" → GitHub Master atua
+    Se projeto.vcs_tipo == "gitbucket" → GitBucket Master atua
+    Se nenhum VCS configurado → etapa pulada com aviso
+
+# ==============================================================
+# DYNAMIC TEAM ASSEMBLY — Convocação Automática
+# ==============================================================
+# Os Agentes Elite são convocados automaticamente pelo endpoint
+# POST /api/tarefas/montar-time baseado em regex + LLM Sonnet.
+# Mapa de categorias em api/routes/tarefas.py (_CATEGORIA_PERFIS)
+dynamic_team_rules:
+  regra_test_master: >
+    Convocado quando: teste, bug, erro, cobertura, QA, deploy, push
+    Categoria no mapa: "testes", "deploy", "codigo"
+  regra_github_master: >
+    Convocado quando: PR, pull request, merge, branch, GitHub, Actions
+    Categoria no mapa: "github", "pr", "merge"
+  regra_gitbucket_master: >
+    Convocado quando: GitBucket, repo interno, on-premise
+    Categoria no mapa: "gitbucket"
