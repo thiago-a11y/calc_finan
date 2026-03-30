@@ -112,9 +112,9 @@ PROVIDERS: list[ProviderConfig] = [
     ),
     ProviderConfig(
         id=ProviderID.GEMINI,
-        nome="Gemini 2.0 Flash (Google)",
+        nome="Gemini 2.5 Flash (Google)",
         icone="💎",
-        modelo="gemini-2.0-flash",
+        modelo="gemini-2.5-flash",
         api_key_env="GOOGLE_API_KEY",
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         custo_por_1k_input=0.00015,

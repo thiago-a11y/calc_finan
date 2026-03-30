@@ -29,7 +29,7 @@ APIS_MONITORADAS = [
     {"id": "openai", "nome": "OpenAI (GPT-4o)", "icone": "🤖", "cor": "#10b981",
      "modelo": "gpt-4o", "plano": "Pay-as-you-go"},
     {"id": "gemini", "nome": "Google Gemini", "icone": "💎", "cor": "#4285f4",
-     "modelo": "gemini-2.0-flash", "plano": "Free tier (1.5M tokens/dia)"},
+     "modelo": "gemini-2.5-flash", "plano": "Nivel 1 · Pos-pagamento"},
     {"id": "langsmith", "nome": "LangSmith", "icone": "🔍", "cor": "#3b82f6",
      "plano": "Gratuito (5k traces/mês)"},
     {"id": "tavily", "nome": "Tavily", "icone": "🌐", "cor": "#8b5cf6",
