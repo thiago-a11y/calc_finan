@@ -425,6 +425,8 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.48.0** — **Preview por Commit** — Preview de arquivos alterados por commit no PushDialog + horário Brasília
 - **v0.49.0** — **Autonomous Squads + Self-Evolving Factory + Command Center** — Workflows BMAD autônomos (4 fases, gates soft/hard), Factory Optimizer (PDCA), Command Center CEO, LLM Fallback robusto (Anthropic→Groq→OpenAI), recovery de workflows travados
 - **v0.50.0** — **Vision-to-Product + Session Isolada + Fila de Workflows** — PM Central gera roadmap com estimativa de custo/prazo, session SQLite isolada por fase (fix crítico), fila automática de workflows, 16 agentes no catálogo, teste end-to-end aprovado (Fase 2→3→4 sem crash)
+- **Vision-to-Product testado e aprovado em produção** (30/03/2026) — 4 fases BMAD completas, gates soft/hard, review com 3 sugestões reais via Groq, fila automática de workflows em sequência
+- **Self-Evolving Factory** gerando 3 sugestões reais de melhoria após cada workflow concluído
 
 ---
 
