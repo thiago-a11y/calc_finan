@@ -6,13 +6,13 @@ import { useAuth } from '../contexts/AuthContext'
 import AutonomoPanel from '../components/AutonomoPanel'
 import {
   Zap, Loader2, Check, Clock, Pause,
-  Send, ChevronRight, XCircle, Building2, Target,
+  Send, XCircle, Building2, Target,
   TrendingUp, DollarSign, Activity,
 } from 'lucide-react'
 
 interface WorkflowAtivo {
   id: string; titulo: string; fase_atual: number; fase_nome: string
-  status: string; squad_nome: string; criado_em: string
+  status: string; progresso: number; squad_nome: string; criado_em: string
   tarefa_atual: { agente_atual: string; status: string } | null
 }
 
@@ -31,7 +31,11 @@ export default function CommandCenter() {
   const { token } = useAuth()
   const [visao, setVisao] = useState('')
   const [enviando, setEnviando] = useState(false)
-  const [resultado, setResultado] = useState<{ features: any[]; workflows: any[] } | null>(null)
+  const [resultado, setResultado] = useState<{
+    features: any[]; workflows: any[]; roadmap?: string;
+    estimativa_dias?: number; custo_estimado_usd?: number;
+    modo?: string; total?: number;
+  } | null>(null)
   const [workflowAberto, setWorkflowAberto] = useState<string | null>(null)
 
   const fetcher = useCallback(async () => {
@@ -142,16 +146,55 @@ export default function CommandCenter() {
 
         {/* Resultado da estrategia */}
         {resultado && (
-          <div className="mt-4 p-3 rounded-xl" style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)' }}>
-            <p className="text-[11px] font-semibold mb-2" style={{ color: '#10b981' }}>
-              <Check size={12} className="inline mr-1" />{resultado.workflows.length} squads criados ({resultado.features.length} features)
+          <div className="mt-4 p-4 rounded-xl" style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)' }}>
+            <p className="text-[13px] font-bold mb-2" style={{ color: '#10b981' }}>
+              <Check size={14} className="inline mr-1" /> Estrategia definida!
             </p>
-            {resultado.features.map((f: any, i: number) => (
-              <div key={i} className="flex items-center gap-2 text-[10px] py-1">
-                <ChevronRight size={10} style={{ color: '#10b981' }} />
-                <span style={{ color: 'var(--sf-text-1)' }}>{f.titulo}</span>
-              </div>
-            ))}
+
+            {/* Roadmap */}
+            {resultado.roadmap && (
+              <p className="text-[11px] mb-3" style={{ color: 'var(--sf-text-2)' }}>
+                {resultado.roadmap}
+              </p>
+            )}
+
+            {/* Estimativas */}
+            <div className="flex items-center gap-4 mb-3">
+              <span className="text-[10px] px-2 py-1 rounded" style={{ background: 'rgba(168,85,247,0.1)', color: '#a855f7' }}>
+                {resultado.total} squads
+              </span>
+              {(resultado.estimativa_dias || 0) > 0 && (
+                <span className="text-[10px] px-2 py-1 rounded" style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
+                  ~{resultado.estimativa_dias} dias
+                </span>
+              )}
+              {(resultado.custo_estimado_usd || 0) > 0 && (
+                <span className="text-[10px] px-2 py-1 rounded" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
+                  ~${(resultado.custo_estimado_usd || 0).toFixed(2)}
+                </span>
+              )}
+              <span className="text-[10px] px-2 py-1 rounded" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--sf-text-3)' }}>
+                {resultado.modo}
+              </span>
+            </div>
+
+            {/* Features */}
+            <div className="space-y-1">
+              {resultado.features.map((f: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 text-[10px] py-1">
+                  <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold"
+                    style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>
+                    {f.prioridade || i + 1}
+                  </span>
+                  <span className="font-medium" style={{ color: 'var(--sf-text-1)' }}>{f.titulo}</span>
+                  {f.complexidade && (
+                    <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--sf-text-3)' }}>
+                      {f.complexidade}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -201,6 +244,19 @@ export default function CommandCenter() {
                   )
                 })}
               </div>
+
+              {/* Progresso % */}
+              {wf.progresso !== undefined && (
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="flex-1 h-1.5 rounded-full" style={{ background: 'var(--sf-border-subtle)' }}>
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${wf.progresso}%`, background: wf.progresso === 100 ? '#10b981' : '#a855f7' }} />
+                  </div>
+                  <span className="text-[9px] font-bold" style={{ color: wf.progresso === 100 ? '#10b981' : '#a855f7' }}>
+                    {wf.progresso}%
+                  </span>
+                </div>
+              )}
 
               {/* Info */}
               <div className="flex items-center justify-between">

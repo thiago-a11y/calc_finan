@@ -1569,12 +1569,20 @@ def command_center(
                     "agente_atual": t.agente_atual,
                     "status": t.status,
                 }
+        # Calcular progresso percentual (cada fase = 25%)
+        progresso = min(100, max(0, (wf.fase_atual - 1) * 25))
+        if wf.status == "concluido":
+            progresso = 100
+        elif wf.status == "aguardando_gate":
+            progresso = wf.fase_atual * 25  # Fase concluida, aguardando gate
+
         wf_ativos.append({
             "id": wf.id,
             "titulo": wf.titulo,
             "fase_atual": wf.fase_atual,
             "fase_nome": FASES_BMAD.get(wf.fase_atual, "?"),
             "status": wf.status,
+            "progresso": progresso,
             "squad_nome": wf.squad_nome,
             "tarefa_atual": tarefa_atual,
             "criado_em": wf.criado_em.isoformat() if wf.criado_em else "",
@@ -1656,8 +1664,12 @@ def comando_estrategico(
         msgs = [
             SystemMessage(content=(
                 "Voce e o PM Central (Alex) do Synerium Factory. "
-                "O CEO deu um comando estrategico. Quebre em features independentes. "
-                "Retorne APENAS JSON: {\"features\": [{\"titulo\": \"...\", \"descricao\": \"...\"}]}\n"
+                "O CEO deu um comando estrategico. Quebre em features independentes com roadmap. "
+                "Retorne APENAS JSON:\n"
+                "{\"roadmap\": \"descricao resumida do roadmap (1-2 frases)\",\n"
+                " \"estimativa_dias\": 30,\n"
+                " \"custo_estimado_usd\": 5.0,\n"
+                " \"features\": [{\"titulo\": \"...\", \"descricao\": \"...\", \"prioridade\": 1, \"complexidade\": \"media\"}]}\n"
                 "Maximo 5 features. Cada feature deve ser autocontida e implementavel por um squad."
             )),
             HumanMessage(content=f"Comando do CEO: {req.visao}"),
@@ -1668,15 +1680,24 @@ def comando_estrategico(
         # Extrair JSON
         import re as re_mod
         json_match = re_mod.search(r'\{[\s\S]*\}', texto)
+        roadmap = ""
+        estimativa_dias = 0
+        custo_estimado = 0.0
         if json_match:
             dados = json_mod.loads(json_match.group())
             features = dados.get("features", [])[:5]
+            roadmap = dados.get("roadmap", "")
+            estimativa_dias = dados.get("estimativa_dias", 0)
+            custo_estimado = dados.get("custo_estimado_usd", 0.0)
         else:
             features = [{"titulo": req.visao, "descricao": ""}]
 
     except Exception as e:
         logger.warning(f"[CommandCenter] LLM falhou: {e}")
         features = [{"titulo": req.visao, "descricao": "Feature unica"}]
+        roadmap = ""
+        estimativa_dias = 0
+        custo_estimado = 0.0
 
     # Criar workflows para cada feature
     workflows_criados = []
@@ -1728,6 +1749,9 @@ def comando_estrategico(
 
     return {
         "visao": req.visao,
+        "roadmap": roadmap,
+        "estimativa_dias": estimativa_dias,
+        "custo_estimado_usd": custo_estimado,
         "features": features,
         "workflows": workflows_criados,
         "total": len(workflows_criados),
