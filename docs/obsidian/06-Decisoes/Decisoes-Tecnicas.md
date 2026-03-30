@@ -295,4 +295,26 @@ Após um merge de PR via GitHub API, o repositório local fica desatualizado (o 
 
 ---
 
+## Por que LLM Fallback centralizado em `core/llm_fallback.py`?
+
+O sistema anterior dependia de cada módulo implementar seu próprio fallback. Isso gerava duplicação e inconsistência — um módulo podia parar por falta de créditos enquanto outro continuava. O `llm_fallback.py` centraliza a cadeia Anthropic → Groq → OpenAI em um único ponto: qualquer módulo chama `obter_llm_fallback()` e recebe o provider disponível. Se a Anthropic cair (rate limit, créditos), o Groq assume automaticamente; se o Groq falhar, cai para OpenAI. Nunca mais para por falta de créditos.
+
+## Por que Gate Approval com `threading.Lock`?
+
+O FastAPI roda com uvicorn em múltiplas threads. Sem lock, duas requests simultâneas de aprovação poderiam aprovar o mesmo gate duas vezes (race condition). A solução usa `threading.Lock` no momento da verificação e atualização do status do gate. O lock é adquirido por microsegundos — sem impacto em performance. A verificação confirma que o usuário é CEO ou Operations Lead antes de aprovar.
+
+## Por que recovery automático de workflows travados (>30min → erro)?
+
+Workflows autônomos podem travar por timeout de LLM, erro de rede ou crash do processo. Sem recovery, ficam eternamente com status "executando" no banco. No startup do servidor, uma verificação automática identifica workflows com mais de 30 minutos em execução e os marca como erro, liberando recursos e notificando o CEO. O threshold de 30 minutos foi escolhido porque é o dobro do timeout máximo de qualquer tarefa individual.
+
+## Por que Factory Optimizer como agente Distinguished Engineer?
+
+O Factory Optimizer (ID=16) é um meta-agente que analisa o desempenho da própria fábrica usando ciclo PDCA (Plan-Do-Check-Act). Após cada workflow autônomo concluído, uma review session avalia o resultado e gera sugestões de melhoria. O papel de Distinguished Engineer reflete sua função: não executa tarefas operacionais, mas faz meta-análise e propõe evoluções estruturais.
+
+## Por que `EvolucaoFactoryDB` para registrar sugestões de melhoria?
+
+As sugestões do Factory Optimizer precisam ser rastreáveis e auditáveis. O modelo `EvolucaoFactoryDB` armazena cada sugestão com: origem (workflow que gerou), tipo (performance, qualidade, processo), descrição, status (pendente, aprovada, implementada, rejeitada) e quem aprovou. Isso cria um histórico de evolução da fábrica, permitindo análise de tendências e medição de melhoria contínua.
+
+---
+
 > Última atualização: 2026-03-30

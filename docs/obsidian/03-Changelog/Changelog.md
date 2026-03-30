@@ -4,6 +4,25 @@
 
 ---
 
+## v0.49.0 — Autonomous Squads + Self-Evolving Factory + Command Center (2026-03-30)
+
+### Funcionalidades
+- **Autonomous Squads** — Workflow BMAD completo automatizado com 4 fases, gates soft/hard, execução paralela de agentes
+- **Self-Evolving Factory** — Review session automática pós-workflow, Factory Optimizer (ID=16), modelo `EvolucaoFactoryDB` para registrar sugestões de melhoria
+- **Command Center** — Painel CEO com KPIs em tempo real, comando estratégico, spawn de squads sob demanda
+- **LLM Fallback robusto** — Cadeia centralizada Anthropic → Groq → OpenAI em `core/llm_fallback.py`
+- **Recovery de workflows travados** — No startup do servidor, workflows parados há >30min são marcados como erro
+- **Gate approval com threading.Lock** — Verificação thread-safe de CEO/OpsLead, evita race condition
+- **Rota conflito corrigida** — `/{tarefa_id}` → `/detalhe/{tarefa_id}` para evitar colisão com outras rotas
+- **langchain-groq** instalado no servidor para suporte ao fallback Groq
+- **Botão Novo Projeto** na página Projetos (CEO only)
+- **Sistema de conversas separadas** no AgentPanel do Code Studio
+- **Convites corrigidos** — Tratamento naive vs aware datetime em `auth.py` e `convites.py`
+- **Painel Geral** busca usuários do banco (não mais config estático)
+- **Jonatas removido do seed** — Agora entra via sistema de convites
+
+---
+
 ## v0.48.0 — Preview de Arquivos por Commit + Horário Brasília (2026-03-30)
 
 ### Funcionalidades

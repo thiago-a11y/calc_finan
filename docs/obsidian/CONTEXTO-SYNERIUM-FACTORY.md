@@ -45,10 +45,12 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 CEO (Thiago)
 └── Operations Lead (Jonatas) — aprovação final, override total
     └── PM Agent Central (Alex) — orquestra todos os squads
-        ├── Catálogo de Agentes (15 templates reutilizáveis — "prateleira")
+        ├── Catálogo de Agentes (16 templates reutilizáveis — "prateleira")
+        ├── Factory Optimizer (ID=16) — Distinguished Engineer, meta-análise PDCA
         ├── Squad CEO — Thiago (9 agentes atribuídos do catálogo)
         ├── Squad Jonatas (3 agentes atribuídos do catálogo)
         ├── Squad Dev Backend, Dev Frontend, Marketing (squads de área)
+        ├── Autonomous Squads — Workflows BMAD autônomos com gates
         └── [Novos squads criados dinamicamente via atribuição do catálogo]
 ```
 
@@ -293,7 +295,9 @@ SyneriumFactory-notes/
 │   ├── Projetos.md
 │   ├── RAG.md
 │   ├── Code-Studio.md
-│   └── VCS-Integration.md
+│   ├── VCS-Integration.md
+│   ├── Autonomous-Squads.md
+│   └── Self-Evolving-Factory.md
 ├── 09-Squads/
 │   ├── Mapa-Squads.md
 │   └── Squad-CEO-Thiago.md
@@ -414,6 +418,7 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.46.0** — **3 Agentes Elite + BMAD** — Test Master, GitHub Master, GitBucket Master + 15 agentes mapeados no BMAD
 - **v0.47.0** — **Novo Projeto** — Botão Novo Projeto na página Projetos + modal de criação (CEO only)
 - **v0.48.0** — **Preview por Commit** — Preview de arquivos alterados por commit no PushDialog + horário Brasília
+- **v0.49.0** — **Autonomous Squads + Self-Evolving Factory + Command Center** — Workflows BMAD autônomos (4 fases, gates soft/hard), Factory Optimizer (PDCA), Command Center CEO, LLM Fallback robusto (Anthropic→Groq→OpenAI), recovery de workflows travados
 
 ---
 
@@ -470,7 +475,7 @@ Acesso: `/deploy` no dashboard. Tudo automatizado — 1 clique do CEO.
 ## Catálogo de Agentes (novo em v0.29.0, expandido v0.46.0)
 
 Sistema de "prateleira" de agentes reutilizáveis:
-- **15 templates** no catálogo (9 do squad CEO + 3 do squad Jonatas + 3 Agentes Elite)
+- **16 templates** no catálogo (9 do squad CEO + 3 do squad Jonatas + 3 Agentes Elite + Factory Optimizer)
 - Admin (CEO, Diretor, Operations Lead) atribui agentes do catálogo a qualquer usuário
 - Usuários podem solicitar agentes → aprovação pelo admin
 - Hot-reload: atribuir/remover agente recarrega o squad em memória sem restart
@@ -478,7 +483,8 @@ Sistema de "prateleira" de agentes reutilizáveis:
 - Endpoints: `/api/catalogo`, `/api/atribuicoes`, `/api/solicitacoes-agente`
 - Dashboard: `/catalogo` (prateleira), `/atribuicoes` (gerenciar por usuário), aba "Agentes" em Aprovações
 - **3 Agentes Elite** (v0.46.0): Test Master (testes automatizados), GitHub Master (operações GitHub), GitBucket Master (operações GitBucket)
-- **BMAD mapeamento completo**: 15 agentes mapeados com fases, palavras-chave e especialidades
+- **Factory Optimizer** (v0.49.0): Distinguished Engineer, meta-análise PDCA, review sessions automáticas
+- **BMAD mapeamento completo**: 16 agentes mapeados com fases, palavras-chave e especialidades
 
 ## Luna — Assistente IA Integrada (novo em v0.16.0)
 
@@ -521,6 +527,40 @@ Editor de código completo integrado ao dashboard com funcionalidades avançadas
 - **Conversas separadas** (v0.45.0) — Múltiplas conversas no AgentPanel com scroll inteligente
 - **Preview por commit** (v0.48.0) — Arquivos alterados por commit no PushDialog com horário Brasília
 - **Rota:** `/code-studio` no dashboard
+
+## Autonomous Squads (novo em v0.49.0)
+
+Workflow BMAD completo automatizado:
+- **4 fases**: Business → Marketing → Architecture → Development
+- **Gates soft/hard**: Soft prossegue automaticamente, hard aguarda CEO/OpsLead
+- **Modelo**: `WorkflowAutonomoDB` com status, fase atual e resultado JSON
+- **Endpoints**: `POST /api/autonomo`, `GET /api/autonomo/{id}`, aprovar-gate, cancelar
+- **Recovery**: Workflows travados >30min são marcados como erro no startup
+- **Gate approval**: `threading.Lock` para evitar race condition
+
+## Self-Evolving Factory (novo em v0.49.0)
+
+Sistema de auto-evolução contínua:
+- **Factory Optimizer** (ID=16) — Distinguished Engineer com ciclo PDCA
+- **Review session automática** — Após cada workflow concluído, analisa e gera sugestões
+- **Modelo**: `EvolucaoFactoryDB` com tipo, impacto, status, aprovação
+- **Fluxo**: workflow conclui → review → sugestões → CEO aprova → implementação
+- **Endpoints**: `/api/evolucao` (listar, aprovar, rejeitar)
+
+## Command Center (novo em v0.49.0)
+
+Painel estratégico do CEO:
+- **KPIs em tempo real** — Workflows ativos, concluídos, taxa de sucesso
+- **Comando estratégico** — Disparar workflows autônomos
+- **Spawn de squads** — Criar squads sob demanda
+- **Gates pendentes** — Visualização e aprovação de gates
+
+## LLM Fallback Robusto (novo em v0.49.0)
+
+Cadeia centralizada em `core/llm_fallback.py`:
+- **Anthropic** (Claude) → **Groq** (Llama) → **OpenAI** (GPT-4o)
+- Qualquer módulo chama `obter_llm_fallback()` e recebe o provider disponível
+- Nunca mais para por falta de créditos ou rate limit
 
 ---
 
