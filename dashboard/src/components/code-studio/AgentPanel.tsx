@@ -1,7 +1,7 @@
 /* AgentPanel — Painel lateral com chat do agente IA + ações automáticas */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Bot, Send, Sparkles, BookOpen, RefreshCw, FileCode, Loader2, X, TestTube2, Play, Copy, Check, AlertTriangle, Building2, Users, Rocket } from 'lucide-react'
+import { Bot, Send, Sparkles, BookOpen, RefreshCw, FileCode, Loader2, X, TestTube2, Play, Copy, Check, AlertTriangle, Building2, Users, Rocket, Plus, MessageSquare, Trash2, Clock } from 'lucide-react'
 import MarkdownRenderer from '../luna/MarkdownRenderer'
 import { analisarCodigo, aplicarAcao, analisarCodigoComTime, applyDeploy, type DiffResumo, type VCSResultado, type EtapaDeploy } from '../../services/codeStudio'
 import TeamDialog from './TeamDialog'
@@ -100,32 +100,116 @@ function gerarCaminhoTeste(caminho: string): string {
   return `${dir}/__tests__/${nomeBase}.test.${ext}`
 }
 
+// === Sistema de conversas (chats separados) ===
+interface ChatSalvo {
+  id: string
+  titulo: string  // Primeiro prompt do usuario (truncado)
+  mensagens: Mensagem[]
+  criadoEm: string
+  projetoId: number
+}
+
+function gerarChatId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+}
+
+function carregarChats(projetoId: number): ChatSalvo[] {
+  try {
+    const raw = localStorage.getItem(`sf_agent_chats_${projetoId}`)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+function salvarChats(projetoId: number, chats: ChatSalvo[]) {
+  try {
+    // Manter max 20 conversas, cada uma com max 50 mensagens
+    const limitado = chats.slice(-20).map(c => ({
+      ...c,
+      mensagens: c.mensagens.slice(-50),
+    }))
+    localStorage.setItem(`sf_agent_chats_${projetoId}`, JSON.stringify(limitado))
+  } catch { /* silencioso */ }
+}
+
 export default function AgentPanel({
   caminhoAtivo, conteudoAtivo, linguagem, onFechar, agenteNome,
   projetoId = 0, projetoNome, projetoStack, onArquivoAtualizado,
 }: AgentPanelProps) {
-  // Persistir mensagens no localStorage por projeto
-  const STORAGE_KEY = `sf_agent_chat_${projetoId}`
-  const [mensagens, setMensagens] = useState<Mensagem[]>(() => {
-    try {
-      const salvo = localStorage.getItem(STORAGE_KEY)
-      return salvo ? JSON.parse(salvo) : []
-    } catch { return [] }
-  })
+  // Sistema de chats
+  const [chatAtualId, setChatAtualId] = useState(() => gerarChatId())
+  const [mensagens, setMensagens] = useState<Mensagem[]>([])
+  const [mostrarHistoricoChats, setMostrarHistoricoChats] = useState(false)
+  const [chatsHistorico, setChatsHistorico] = useState<ChatSalvo[]>([])
   const [input, setInput] = useState('')
 
-  // Salvar mensagens no localStorage sempre que mudar
+  // Carregar historico de chats ao montar ou mudar projeto
+  useEffect(() => {
+    setChatsHistorico(carregarChats(projetoId))
+    // Sempre comecar com chat novo (tela limpa)
+    setChatAtualId(gerarChatId())
+    setMensagens([])
+  }, [projetoId])
+
+  // Salvar chat atual no historico sempre que mensagens mudam
+  useEffect(() => {
+    if (mensagens.length === 0) return
+    const primeiroPrompt = mensagens.find(m => m.papel === 'user')?.conteudo || 'Chat'
+    const titulo = primeiroPrompt.slice(0, 60) + (primeiroPrompt.length > 60 ? '...' : '')
+
+    setChatsHistorico(prev => {
+      const outros = prev.filter(c => c.id !== chatAtualId)
+      const atualizado: ChatSalvo = {
+        id: chatAtualId,
+        titulo,
+        mensagens,
+        criadoEm: new Date().toISOString(),
+        projetoId,
+      }
+      const novos = [...outros, atualizado]
+      salvarChats(projetoId, novos)
+      return novos
+    })
+  }, [mensagens, chatAtualId, projetoId])
+
+  // Migrar dados antigos do formato anterior (sf_agent_chat_X)
   useEffect(() => {
     try {
-      if (mensagens.length > 0) {
-        // Manter apenas as ultimas 50 mensagens para nao estourar localStorage
-        const limitado = mensagens.slice(-50)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(limitado))
-      } else {
-        localStorage.removeItem(STORAGE_KEY)
+      const oldKey = `sf_agent_chat_${projetoId}`
+      const old = localStorage.getItem(oldKey)
+      if (old) {
+        const msgs = JSON.parse(old) as Mensagem[]
+        if (msgs.length > 0) {
+          const id = gerarChatId()
+          const titulo = msgs.find(m => m.papel === 'user')?.conteudo?.slice(0, 60) || 'Chat migrado'
+          const chat: ChatSalvo = { id, titulo, mensagens: msgs, criadoEm: new Date().toISOString(), projetoId }
+          const existentes = carregarChats(projetoId)
+          salvarChats(projetoId, [...existentes, chat])
+          setChatsHistorico(carregarChats(projetoId))
+        }
+        localStorage.removeItem(oldKey)
       }
     } catch { /* silencioso */ }
-  }, [mensagens, STORAGE_KEY])
+  }, [projetoId])
+
+  const iniciarNovoChat = useCallback(() => {
+    setChatAtualId(gerarChatId())
+    setMensagens([])
+    setMostrarHistoricoChats(false)
+  }, [])
+
+  const abrirChat = useCallback((chat: ChatSalvo) => {
+    setChatAtualId(chat.id)
+    setMensagens(chat.mensagens)
+    setMostrarHistoricoChats(false)
+  }, [])
+
+  const excluirChat = useCallback((chatId: string) => {
+    setChatsHistorico(prev => {
+      const novos = prev.filter(c => c.id !== chatId)
+      salvarChats(projetoId, novos)
+      return novos
+    })
+  }, [projetoId])
   const [analisando, setAnalisando] = useState(false)
   const [contextoEmpresa, setContextoEmpresa] = useState(true)  // Company Context Total ON por padrao
   const [mostrarTeamDialog, setMostrarTeamDialog] = useState(false)
@@ -162,8 +246,27 @@ export default function AgentPanel({
     return () => clearInterval(t)
   }, [analisando, chamandoTime])
 
+  // Scroll inteligente: quando nova resposta do assistente chega,
+  // posicionar no INICIO da resposta (nao no final)
+  const ultimaQtdRef = useRef(0)
   useEffect(() => {
-    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' })
+    if (!chatRef.current) return
+    const el = chatRef.current
+    if (mensagens.length > ultimaQtdRef.current) {
+      const ultima = mensagens[mensagens.length - 1]
+      if (ultima?.papel === 'assistant') {
+        // Scroll para o penultimo item (a pergunta do usuario) para que a resposta fique visivel
+        const filhos = el.children
+        if (filhos.length >= 2) {
+          const alvo = filhos[filhos.length - 2] as HTMLElement
+          alvo?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      } else {
+        // Mensagem do usuario → scroll para baixo normalmente
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+      }
+    }
+    ultimaQtdRef.current = mensagens.length
   }, [mensagens])
 
   // Auto-hide toast (8s para detalhado, 4s para simples)
@@ -399,10 +502,26 @@ export default function AgentPanel({
             )}
           </div>
         </div>
-        <button onClick={onFechar} className="p-1 rounded hover:bg-white/5"
-          style={{ color: 'var(--sf-text-3)' }}>
-          <X size={14} />
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Novo Chat */}
+          <button onClick={iniciarNovoChat}
+            className="p-1.5 rounded hover:bg-white/5" style={{ color: 'var(--sf-text-3)' }}
+            title="Novo chat">
+            <Plus size={13} />
+          </button>
+          {/* Historico de Chats */}
+          <button onClick={() => setMostrarHistoricoChats(!mostrarHistoricoChats)}
+            className="p-1.5 rounded hover:bg-white/5"
+            style={{ color: mostrarHistoricoChats ? '#8b5cf6' : 'var(--sf-text-3)' }}
+            title="Historico de conversas">
+            <MessageSquare size={13} />
+          </button>
+          {/* Fechar */}
+          <button onClick={onFechar} className="p-1.5 rounded hover:bg-white/5"
+            style={{ color: 'var(--sf-text-3)' }}>
+            <X size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Toggle Company Context */}
@@ -531,7 +650,74 @@ export default function AgentPanel({
         </div>
       )}
 
+      {/* Painel de Historico de Chats */}
+      {mostrarHistoricoChats && (
+        <div className="flex-1 overflow-auto px-3 py-3" style={{ scrollbarWidth: 'thin' }}>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-semibold" style={{ color: 'var(--sf-text-2)' }}>
+              Conversas anteriores ({chatsHistorico.filter(c => c.projetoId === projetoId).length})
+            </span>
+            <button onClick={iniciarNovoChat}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium"
+              style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>
+              <Plus size={10} /> Novo chat
+            </button>
+          </div>
+          {chatsHistorico.filter(c => c.projetoId === projetoId).length === 0 && (
+            <div className="text-center py-8">
+              <MessageSquare size={24} className="mx-auto mb-2" style={{ color: 'var(--sf-text-3)', opacity: 0.3 }} />
+              <p className="text-[11px]" style={{ color: 'var(--sf-text-3)' }}>Nenhuma conversa salva</p>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            {[...chatsHistorico]
+              .filter(c => c.projetoId === projetoId)
+              .reverse()
+              .map(chat => {
+                const isAtual = chat.id === chatAtualId
+                const qtdMsgs = chat.mensagens.length
+                const dataFormatada = new Date(chat.criadoEm).toLocaleString('pt-BR', {
+                  timeZone: 'America/Sao_Paulo',
+                  day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+                })
+                return (
+                  <div key={chat.id}
+                    className="group flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all"
+                    style={{
+                      background: isAtual ? 'rgba(139,92,246,0.08)' : 'transparent',
+                      border: `1px solid ${isAtual ? 'rgba(139,92,246,0.15)' : 'var(--sf-border-subtle)'}`,
+                    }}
+                    onClick={() => abrirChat(chat)}>
+                    <MessageSquare size={12} className="flex-shrink-0 mt-0.5"
+                      style={{ color: isAtual ? '#8b5cf6' : 'var(--sf-text-3)' }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium truncate" style={{ color: 'var(--sf-text-1)' }}>
+                        {chat.titulo}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[9px]" style={{ color: 'var(--sf-text-3)' }}>
+                          <Clock size={8} className="inline mr-0.5" />{dataFormatada}
+                        </span>
+                        <span className="text-[9px]" style={{ color: 'var(--sf-text-3)', opacity: 0.5 }}>·</span>
+                        <span className="text-[9px]" style={{ color: 'var(--sf-text-3)' }}>{qtdMsgs} msgs</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); excluirChat(chat.id) }}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/10 transition-all"
+                      style={{ color: '#ef4444' }}
+                      title="Excluir conversa">
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                )
+              })}
+          </div>
+        </div>
+      )}
+
       {/* Chat */}
+      {!mostrarHistoricoChats && (
       <div ref={chatRef} className="flex-1 overflow-auto px-3 py-3 space-y-3" style={{ scrollbarWidth: 'thin' }}>
         {mensagens.length === 0 && (
           <div className="text-center py-8">
@@ -697,6 +883,7 @@ export default function AgentPanel({
           </div>
         )}
       </div>
+      )}
 
       {/* TeamDialog modal */}
       {mostrarTeamDialog && (
