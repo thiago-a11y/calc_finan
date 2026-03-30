@@ -13,6 +13,9 @@ Uso:
 import logging
 import os
 
+from dotenv import load_dotenv
+load_dotenv()
+
 logger = logging.getLogger("synerium.llm_fallback")
 
 # Erros que indicam problema de credito/quota (trigger fallback)
