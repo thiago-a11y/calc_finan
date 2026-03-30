@@ -279,6 +279,9 @@ export const encerrarReuniao = (id: string) =>
 export const reabrirReuniao = (id: string) =>
   post<TarefaResultado>(`/tarefas/${id}/reabrir`, {})
 
+export const retomarTarefa = (id: string) =>
+  post<TarefaResultado>(`/tarefas/${id}/retomar`, {})
+
 /* --- Catálogo de Agentes --- */
 
 export const buscarCatalogo = (categoria?: string) =>

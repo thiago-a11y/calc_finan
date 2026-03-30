@@ -1,7 +1,7 @@
 /* ChatFloating — Janela de chat flutuante com modo expandido */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { executarTarefa, buscarTarefa, buscarHistoricoTarefas, uploadArquivos } from '../services/api'
+import { executarTarefa, buscarTarefa, buscarHistoricoTarefas, uploadArquivos, retomarTarefa } from '../services/api'
 import { FileUploadArea } from './FileUpload'
 import type { TarefaResultado, FileAttachment } from '../types'
 import { Maximize2, Minimize2, Minus, X, Send, Bot, Loader2, Paperclip } from 'lucide-react'
@@ -227,7 +227,22 @@ export default function ChatFloating({
                   <p className="text-xs text-amber-400">Aguardando...</p>
                 )}
                 {tarefa.status === 'erro' && (
-                  <p className="text-xs text-red-400">Erro: {tarefa.erro}</p>
+                  <div>
+                    <p className="text-xs text-red-400 mb-2">❌ {tarefa.erro}</p>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const retomada = await retomarTarefa(tarefa.id)
+                          setHistorico(prev => prev.map(h => h.id === retomada.id ? retomada : h))
+                        } catch (err) {
+                          console.error('Erro ao retomar:', err)
+                        }
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/25 text-amber-400 hover:bg-amber-500/30 transition-all"
+                    >
+                      🔄 Retomar conversa
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

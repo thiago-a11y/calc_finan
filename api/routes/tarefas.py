@@ -534,6 +534,49 @@ def reabrir_reuniao(
     return _to_response(tarefa)
 
 
+@router.post("/{tarefa_id}/retomar", response_model=TarefaResponse)
+def retomar_tarefa(
+    tarefa_id: str,
+    fabrica=Depends(obter_fabrica),
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Retoma uma tarefa/reuniao que deu erro ou timeout — re-executa do ponto onde parou."""
+    tarefa = db.query(TarefaDB).filter_by(id=tarefa_id).first()
+    if not tarefa:
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada.")
+    if tarefa.status not in ("erro", "concluida"):
+        raise HTTPException(status_code=400, detail=f"Tarefa não pode ser retomada (status: {tarefa.status}).")
+
+    if tarefa.tipo == "reuniao":
+        # Reuniao: reabrir para feedback + nova rodada
+        tarefa.status = "aguardando_feedback"
+        tarefa.erro = None
+        tarefa.concluido_em = None
+        db.commit()
+        db.refresh(tarefa)
+        logger.info(f"[RETOMAR] Reunião {tarefa_id} reaberta para continuar.")
+        return _to_response(tarefa)
+    else:
+        # Tarefa simples: re-executar em background
+        tarefa.status = "pendente"
+        tarefa.erro = None
+        tarefa.resultado = None
+        tarefa.concluido_em = None
+        db.commit()
+
+        threading.Thread(
+            target=_executar_tarefa_bg,
+            args=(tarefa_id, tarefa.squad_nome, tarefa.agente_indice,
+                  tarefa.descricao, "Resposta completa em português brasileiro.", fabrica),
+            daemon=True,
+        ).start()
+
+        db.refresh(tarefa)
+        logger.info(f"[RETOMAR] Tarefa {tarefa_id} re-executada.")
+        return _to_response(tarefa)
+
+
 @router.get("/historico", response_model=list[TarefaResponse])
 def listar_historico(
     limite: int = 50,
@@ -590,7 +633,7 @@ def buscar_tarefa(
 # Timeout automático — reseta reuniões travadas
 # =====================================================================
 
-TIMEOUT_MINUTOS = 10  # Reuniões executando há mais de 10 min são resetadas
+TIMEOUT_MINUTOS = 30  # Reuniões executando há mais de 30 min são resetadas
 
 
 @router.post("/limpar-travadas")

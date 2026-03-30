@@ -1,7 +1,7 @@
 /* ReuniaoModal — Modal de reunião com rodadas interativas em tempo real */
 
 import { useState, useEffect, useRef } from 'react'
-import { executarReuniao, buscarTarefa, continuarReuniao, encerrarReuniao } from '../services/api'
+import { executarReuniao, buscarTarefa, continuarReuniao, encerrarReuniao, retomarTarefa } from '../services/api'
 import { FileUploadArea } from './FileUpload'
 import AgentAvatar from './AgentAvatar'
 import type { TarefaResultado, RodadaItem } from '../types'
@@ -287,8 +287,30 @@ export default function ReuniaoModal({ squadNome, agentes, onFechar }: Props) {
               )}
 
               {resultado.status === 'erro' && (
-                <div className="text-center">
+                <div className="text-center space-y-3">
                   <p className="text-sm text-red-400">{resultado.erro}</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const retomada = await retomarTarefa(resultado.id)
+                          setResultado(retomada)
+                        } catch (err) {
+                          console.error('Erro ao retomar:', err)
+                        }
+                      }}
+                      className="px-4 py-2 bg-amber-500/20 text-amber-400 border border-amber-500/25 rounded-lg text-sm font-medium hover:bg-amber-500/30 transition-all"
+                    >
+                      🔄 Retomar de onde parou
+                    </button>
+                    <button
+                      onClick={() => { setResultado(null); setPauta(''); setFeedback('') }}
+                      className="px-4 py-2 rounded-lg text-sm sf-text-dim hover:sf-text-white transition-colors"
+                      style={{ background: 'var(--sf-bg-2)', border: '1px solid var(--sf-border-default)' }}
+                    >
+                      Nova Reunião
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
