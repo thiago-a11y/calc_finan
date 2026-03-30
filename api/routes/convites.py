@@ -165,7 +165,12 @@ def validar_convite(token: str, db: Session = Depends(get_db)):
     if not convite:
         raise HTTPException(status_code=404, detail="Convite não encontrado ou já utilizado.")
 
-    if convite.expira_em < datetime.now(timezone.utc):
+    # Comparar datetimes de forma segura (naive vs aware)
+    expira = convite.expira_em
+    agora = datetime.now(timezone.utc)
+    if expira and expira.tzinfo is None:
+        expira = expira.replace(tzinfo=timezone.utc)
+    if expira and expira < agora:
         raise HTTPException(status_code=410, detail="Convite expirado.")
 
     return {
