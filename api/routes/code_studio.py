@@ -1148,14 +1148,37 @@ async def git_log_pendentes(
         vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=proj_id or 0, ativo=True).first()
         branch_remoto = vcs.branch_padrao if vcs else "main"
 
-        # Fetch silencioso (atualiza refs sem baixar)
-        subprocess.run(
-            ["git", "fetch", "origin", "--quiet"],
-            cwd=str(base), capture_output=True, timeout=30,
-        )
+        # Fetch com token VCS (origin sem token falha silenciosamente)
+        env_fetch = dict(os.environ)
+        env_fetch["GIT_TERMINAL_PROMPT"] = "0"
+        if vcs:
+            try:
+                from core.vcs_service import descriptografar_token
+                token_real = descriptografar_token(vcs.api_token_encrypted)
+                fetch_url = vcs.repo_url.replace("https://", f"https://x-access-token:{token_real}@")
+                subprocess.run(
+                    ["git", "fetch", fetch_url, branch_remoto],
+                    cwd=str(base), capture_output=True, timeout=30, env=env_fetch,
+                )
+                # Atualizar origin/main para apontar para FETCH_HEAD
+                subprocess.run(
+                    ["git", "update-ref", f"refs/remotes/origin/{branch_remoto}", "FETCH_HEAD"],
+                    cwd=str(base), capture_output=True, timeout=5,
+                )
+            except Exception as ef:
+                logger.warning(f"[CodeStudio/git-log] Fetch com token falhou: {ef}")
+                # Fallback: fetch sem token
+                subprocess.run(
+                    ["git", "fetch", "origin", "--quiet"],
+                    cwd=str(base), capture_output=True, timeout=30, env=env_fetch,
+                )
+        else:
+            subprocess.run(
+                ["git", "fetch", "origin", "--quiet"],
+                cwd=str(base), capture_output=True, timeout=30, env=env_fetch,
+            )
 
         # Commits pendentes: local mas nao no remote
-        # Usar separador que nao aparece em mensagens de commit
         SEP = "§§§"
         log_r = subprocess.run(
             ["git", "log", f"origin/{branch_remoto}..HEAD",
