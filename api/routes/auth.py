@@ -183,7 +183,10 @@ def registrar(req: RegistroRequest, db: Session = Depends(get_db)):
     if not convite:
         raise HTTPException(status_code=404, detail="Convite não encontrado ou já utilizado.")
 
-    if convite.expira_em < datetime.now(timezone.utc):
+    expira = convite.expira_em
+    if expira and expira.tzinfo is None:
+        expira = expira.replace(tzinfo=timezone.utc)
+    if expira and expira < datetime.now(timezone.utc):
         raise HTTPException(status_code=410, detail="Convite expirado.")
 
     # Verificar se email já existe
