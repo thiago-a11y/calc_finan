@@ -1284,8 +1284,34 @@ def aprovar_gate(
         if proxima_fase > 4:
             wf.status = "concluido"
             wf.atualizado_em = datetime.utcnow()
+            squad_nome_local = wf.squad_nome
             db.commit()
-            logger.info(f"[AUTONOMO] Workflow {workflow_id} CONCLUIDO!")
+            logger.info(f"[AUTONOMO] Workflow {workflow_id} CONCLUIDO (via gate approval)!")
+
+            # Disparar review session (Self-Evolving Factory)
+            try:
+                threading.Thread(target=_executar_review_session, args=(workflow_id,), daemon=True).start()
+                logger.info(f"[EVOLUCAO] Review session iniciada para workflow {workflow_id}")
+            except Exception:
+                pass
+
+            # Avancar fila: iniciar proximo workflow aguardando
+            try:
+                proximo = db.query(WorkflowAutonomoDB).filter_by(
+                    status="aguardando_fila", squad_nome=squad_nome_local,
+                ).order_by(WorkflowAutonomoDB.criado_em.asc()).first()
+                if proximo:
+                    proximo.status = "em_execucao"
+                    db.commit()
+                    logger.info(f"[FILA] Iniciando proximo: {proximo.id} — {proximo.titulo}")
+                    threading.Thread(
+                        target=_executar_workflow_autonomo_bg,
+                        args=(proximo.id, proximo.squad_nome, proximo.titulo, proximo.descricao or "", 1, fabrica),
+                        daemon=True,
+                    ).start()
+            except Exception as fe:
+                logger.warning(f"[FILA] Erro ao avancar fila: {fe}")
+
             return {"mensagem": "Workflow concluido com sucesso!", "status": "concluido"}
 
         wf.fase_atual = proxima_fase
