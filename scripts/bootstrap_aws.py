@@ -163,17 +163,7 @@ def step2_usuarios():
             ],
             "pode_aprovar": True,
         },
-        {
-            "email": "jonatas@objetivasolucao.com.br",
-            "nome": "Jonatas",
-            "cargo": "Diretor Técnico e Operations Lead",
-            "papeis": ["diretor_tecnico", "operations_lead"],
-            "areas_aprovacao": [
-                "deploy_producao", "gasto_ia", "mudanca_arquitetura",
-                "campanha_marketing", "outreach_massa",
-            ],
-            "pode_aprovar": True,
-        },
+        # Jonatas removido do seed — sera convidado via sistema de convites
         {
             "email": "rhammon@objetivasolucao.com.br",
             "nome": "Rhammon Eller",

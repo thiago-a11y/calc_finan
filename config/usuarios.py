@@ -51,21 +51,7 @@ USUARIOS: dict[str, Usuario] = {
             "outreach_massa",
         ],
     ),
-    "jonatas": Usuario(
-        id="jonatas",
-        nome="Jonatas",
-        cargo="Diretor Técnico e Operations Lead",
-        papeis=[Papel.DIRETOR_TECNICO, Papel.OPERATIONS_LEAD],
-        email="jonatas@objetivasolucao.com.br",
-        pode_aprovar=True,
-        areas_aprovacao=[
-            "deploy_producao",
-            "gasto_ia",
-            "mudanca_arquitetura",
-            "campanha_marketing",
-            "outreach_massa",
-        ],
-    ),
+    # Jonatas removido — sera convidado via sistema de convites
 }
 
 
