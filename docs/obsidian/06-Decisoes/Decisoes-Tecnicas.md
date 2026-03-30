@@ -186,4 +186,22 @@ O Code Studio tem espaço horizontal limitado: editor + painel lateral. Abrir Ag
 
 ---
 
+## Por que Company Context usa 3 níveis (minimal/standard/full)?
+
+Nem toda interação precisa do mesmo volume de contexto. O nível `minimal` envia apenas nome da empresa e projeto atual — ideal para respostas rápidas e simples. O `standard` adiciona detalhes profundos do projeto (membros, regras de aprovação, VCS, fase, líder técnico) — suficiente para a maioria das tarefas. O `full` inclui empresa + todos os projetos + busca RAG semântica (top 3 chunks do ChromaDB) — para decisões estratégicas e perguntas cross-projeto. Essa hierarquia balanceia latência vs profundidade: 90% das interações usam standard, economizando tokens e tempo.
+
+## Por que RAG integrado via ChromaDB existente (sem nova indexação)?
+
+O sistema RAG já indexa os vaults Obsidian no ChromaDB (implementado na v0.33.0+). O CompanyContextBuilder reutiliza essa base vetorial, filtrando por vault/projeto automaticamente. Criar uma indexação separada seria redundante e consumiria mais armazenamento. A busca semântica retorna os top 3 chunks mais relevantes, limitados ao budget de 4000 chars para não estourar o context window do LLM.
+
+## Por que contexto da empresa é estático (cacheable forever)?
+
+Dados da empresa (nome, CNPJ, domínio, produtos, hierarquia) mudam muito raramente — talvez uma vez por ano. Cachear esses dados indefinidamente elimina queries desnecessárias ao banco. Já a lista de projetos usa cache de 5 minutos, pois projetos podem ser criados/alterados com mais frequência. Essa separação de estratégias de cache garante dados frescos onde importa sem desperdiçar recursos.
+
+## Por que toggle no frontend para desativar contexto empresa?
+
+Alguns usuários preferem respostas mais rápidas e diretas, sem o overhead de contexto completo no system prompt. O toggle "Contexto Empresa" no AgentPanel permite desativar o envio de contexto empresarial, reduzindo tokens no prompt e acelerando a resposta. Ligado por padrão para máxima utilidade, mas desativável com um clique para quem quer velocidade.
+
+---
+
 > Última atualização: 2026-03-29

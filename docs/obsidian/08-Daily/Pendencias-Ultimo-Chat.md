@@ -1,8 +1,18 @@
 # Pendencias do Ultimo Chat — 29/Mar/2026
 
-> Atualizado em 29/Mar/2026 (sessao 18)
+> Atualizado em 29/Mar/2026 (sessao 19)
 
 ## Concluido nesta sessao
+
+### v0.39.0 — Company Context Total
+- [x] Novo modulo core/company_context.py com CompanyContextBuilder (3 niveis: minimal/standard/full)
+- [x] Nivel standard: detalhes profundos do projeto (membros, regras, VCS, fase, lider tecnico)
+- [x] Nivel full: empresa + todos projetos + busca RAG semantica (top 3 chunks do ChromaDB)
+- [x] Toggle "Contexto Empresa" no AgentPanel com switch ON/OFF (ligado por padrao)
+- [x] Badge visual "Contexto Total" nas respostas do assistente quando contexto ativo
+- [x] Cache inteligente: 5 minutos para lista de projetos, empresa estatico
+- [x] Integracao RAG: ChromaDB + Obsidian vaults, filtrando vault por projeto automaticamente
+- [x] Budget de tokens limitado a 4000 chars para nao exceder context window
 
 ### v0.38.0 — Historico de Atividades + Feedback Detalhado no Code Studio
 - [x] Novo endpoint GET /api/code-studio/historico com paginacao e filtro por projeto
@@ -149,6 +159,7 @@
 
 ## Status Atual
 - Tudo em producao (AWS)
+- Company Context Total: agente IA com conhecimento completo da empresa e projetos (v0.39.0)
 - Code Studio com historico de atividades, feedback detalhado e confirmacao inline (v0.38.0)
 - Code Studio multi-projeto com auto-clone VCS: clona repositorio automaticamente se diretorio nao existe (v0.37.1)
 - VCS integrado ao Code Studio com commit + push automatico (rotas e audit log corrigidos v0.36.1/v0.36.2)

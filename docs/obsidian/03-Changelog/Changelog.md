@@ -4,6 +4,19 @@
 
 ---
 
+## v0.39.0 — 2026-03-29
+### Company Context Total — Agente IA com Conhecimento Completo
+- **Novo módulo** core/company_context.py com CompanyContextBuilder (3 níveis: minimal/standard/full)
+- **Nível standard**: detalhes profundos do projeto (membros, regras, VCS, fase, líder técnico)
+- **Nível full**: empresa + todos projetos + busca RAG semântica (top 3 chunks do ChromaDB)
+- **Toggle** "Contexto Empresa" no AgentPanel com switch ON/OFF (ligado por padrão)
+- **Badge visual** "Contexto Total" nas respostas do assistente quando contexto ativo
+- **Cache inteligente**: 5 minutos para lista de projetos, empresa estático
+- **Integração RAG**: ChromaDB + Obsidian vaults, filtrando vault por projeto automaticamente
+- Budget de tokens limitado a 4000 chars para não exceder context window
+
+---
+
 ## v0.38.0 — Histórico de Atividades + Feedback Detalhado no Code Studio (2026-03-29)
 
 ### Funcionalidades
