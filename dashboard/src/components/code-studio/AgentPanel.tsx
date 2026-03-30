@@ -98,7 +98,31 @@ export default function AgentPanel({
   const [toast, setToast] = useState<ToastDetalhado | null>(null)
   const [copiado, setCopiado] = useState<number | null>(null)
   const [confirmacao, setConfirmacao] = useState<{ idx: number; msg: Mensagem } | null>(null)
+  const [progressoIdx, setProgressoIdx] = useState(0) // indice da mensagem rotativa
   const chatRef = useRef<HTMLDivElement>(null)
+
+  // Mensagens de progresso rotativas (Live Agent feel)
+  const PROGRESSO_MSGS = [
+    { icon: '📖', texto: 'Lendo o codigo...' },
+    { icon: '🔍', texto: 'Analisando estrutura...' },
+    { icon: '🧠', texto: 'Pensando em melhorias...' },
+    { icon: '✨', texto: 'Gerando sugestoes...' },
+    { icon: '🎯', texto: 'Quase la!' },
+  ]
+  const PROGRESSO_TIME = [
+    { icon: '🤝', texto: 'Reunindo o time...' },
+    { icon: '📋', texto: 'Distribuindo a analise...' },
+    { icon: '💬', texto: 'Agentes discutindo...' },
+    { icon: '🧩', texto: 'Sintetizando pareceres...' },
+    { icon: '🎯', texto: 'Consolidando resultado...' },
+  ]
+
+  // Rotacionar mensagens de progresso a cada 3s
+  useEffect(() => {
+    if (!analisando && !chamandoTime) { setProgressoIdx(0); return }
+    const t = setInterval(() => setProgressoIdx(p => (p + 1) % 5), 3000)
+    return () => clearInterval(t)
+  }, [analisando, chamandoTime])
 
   useEffect(() => {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' })
@@ -605,18 +629,33 @@ export default function AgentPanel({
           </div>
         ))}
 
+        {/* Live Agent — Progresso rotativo */}
         {analisando && (
-          <div className="flex items-center gap-2 text-[11px]" style={{ color: '#8b5cf6' }}>
-            <Loader2 size={12} className="animate-spin" />
-            Analisando código...
+          <div className="flex items-center gap-2 text-[11px] px-3 py-2.5 mx-1 rounded-lg"
+            style={{ background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.1)', color: '#a78bfa' }}>
+            <span className="text-sm" style={{ transition: 'all 0.3s ease' }}>{PROGRESSO_MSGS[progressoIdx].icon}</span>
+            <span className="font-medium" style={{ transition: 'all 0.3s ease' }}>{PROGRESSO_MSGS[progressoIdx].texto}</span>
+            <div className="ml-auto flex gap-0.5">
+              {PROGRESSO_MSGS.map((_, pi) => (
+                <div key={pi} className="w-1.5 h-1.5 rounded-full transition-all duration-300"
+                  style={{ background: pi <= progressoIdx ? '#a78bfa' : 'rgba(139,92,246,0.2)' }} />
+              ))}
+            </div>
           </div>
         )}
 
         {chamandoTime && (
-          <div className="flex items-center gap-2 text-[11px] px-3 py-2" style={{ color: '#8b5cf6' }}>
-            <Loader2 size={12} className="animate-spin" />
+          <div className="flex items-center gap-2 text-[11px] px-3 py-2.5 mx-1 rounded-lg"
+            style={{ background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.1)', color: '#a78bfa' }}>
+            <span className="text-sm" style={{ transition: 'all 0.3s ease' }}>{PROGRESSO_TIME[progressoIdx].icon}</span>
             <Users size={12} />
-            Analisando com time de especialistas...
+            <span className="font-medium" style={{ transition: 'all 0.3s ease' }}>{PROGRESSO_TIME[progressoIdx].texto}</span>
+            <div className="ml-auto flex gap-0.5">
+              {PROGRESSO_TIME.map((_, pi) => (
+                <div key={pi} className="w-1.5 h-1.5 rounded-full transition-all duration-300"
+                  style={{ background: pi <= progressoIdx ? '#a78bfa' : 'rgba(139,92,246,0.2)' }} />
+              ))}
+            </div>
           </div>
         )}
       </div>

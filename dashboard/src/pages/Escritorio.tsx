@@ -774,6 +774,15 @@ export default function Escritorio() {
     return 'livre'
   }, [meuSquad, emReuniao, visitando, tarefas])
 
+  // Live Agent: obter texto do que o agente esta fazendo agora
+  const getAgenteAtual = useCallback((i: number): string => {
+    if (!meuSquad) return ''
+    const tarefa = tarefas.find(t => t.squad_nome === meuSquad.nome && t.agente_indice === i && t.status === 'executando')
+    if (tarefa?.agente_atual) return tarefa.agente_atual
+    if (tarefa) return 'Processando...'
+    return ''
+  }, [meuSquad, tarefas])
+
   const getPos = useCallback((i: number) => {
     if (emReuniao) {
       const chair = MEET_CHAIRS[i % MEET_CHAIRS.length]
@@ -1257,6 +1266,27 @@ export default function Escritorio() {
                           {statusLabel(st)}
                         </span>
                       </div>
+
+                      {/* Live Agent: Balão de status flutuante */}
+                      {st === 'trabalhando' && !isV && !emReuniao && (() => {
+                        const textoAtual = getAgenteAtual(i)
+                        if (!textoAtual) return null
+                        return (
+                          <div className="mt-1.5 px-2.5 py-1 rounded-lg text-[8px] font-medium animate-pulse"
+                            style={{
+                              background: 'rgba(59,130,246,0.12)',
+                              border: '1px solid rgba(59,130,246,0.2)',
+                              color: '#60a5fa',
+                              maxWidth: 160,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}>
+                            <span style={{ marginRight: 4 }}>⚡</span>
+                            {textoAtual.length > 35 ? textoAtual.slice(0, 35) + '...' : textoAtual}
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
 

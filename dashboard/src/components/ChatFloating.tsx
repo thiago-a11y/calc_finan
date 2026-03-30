@@ -180,7 +180,10 @@ export default function ChatFloating({
           <p className="text-[10px] sf-text-dim">{squadNome}</p>
         </div>
         {historico.some(t => t.status === 'executando') && (
-          <Loader2 size={12} className="text-blue-400 animate-spin" />
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full" style={{ background: 'rgba(59,130,246,0.15)' }}>
+            <Loader2 size={10} className="text-blue-400 animate-spin" />
+            <span className="text-[9px] font-semibold text-blue-400">Trabalhando</span>
+          </div>
         )}
         <div className="flex items-center gap-1">
           <button onClick={() => setExpandido(!expandido)} className="w-6 h-6 rounded flex items-center justify-center sf-text-dim hover:sf-text-white transition-colors" style={{ background: 'var(--sf-bg-hover)' }} title={expandido ? 'Diminuir' : 'Expandir'}>
@@ -218,13 +221,29 @@ export default function ChatFloating({
                   <p className={`${expandido ? 'text-sm' : 'text-xs'} sf-text-white whitespace-pre-wrap`}>{tarefa.resultado}</p>
                 )}
                 {tarefa.status === 'executando' && (
-                  <div className="flex items-center gap-2">
-                    <Loader2 size={12} className="text-blue-400 animate-spin" />
-                    <p className="text-xs text-blue-400">Processando...</p>
+                  <div className="space-y-1.5">
+                    {/* Barra de progresso animada */}
+                    <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: 'rgba(59,130,246,0.15)' }}>
+                      <div className="h-full rounded-full animate-pulse" style={{
+                        background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #3b82f6)',
+                        backgroundSize: '200% 100%',
+                        animation: 'shimmer 2s ease-in-out infinite',
+                        width: '60%',
+                      }} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Loader2 size={12} className="text-blue-400 animate-spin" />
+                      <p className="text-xs text-blue-400 font-medium">
+                        {tarefa.agente_atual || 'Processando...'}
+                      </p>
+                    </div>
                   </div>
                 )}
                 {tarefa.status === 'pendente' && (
-                  <p className="text-xs text-amber-400">Aguardando...</p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    <p className="text-xs text-amber-400">Na fila...</p>
+                  </div>
                 )}
                 {tarefa.status === 'erro' && (
                   <div>
