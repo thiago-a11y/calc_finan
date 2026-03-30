@@ -1,9 +1,10 @@
 /* AgentPanel — Painel lateral com chat do agente IA + ações automáticas */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Bot, Send, Sparkles, BookOpen, RefreshCw, FileCode, Loader2, X, TestTube2, Play, Copy, Check, AlertTriangle, Building2 } from 'lucide-react'
+import { Bot, Send, Sparkles, BookOpen, RefreshCw, FileCode, Loader2, X, TestTube2, Play, Copy, Check, AlertTriangle, Building2, Users } from 'lucide-react'
 import MarkdownRenderer from '../luna/MarkdownRenderer'
-import { analisarCodigo, aplicarAcao, type DiffResumo, type VCSResultado } from '../../services/codeStudio'
+import { analisarCodigo, aplicarAcao, analisarCodigoComTime, type DiffResumo, type VCSResultado } from '../../services/codeStudio'
+import TeamDialog from './TeamDialog'
 
 interface Mensagem {
   papel: 'user' | 'assistant'
@@ -89,6 +90,8 @@ export default function AgentPanel({
   const [input, setInput] = useState('')
   const [analisando, setAnalisando] = useState(false)
   const [contextoEmpresa, setContextoEmpresa] = useState(true)  // Company Context Total ON por padrao
+  const [mostrarTeamDialog, setMostrarTeamDialog] = useState(false)
+  const [chamandoTime, setChamandoTime] = useState(false)
   const [aplicando, setAplicando] = useState<number | null>(null)  // indice da mensagem sendo aplicada
   const [toast, setToast] = useState<ToastDetalhado | null>(null)
   const [copiado, setCopiado] = useState<number | null>(null)
@@ -143,6 +146,52 @@ export default function AgentPanel({
       setAnalisando(false)
     }
   }
+
+  // Chamar Time — analise multi-agente
+  const chamarTime = useCallback(async (agentesIds: number[]) => {
+    if (!caminhoAtivo || !conteudoAtivo || chamandoTime) return
+    setMostrarTeamDialog(false)
+    setChamandoTime(true)
+
+    setMensagens(prev => [...prev, {
+      papel: 'user',
+      conteudo: `🤝 Chamando time de ${agentesIds.length} especialistas para analise colaborativa...`,
+    }])
+
+    try {
+      const contextLevel = contextoEmpresa ? 'full' : 'minimal'
+      const resultado = await analisarCodigoComTime(
+        caminhoAtivo, conteudoAtivo,
+        'Analise este codigo sob sua perspectiva especializada. Identifique problemas, sugira melhorias e mostre codigo otimizado se aplicavel.',
+        projetoId, contextLevel, agentesIds,
+      )
+
+      // Formatar respostas como markdown
+      let md = `## 🤝 Analise Colaborativa (${resultado.total_agentes} especialistas)\n\n`
+      for (const r of resultado.respostas_agentes) {
+        const icone = r.sucesso ? '✅' : '❌'
+        md += `### ${icone} ${r.agente}\n*${r.perfil} · ${r.categoria}*\n\n${r.resposta}\n\n---\n\n`
+      }
+      if (resultado.sintese) {
+        md += `## ✨ Parecer Sintetizado\n\n${resultado.sintese}`
+      }
+
+      setMensagens(prev => [...prev, {
+        papel: 'assistant',
+        conteudo: md,
+        provider: `Time de ${resultado.total_agentes} agentes · Sonnet`,
+        tipoAcao: 'refatorar',  // permite "Aplicar" se tiver codigo
+        contextLevel: 'full',
+      }])
+    } catch (e) {
+      setMensagens(prev => [...prev, {
+        papel: 'assistant',
+        conteudo: `❌ Erro ao chamar time: ${e instanceof Error ? e.message : 'Erro desconhecido'}`,
+      }])
+    } finally {
+      setChamandoTime(false)
+    }
+  }, [caminhoAtivo, conteudoAtivo, chamandoTime, projetoId, contextoEmpresa])
 
   const copiarCodigo = useCallback((idx: number, codigo: string) => {
     navigator.clipboard.writeText(codigo)
@@ -275,7 +324,7 @@ export default function AgentPanel({
               <button
                 key={acao.label}
                 onClick={() => enviar(acao.instrucao, acao.tipo)}
-                disabled={analisando}
+                disabled={analisando || chamandoTime}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all hover:brightness-125 disabled:opacity-40"
                 style={{ background: 'rgba(139,92,246,0.1)', color: '#a78bfa' }}
               >
@@ -284,6 +333,17 @@ export default function AgentPanel({
               </button>
             )
           })}
+          {/* Botao Chamar Time */}
+          <button
+            onClick={() => setMostrarTeamDialog(true)}
+            disabled={analisando || chamandoTime}
+            className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold transition-all hover:brightness-125 disabled:opacity-40"
+            style={{ background: 'rgba(139,92,246,0.2)', color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.3)' }}
+            title="Chamar multiplos agentes para analise colaborativa"
+          >
+            <Users size={10} />
+            Chamar Time
+          </button>
         </div>
       )}
 
@@ -450,7 +510,23 @@ export default function AgentPanel({
             Analisando código...
           </div>
         )}
+
+        {chamandoTime && (
+          <div className="flex items-center gap-2 text-[11px] px-3 py-2" style={{ color: '#8b5cf6' }}>
+            <Loader2 size={12} className="animate-spin" />
+            <Users size={12} />
+            Analisando com time de especialistas...
+          </div>
+        )}
       </div>
+
+      {/* TeamDialog modal */}
+      {mostrarTeamDialog && (
+        <TeamDialog
+          onIniciar={chamarTime}
+          onFechar={() => setMostrarTeamDialog(false)}
+        />
+      )}
 
       {/* Aviso de segurança */}
       {mensagens.some(m => m.tipoAcao && m.tipoAcao !== 'geral') && (

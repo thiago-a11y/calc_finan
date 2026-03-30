@@ -299,6 +299,62 @@ export interface GitMergeResponse {
   merge_sha: string
 }
 
+// ============================================================
+// Collaborative Agent Mode — Analise Multi-Agente
+// ============================================================
+
+export interface RespostaAgente {
+  agente: string
+  perfil: string
+  categoria: string
+  resposta: string
+  sucesso: boolean
+}
+
+export interface AnalisarTimeResponse {
+  respostas_agentes: RespostaAgente[]
+  sintese: string
+  total_agentes: number
+}
+
+export async function analisarCodigoComTime(
+  caminho: string,
+  conteudo: string,
+  instrucao: string,
+  projetoId = 0,
+  contextLevel = 'full',
+  agentesIds: number[] = [],
+): Promise<AnalisarTimeResponse> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 180000) // 3min
+
+  try {
+    const res = await fetch(`${API}/api/code-studio/analizar-time`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({
+        caminho, conteudo, instrucao,
+        project_id: projetoId,
+        context_level: contextLevel,
+        agentes_ids: agentesIds,
+      }),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Erro na analise do time' }))
+      throw new Error(err.detail || 'Erro na analise do time')
+    }
+    return res.json()
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error('Timeout: analise do time demorou mais de 3 minutos.')
+    }
+    throw e
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export async function gitMerge(projetoId = 0, prNumber: number): Promise<GitMergeResponse> {
   const res = await fetch(`${API}/api/code-studio/git-merge`, {
     method: 'POST',

@@ -16,6 +16,7 @@ Seguranca:
 - Multi-projeto: cada projeto tem seu caminho base isolado
 """
 
+import asyncio
 import difflib
 import logging
 import os
@@ -31,7 +32,7 @@ from sqlalchemy.orm import Session
 
 from api.dependencias import obter_usuario_atual
 from database.session import get_db
-from database.models import UsuarioDB, AuditLogDB, ProjetoDB, ProjetoVCSDB
+from database.models import UsuarioDB, AuditLogDB, ProjetoDB, ProjetoVCSDB, AgenteCatalogoDB
 
 logger = logging.getLogger("synerium.code_studio")
 
@@ -1169,3 +1170,218 @@ async def git_merge_pr(
     except Exception as e:
         logger.error(f"[CodeStudio/Merge] Erro: {e}")
         raise HTTPException(status_code=500, detail=f"Erro no merge: {str(e)[:200]}")
+
+
+# ============================================================
+# Collaborative Agent Mode — Analise Multi-Agente
+# ============================================================
+
+MAX_AGENTES_TIME = 3  # Limite de agentes por colaboracao
+
+
+class AnalisarTimeRequest(BaseModel):
+    caminho: str
+    conteudo: str
+    instrucao: str
+    project_id: int = 0
+    context_level: str = "full"
+    agentes_ids: list[int] = []  # IDs do AgenteCatalogoDB
+
+
+async def _analisar_como_agente(
+    system: str,
+    prompt: str,
+    agente_nome: str,
+) -> dict:
+    """Chama o LLM uma vez como um agente especifico."""
+    try:
+        from langchain_anthropic import ChatAnthropic
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        llm = ChatAnthropic(
+            model="claude-sonnet-4-20250514",
+            max_tokens=3000,
+            temperature=0.3,
+        )
+        mensagens = [SystemMessage(content=system), HumanMessage(content=prompt)]
+        resposta = await llm.ainvoke(mensagens)
+
+        return {
+            "agente": agente_nome,
+            "resposta": resposta.content,
+            "sucesso": True,
+        }
+    except Exception as e:
+        logger.warning(f"[Team] Agente {agente_nome} falhou: {e}")
+        return {
+            "agente": agente_nome,
+            "resposta": f"Erro: {str(e)[:200]}",
+            "sucesso": False,
+        }
+
+
+async def _sintetizar_analises(
+    respostas: list[dict],
+    instrucao: str,
+    caminho: str,
+    contexto_rico: str,
+) -> str:
+    """Sintetiza as analises de multiplos agentes em um parecer final."""
+    from langchain_anthropic import ChatAnthropic
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    # Compilar respostas
+    compilado = ""
+    for r in respostas:
+        if r.get("sucesso"):
+            compilado += f"\n## {r['agente']}\n{r['resposta']}\n"
+
+    system = f"""Voce e o Sintetizador de Analises do Synerium Factory.
+Compile as perspectivas dos agentes especializados em um parecer executivo.
+
+{contexto_rico}
+
+Estruture assim:
+1. **Recomendacao Principal** — o que fazer (1-2 frases)
+2. **Consenso** — pontos em que todos concordam
+3. **Pontos de Atencao** — riscos ou divergencias
+4. **Codigo Sugerido** — se aplicavel, mostre o codigo final dentro de um bloco ```
+
+Responda em portugues brasileiro. Seja direto e pratico."""
+
+    prompt = f"""Arquivo: {caminho}
+Instrucao original: {instrucao}
+
+=== ANALISES DO TIME ===
+{compilado}
+
+Gere o parecer sintetizado."""
+
+    llm = ChatAnthropic(
+        model="claude-sonnet-4-20250514",
+        max_tokens=3000,
+        temperature=0.3,
+    )
+    mensagens = [SystemMessage(content=system), HumanMessage(content=prompt)]
+    resposta = await llm.ainvoke(mensagens)
+    return resposta.content
+
+
+@router.post("/analizar-time")
+async def analisar_codigo_com_time(
+    dados: AnalisarTimeRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Analisa codigo com multiplos agentes em paralelo + sintese final."""
+
+    if not dados.agentes_ids:
+        raise HTTPException(status_code=400, detail="Selecione pelo menos 1 agente.")
+
+    if len(dados.agentes_ids) > MAX_AGENTES_TIME:
+        raise HTTPException(status_code=400, detail=f"Maximo {MAX_AGENTES_TIME} agentes por colaboracao.")
+
+    # Buscar agentes do catalogo
+    agentes = []
+    for aid in dados.agentes_ids:
+        ag = db.query(AgenteCatalogoDB).filter_by(id=aid, ativo=True).first()
+        if ag:
+            agentes.append(ag)
+
+    if not agentes:
+        raise HTTPException(status_code=400, detail="Nenhum agente valido encontrado.")
+
+    # Company Context
+    _, proj_id, projeto = _obter_base_projeto(dados.project_id, db, usuario)
+    contexto_rico = ""
+    if dados.context_level != "minimal":
+        try:
+            from core.company_context import CompanyContextBuilder
+            builder = CompanyContextBuilder(db=db)
+            contexto_rico = builder.construir(
+                instrucao=dados.instrucao,
+                conteudo_arquivo=dados.conteudo,
+                projeto=projeto,
+                nivel=dados.context_level,
+            )
+        except Exception:
+            pass
+
+    # Prompt compartilhado (igual para todos os agentes)
+    proj_ctx = f"\nProjeto: {projeto.nome} ({projeto.stack})\n" if projeto else ""
+    prompt_usuario = f"""Analise o seguinte codigo do arquivo `{dados.caminho}`:
+{proj_ctx}
+```
+{dados.conteudo[:6000]}
+```
+
+Instrucao do usuario: {dados.instrucao}
+
+Responda em portugues brasileiro. Seja direto, profissional e completo.
+Quando sugerir codigo, mostre o codigo COMPLETO dentro de um bloco ```.  """
+
+    # Criar tasks paralelas
+    tasks = []
+    for ag in agentes:
+        system_agente = f"""Voce e {ag.nome_exibicao} no Synerium Factory — Code Studio.
+Papel: {ag.papel}
+Objetivo: {ag.objetivo}
+
+{contexto_rico}
+
+Regras:
+- Responda SEMPRE em portugues brasileiro
+- Use Markdown estruturado
+- Analise sob a perspectiva do seu papel especifico
+- Seja pratico e objetivo
+{ag.regras_extras or ''}"""
+
+        tasks.append(_analisar_como_agente(system_agente, prompt_usuario, ag.nome_exibicao))
+
+    # Executar em paralelo
+    logger.info(f"[Team] {usuario.email} iniciou colaboracao com {len(agentes)} agentes")
+    respostas = await asyncio.gather(*tasks, return_exceptions=False)
+
+    # Sintese final
+    sintese = ""
+    try:
+        respostas_sucesso = [r for r in respostas if r.get("sucesso")]
+        if len(respostas_sucesso) >= 2:
+            sintese = await _sintetizar_analises(
+                respostas_sucesso, dados.instrucao, dados.caminho, contexto_rico
+            )
+    except Exception as e:
+        logger.warning(f"[Team] Sintese falhou: {e}")
+        sintese = ""
+
+    # Audit log
+    try:
+        nomes = ", ".join(ag.nome_exibicao for ag in agentes)
+        db.add(AuditLogDB(
+            user_id=usuario.id, email=usuario.email,
+            acao="code_studio_team",
+            descricao=f"[{projeto.nome if projeto else 'SF'}] Colaboracao: {nomes} em {dados.caminho}",
+            ip="api",
+        ))
+        db.commit()
+    except Exception:
+        pass
+
+    # Formatar resposta
+    respostas_formatadas = []
+    for i, r in enumerate(respostas):
+        respostas_formatadas.append({
+            "agente": r.get("agente", agentes[i].nome_exibicao if i < len(agentes) else "?"),
+            "perfil": agentes[i].perfil_agente if i < len(agentes) else "",
+            "categoria": agentes[i].categoria if i < len(agentes) else "",
+            "resposta": r.get("resposta", "Sem resposta"),
+            "sucesso": r.get("sucesso", False),
+        })
+
+    logger.info(f"[Team] Colaboracao concluida: {len(respostas_formatadas)} respostas + sintese")
+
+    return {
+        "respostas_agentes": respostas_formatadas,
+        "sintese": sintese,
+        "total_agentes": len(agentes),
+    }
