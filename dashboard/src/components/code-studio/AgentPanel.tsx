@@ -86,8 +86,28 @@ export default function AgentPanel({
   caminhoAtivo, conteudoAtivo, linguagem, onFechar, agenteNome,
   projetoId = 0, projetoNome, projetoStack, onArquivoAtualizado,
 }: AgentPanelProps) {
-  const [mensagens, setMensagens] = useState<Mensagem[]>([])
+  // Persistir mensagens no localStorage por projeto
+  const STORAGE_KEY = `sf_agent_chat_${projetoId}`
+  const [mensagens, setMensagens] = useState<Mensagem[]>(() => {
+    try {
+      const salvo = localStorage.getItem(STORAGE_KEY)
+      return salvo ? JSON.parse(salvo) : []
+    } catch { return [] }
+  })
   const [input, setInput] = useState('')
+
+  // Salvar mensagens no localStorage sempre que mudar
+  useEffect(() => {
+    try {
+      if (mensagens.length > 0) {
+        // Manter apenas as ultimas 50 mensagens para nao estourar localStorage
+        const limitado = mensagens.slice(-50)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(limitado))
+      } else {
+        localStorage.removeItem(STORAGE_KEY)
+      }
+    } catch { /* silencioso */ }
+  }, [mensagens, STORAGE_KEY])
   const [analisando, setAnalisando] = useState(false)
   const [contextoEmpresa, setContextoEmpresa] = useState(true)  // Company Context Total ON por padrao
   const [mostrarTeamDialog, setMostrarTeamDialog] = useState(false)
