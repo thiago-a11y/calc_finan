@@ -566,3 +566,42 @@ class WorkflowAutonomoDB(Base):
 
     def __repr__(self):
         return f"<Workflow {self.id}: {self.titulo} [Fase {self.fase_atual} - {self.status}]>"
+
+
+class EvolucaoFactoryDB(Base):
+    """
+    Registro de auto-evolucoes da fabrica.
+
+    Cada registro representa uma review session pos-workflow
+    com sugestoes de melhoria e status de aplicacao.
+    """
+    __tablename__ = "evolucoes_factory"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    workflow_id = Column(String(20), nullable=True)
+    workflow_titulo = Column(String(255), nullable=True)
+
+    # Metricas da execucao
+    tempo_total_seg = Column(Integer, default=0)
+    custo_total_usd = Column(Float, default=0.0)
+    total_fases = Column(Integer, default=4)
+    total_agentes = Column(Integer, default=0)
+    erros_encontrados = Column(Integer, default=0)
+
+    # Review
+    analise = Column(Text, nullable=True)
+    sugestoes = Column(JSON, default=list)
+    metricas = Column(JSON, default=dict)
+
+    # Status: pendente, analisando, aguardando_aprovacao, aplicado, rejeitado
+    status = Column(String(50), default="pendente")
+    aplicado_por = Column(String(100), nullable=True)
+    aplicado_em = Column(DateTime, nullable=True)
+
+    # Metadata
+    usuario_id = Column(Integer, nullable=True)
+    company_id = Column(Integer, default=1)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Evolucao {self.id}: workflow={self.workflow_id} [{self.status}]>"

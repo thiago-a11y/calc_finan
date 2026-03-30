@@ -43,6 +43,14 @@ async def lifespan(app: FastAPI):
     try:
         inicializar_banco()
         inicializar_fabrica()
+
+        # Recovery: detectar e resetar workflows travados
+        try:
+            from api.routes.tarefas import recuperar_workflows_travados
+            recuperar_workflows_travados()
+        except Exception as re:
+            logger.warning(f"[API] Recovery de workflows falhou: {re}")
+
         logger.info("[API] API pronta para receber requisições.")
     except Exception as e:
         logger.error(f"[API] Erro ao inicializar: {e}")

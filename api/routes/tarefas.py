@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from api.dependencias import obter_fabrica, obter_usuario_atual
 from database.session import get_db, SessionLocal
-from database.models import UsuarioDB, TarefaDB, AgenteCatalogoDB, WorkflowAutonomoDB
+from database.models import UsuarioDB, TarefaDB, AgenteCatalogoDB, WorkflowAutonomoDB, EvolucaoFactoryDB
 
 logger = logging.getLogger("synerium.tarefas")
 
@@ -1240,6 +1240,10 @@ def listar_autonomos(
     ]
 
 
+# Lock global para gate approval (evita race condition)
+_gate_lock = threading.Lock()
+
+
 @router.post("/autonomo/{workflow_id}/aprovar-gate")
 def aprovar_gate(
     workflow_id: str,
@@ -1248,12 +1252,20 @@ def aprovar_gate(
     usuario: UsuarioDB = Depends(obter_usuario_atual),
     db: Session = Depends(get_db),
 ):
-    """Aprova, rejeita ou ajusta um gate do workflow."""
-    wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
-    if not wf:
-        raise HTTPException(status_code=404, detail="Workflow nao encontrado.")
-    if wf.status != "aguardando_gate":
-        raise HTTPException(status_code=400, detail=f"Workflow nao esta aguardando gate (status: {wf.status})")
+    """Aprova, rejeita ou ajusta um gate do workflow. Apenas CEO/Operations Lead."""
+    # Verificar permissao — so CEO ou Operations Lead podem aprovar gates
+    papeis = usuario.papeis or []
+    if not any(p in papeis for p in ["ceo", "operations_lead"]):
+        raise HTTPException(status_code=403, detail="Apenas CEO ou Operations Lead podem aprovar gates.")
+
+    with _gate_lock:
+        # Refresh para evitar stale read
+        db.expire_all()
+        wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+        if not wf:
+            raise HTTPException(status_code=404, detail="Workflow nao encontrado.")
+        if wf.status != "aguardando_gate":
+            raise HTTPException(status_code=400, detail=f"Workflow nao esta aguardando gate (status: {wf.status})")
 
     fase = wf.fase_atual
     gates = wf.gates or {}
@@ -1491,6 +1503,17 @@ def _executar_workflow_autonomo_bg(
             db.commit()
             logger.info(f"[AUTONOMO] Workflow {workflow_id} CONCLUIDO!")
 
+            # Auto-review: Factory Optimizer analisa a execucao
+            try:
+                threading.Thread(
+                    target=_executar_review_session,
+                    args=(workflow_id,),
+                    daemon=True,
+                ).start()
+                logger.info(f"[EVOLUCAO] Review session iniciada para workflow {workflow_id}")
+            except Exception as re:
+                logger.warning(f"[EVOLUCAO] Falha ao iniciar review: {re}")
+
     except Exception as e:
         wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
         if wf:
@@ -1588,6 +1611,21 @@ def command_center(
         "tarefas_ativas": tarefas_ativas,
         "custo_hoje_usd": round(float(custo_hoje), 4),
         "custo_total_usd": round(float(custo_total), 4),
+
+        # Evolucoes recentes
+        "evolucoes": [
+            {
+                "id": e.id,
+                "workflow_titulo": e.workflow_titulo,
+                "analise": (e.analise or "")[:200],
+                "sugestoes_count": len(e.sugestoes or []),
+                "status": e.status,
+                "criado_em": e.criado_em.isoformat() if e.criado_em else "",
+            }
+            for e in db.query(EvolucaoFactoryDB).order_by(
+                EvolucaoFactoryDB.criado_em.desc()
+            ).limit(5).all()
+        ],
     }
 
 
@@ -1689,3 +1727,245 @@ def comando_estrategico(
         "total": len(workflows_criados),
         "modo": "paralelo" if req.paralelo else "sequencial",
     }
+
+
+# =====================================================================
+# SELF-EVOLVING FACTORY — Review Session pos-workflow
+# =====================================================================
+
+def _executar_review_session(workflow_id: str):
+    """
+    Review automatica pos-workflow: Factory Optimizer analisa a execucao
+    e gera sugestoes de melhoria (PDCA + Kaizen).
+
+    Chamada automaticamente quando um workflow autonomo conclui.
+    Resultado salvo em EvolucaoFactoryDB para aprovacao do CEO.
+    """
+    db = SessionLocal()
+    try:
+        wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+        if not wf:
+            logger.warning(f"[EVOLUCAO] Workflow {workflow_id} nao encontrado para review")
+            return
+
+        logger.info(f"[EVOLUCAO] Iniciando review session para workflow {workflow_id}: {wf.titulo}")
+
+        # Calcular metricas
+        tempo_total = 0
+        if wf.criado_em and wf.atualizado_em:
+            tempo_total = int((wf.atualizado_em - wf.criado_em).total_seconds())
+
+        outputs = wf.outputs or {}
+        gates = wf.gates or {}
+        total_fases_executadas = len([k for k in outputs if k.startswith("fase_")])
+
+        # Criar registro de evolucao
+        evolucao = EvolucaoFactoryDB(
+            workflow_id=workflow_id,
+            workflow_titulo=wf.titulo,
+            tempo_total_seg=tempo_total,
+            total_fases=total_fases_executadas,
+            total_agentes=len(wf.agentes_ids or []),
+            status="analisando",
+            usuario_id=wf.usuario_id,
+            company_id=wf.company_id,
+            metricas={
+                "tempo_total_seg": tempo_total,
+                "fases_executadas": total_fases_executadas,
+                "gates": {k: v.get("status", "?") for k, v in gates.items()},
+            },
+        )
+        db.add(evolucao)
+        db.commit()
+        db.refresh(evolucao)
+
+        # Compilar contexto para o Factory Optimizer
+        resumo_outputs = ""
+        for fase_key in sorted(outputs.keys()):
+            if fase_key.startswith("fase_"):
+                conteudo = outputs[fase_key]
+                resumo_outputs += f"\n{fase_key}: {conteudo[:500]}...\n"
+
+        # Chamar LLM (Sonnet — economico) como Factory Optimizer
+        try:
+            from langchain_anthropic import ChatAnthropic
+            from langchain_core.messages import HumanMessage, SystemMessage
+            import json as json_mod
+
+            llm = ChatAnthropic(model="claude-sonnet-4-20250514", max_tokens=2000, temperature=0.3)
+
+            system = (
+                "Voce e o Factory Optimizer do Synerium Factory — nivel Distinguished Engineer. "
+                "Analise a execucao do workflow e gere sugestoes de melhoria concretas.\n\n"
+                "Retorne APENAS JSON no formato:\n"
+                '{"analise": "texto da analise (2-3 paragrafos)", '
+                '"sugestoes": [{"tipo": "PROMPT|CUSTO|FLUXO|QUALIDADE|SKILL", '
+                '"descricao": "...", "prioridade": "alta|media|baixa", '
+                '"auto_aplicavel": false}], '
+                '"nota_geral": 7.5, "erros_encontrados": 0}'
+            )
+
+            prompt = (
+                f"Workflow: {wf.titulo}\n"
+                f"Tempo total: {tempo_total}s ({tempo_total // 60}min)\n"
+                f"Fases executadas: {total_fases_executadas}/4\n"
+                f"Gates: {json_mod.dumps({k: v.get('status', '?') for k, v in gates.items()})}\n\n"
+                f"Outputs resumidos:\n{resumo_outputs[:2000]}\n\n"
+                f"Analise e sugira melhorias."
+            )
+
+            mensagens = [SystemMessage(content=system), HumanMessage(content=prompt)]
+            resposta = llm.invoke(mensagens)
+            texto = resposta.content
+
+            # Extrair JSON
+            import re as re_mod
+            json_match = re_mod.search(r'\{[\s\S]*\}', texto)
+            if json_match:
+                dados = json_mod.loads(json_match.group())
+                evolucao.analise = dados.get("analise", texto)
+                evolucao.sugestoes = dados.get("sugestoes", [])
+                evolucao.erros_encontrados = dados.get("erros_encontrados", 0)
+                evolucao.metricas["nota_geral"] = dados.get("nota_geral", 0)
+            else:
+                evolucao.analise = texto
+                evolucao.sugestoes = []
+
+        except Exception as llm_err:
+            logger.warning(f"[EVOLUCAO] LLM review falhou: {llm_err}")
+            evolucao.analise = f"Review automatica falhou: {str(llm_err)[:200]}"
+            evolucao.sugestoes = []
+
+        evolucao.status = "aguardando_aprovacao"
+        db.commit()
+        logger.info(f"[EVOLUCAO] Review concluida para workflow {workflow_id} — {len(evolucao.sugestoes or [])} sugestoes")
+
+    except Exception as e:
+        logger.error(f"[EVOLUCAO] Erro na review session: {e}")
+    finally:
+        db.close()
+
+
+# =====================================================================
+# Endpoints de Evolucao
+# =====================================================================
+
+@router.get("/evolucoes")
+def listar_evolucoes(
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Lista todas as evolucoes da fabrica."""
+    evolucoes = (
+        db.query(EvolucaoFactoryDB)
+        .order_by(EvolucaoFactoryDB.criado_em.desc())
+        .limit(20)
+        .all()
+    )
+    return [
+        {
+            "id": e.id,
+            "workflow_id": e.workflow_id,
+            "workflow_titulo": e.workflow_titulo,
+            "tempo_total_seg": e.tempo_total_seg,
+            "total_fases": e.total_fases,
+            "erros_encontrados": e.erros_encontrados,
+            "analise": e.analise,
+            "sugestoes": e.sugestoes or [],
+            "metricas": e.metricas or {},
+            "status": e.status,
+            "criado_em": e.criado_em.isoformat() if e.criado_em else "",
+        }
+        for e in evolucoes
+    ]
+
+
+@router.post("/evolucoes/{evolucao_id}/aprovar")
+def aprovar_evolucao(
+    evolucao_id: int,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """CEO aprova sugestoes de evolucao."""
+    papeis = usuario.papeis or []
+    if not any(p in papeis for p in ["ceo", "operations_lead"]):
+        raise HTTPException(status_code=403, detail="Apenas CEO ou Operations Lead podem aprovar evolucoes.")
+
+    evolucao = db.query(EvolucaoFactoryDB).filter_by(id=evolucao_id).first()
+    if not evolucao:
+        raise HTTPException(status_code=404, detail="Evolucao nao encontrada.")
+
+    evolucao.status = "aplicado"
+    evolucao.aplicado_por = usuario.nome
+    evolucao.aplicado_em = datetime.utcnow()
+    db.commit()
+
+    logger.info(f"[EVOLUCAO] Evolucao {evolucao_id} aprovada por {usuario.nome}")
+    return {"mensagem": "Evolucao aprovada e registrada.", "status": "aplicado"}
+
+
+@router.post("/evolucoes/{evolucao_id}/rejeitar")
+def rejeitar_evolucao(
+    evolucao_id: int,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """CEO rejeita sugestoes de evolucao."""
+    papeis = usuario.papeis or []
+    if not any(p in papeis for p in ["ceo", "operations_lead"]):
+        raise HTTPException(status_code=403, detail="Apenas CEO ou Operations Lead.")
+
+    evolucao = db.query(EvolucaoFactoryDB).filter_by(id=evolucao_id).first()
+    if not evolucao:
+        raise HTTPException(status_code=404, detail="Evolucao nao encontrada.")
+
+    evolucao.status = "rejeitado"
+    db.commit()
+    return {"mensagem": "Evolucao rejeitada.", "status": "rejeitado"}
+
+
+# =====================================================================
+# Recovery: Workflows travados (chamado no startup)
+# =====================================================================
+
+def recuperar_workflows_travados():
+    """
+    Detecta e marca como erro workflows que ficaram em 'em_execucao'
+    por mais de 30 minutos (servidor crashou, thread morreu, etc).
+    Deve ser chamado no startup do servidor.
+    """
+    from datetime import timezone, timedelta
+    db = SessionLocal()
+    try:
+        agora = datetime.now(timezone.utc)
+        limite = agora - timedelta(minutes=30)
+
+        travados = db.query(WorkflowAutonomoDB).filter(
+            WorkflowAutonomoDB.status.in_(["em_execucao", "montando_time"]),
+        ).all()
+
+        recuperados = 0
+        for wf in travados:
+            criado = wf.criado_em
+            atualizado = wf.atualizado_em or wf.criado_em
+            if atualizado and atualizado.tzinfo is None:
+                atualizado = atualizado.replace(tzinfo=timezone.utc)
+            if atualizado and atualizado < limite:
+                wf.status = "erro"
+                outputs = wf.outputs or {}
+                outputs["erro_recovery"] = f"Workflow travado detectado no startup ({atualizado.isoformat()}). Resetado automaticamente."
+                wf.outputs = outputs
+                wf.atualizado_em = datetime.utcnow()
+                recuperados += 1
+                logger.info(f"[RECOVERY] Workflow {wf.id} ({wf.titulo}) resetado — estava travado desde {atualizado}")
+
+        if recuperados:
+            db.commit()
+            logger.info(f"[RECOVERY] {recuperados} workflow(s) travado(s) recuperado(s)")
+        else:
+            logger.info("[RECOVERY] Nenhum workflow travado encontrado")
+
+    except Exception as e:
+        logger.error(f"[RECOVERY] Erro na recuperacao: {e}")
+    finally:
+        db.close()
