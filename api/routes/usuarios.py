@@ -409,12 +409,19 @@ def excluir_usuario_permanente(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
 
-    # Proteger outros proprietários (CEO/Operations Lead não podem se excluir mutuamente)
+    # Proteger CEO (nunca pode ser excluido por ninguem)
     papeis_alvo = usuario.papeis or []
-    if any(p in papeis_alvo for p in ["ceo", "operations_lead"]):
+    if "ceo" in papeis_alvo:
         raise HTTPException(
             status_code=403,
-            detail="Não é possível excluir outro proprietário do sistema."
+            detail="O CEO nao pode ser excluido do sistema."
+        )
+
+    # Apenas o CEO pode excluir outros proprietarios (operations_lead, etc.)
+    if any(p in papeis_alvo for p in ["operations_lead"]) and "ceo" not in papeis:
+        raise HTTPException(
+            status_code=403,
+            detail="Apenas o CEO pode excluir proprietarios do sistema."
         )
 
     # Salvar dados para log antes de apagar
