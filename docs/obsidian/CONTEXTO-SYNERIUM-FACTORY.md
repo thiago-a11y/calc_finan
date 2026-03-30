@@ -45,7 +45,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 CEO (Thiago)
 └── Operations Lead (Jonatas) — aprovação final, override total
     └── PM Agent Central (Alex) — orquestra todos os squads
-        ├── Catálogo de Agentes (12 templates reutilizáveis — "prateleira")
+        ├── Catálogo de Agentes (15 templates reutilizáveis — "prateleira")
         ├── Squad CEO — Thiago (9 agentes atribuídos do catálogo)
         ├── Squad Jonatas (3 agentes atribuídos do catálogo)
         ├── Squad Dev Backend, Dev Frontend, Marketing (squads de área)
@@ -93,7 +93,7 @@ CEO (Thiago)
 1. 🧠 **Claude Opus** (Anthropic) — Principal, tarefas complexas
 2. 🧠 **Claude Sonnet** (Anthropic) — Dia-a-dia, chat, execução
 3. 🤖 **GPT-4o** (OpenAI) — Fallback 1, visão e análise multimodal
-4. 💎 **Gemini 2.0 Flash** (Google) — Fallback 2, free tier 1.5M tokens/dia
+4. 💎 **Gemini 2.5 Flash** (Google) — Fallback 2, free tier 1.5M tokens/dia
 5. ⚡ **Llama via Groq** — Fallback 3, ultra-rápido
 6. 🔥 **Mixtral/Llama via Fireworks** — Fallback 4, custo baixo
 7. 🤝 **Llama/Mistral via Together.ai** — Fallback 5, última linha
@@ -402,6 +402,18 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.36.2** — **Fix AuditLogDB** — Corrigido campos inexistentes no endpoint VCS (`usuario_id`/`detalhes` → `user_id`/`descricao`)
 - **v0.36.3** — **JWT Auto-Refresh + Bloqueio de Binários** — Token 8h + auto-refresh transparente + bloqueio de 19 extensões binárias no Code Studio
 - **v0.37.0** — **Code Studio Multi-Projeto** — Code Studio project-aware com seletor de projeto no header, `project_id` em todos os endpoints, VCS auto-commit por projeto, contexto de projeto no agente IA, audit log com nome do projeto, persistência em localStorage
+- **v0.37.1** — **Auto-Clone VCS** — Code Studio clona automaticamente repositório quando diretório não existe + botão Pull + refresh de árvore
+- **v0.38.0** — **Histórico de Atividades + Feedback Detalhado** — Endpoint de histórico com paginação, diff no apply-action, HistoricoPanel, toast detalhado, confirmação inline
+- **v0.39.0** — **Company Context Total** — 3 níveis (minimal/standard/full), RAG integrado, toggle no frontend, cache inteligente, budget 4000 chars
+- **v0.40.0** — **Chat Resiliente** — Timeout 30min, retomar conversa, git pull com token VCS, GIT_TERMINAL_PROMPT=0
+- **v0.41.0** — **One-Click Apply+Deploy** — Pipeline: backup → aplicar → Test Master (bloqueante) → commit → push, rollback automático
+- **v0.42.0** — **Push & PR & Merge** — Push, PR e merge direto do Code Studio via GitHub API, seleção de commits
+- **v0.43.0** — **Live Agents** — Progresso rotativo no AgentPanel, balão status no Escritório, shimmer no ChatFloating
+- **v0.44.0** — **Painéis Redimensionáveis** — Drag handle entre painéis do Code Studio, persistência em localStorage
+- **v0.45.0** — **Conversas Separadas** — Sistema de conversas no AgentPanel, novo chat, histórico, scroll inteligente, persistência localStorage
+- **v0.46.0** — **3 Agentes Elite + BMAD** — Test Master, GitHub Master, GitBucket Master + 15 agentes mapeados no BMAD
+- **v0.47.0** — **Novo Projeto** — Botão Novo Projeto na página Projetos + modal de criação (CEO only)
+- **v0.48.0** — **Preview por Commit** — Preview de arquivos alterados por commit no PushDialog + horário Brasília
 
 ---
 
@@ -455,16 +467,18 @@ Acesso: `/deploy` no dashboard. Tudo automatizado — 1 clique do CEO.
 
 ---
 
-## Catálogo de Agentes (novo em v0.29.0)
+## Catálogo de Agentes (novo em v0.29.0, expandido v0.46.0)
 
 Sistema de "prateleira" de agentes reutilizáveis:
-- **12 templates** no catálogo (9 do squad CEO + 3 do squad Jonatas)
+- **15 templates** no catálogo (9 do squad CEO + 3 do squad Jonatas + 3 Agentes Elite)
 - Admin (CEO, Diretor, Operations Lead) atribui agentes do catálogo a qualquer usuário
 - Usuários podem solicitar agentes → aprovação pelo admin
 - Hot-reload: atribuir/remover agente recarrega o squad em memória sem restart
 - Tabelas: `AgenteCatalogoDB`, `AgenteAtribuidoDB`, `SolicitacaoAgenteDB`
 - Endpoints: `/api/catalogo`, `/api/atribuicoes`, `/api/solicitacoes-agente`
 - Dashboard: `/catalogo` (prateleira), `/atribuicoes` (gerenciar por usuário), aba "Agentes" em Aprovações
+- **3 Agentes Elite** (v0.46.0): Test Master (testes automatizados), GitHub Master (operações GitHub), GitBucket Master (operações GitBucket)
+- **BMAD mapeamento completo**: 15 agentes mapeados com fases, palavras-chave e especialidades
 
 ## Luna — Assistente IA Integrada (novo em v0.16.0)
 
@@ -492,6 +506,22 @@ Escritório premium com imersão cinematográfica:
 - Micro-animações CSS: breathing, typing, thinking com bolha
 - Elementos: relógio, quadros, bebedouro, máquina de café, luminárias que respondem ao dia/noite
 
+## Code Studio Avançado (v0.34.0 → v0.48.0)
+
+Editor de código completo integrado ao dashboard com funcionalidades avançadas:
+
+- **Editor CodeMirror 6** com syntax highlighting, abas, árvore de arquivos
+- **Multi-Projeto** (v0.37.0) — Seletor de projeto no header, cada projeto com sua árvore e VCS
+- **Auto-Clone VCS** (v0.37.1) — Clona repositório automaticamente quando diretório não existe
+- **Company Context Total** (v0.39.0) — 3 níveis de contexto (minimal/standard/full) com RAG integrado
+- **One-Click Apply+Deploy** (v0.41.0) — Pipeline: backup → aplicar → Test Master → commit → push
+- **Push & PR & Merge** (v0.42.0) — Operações Git completas via GitHub API direto do dashboard
+- **Live Agents** (v0.43.0) — Animações visuais de status dos agentes (rotativo, shimmer, balão)
+- **Painéis redimensionáveis** (v0.44.0) — Drag handle entre painéis com persistência
+- **Conversas separadas** (v0.45.0) — Múltiplas conversas no AgentPanel com scroll inteligente
+- **Preview por commit** (v0.48.0) — Arquivos alterados por commit no PushDialog com horário Brasília
+- **Rota:** `/code-studio` no dashboard
+
 ---
 
-> Ultima atualizacao: 2026-03-29
+> Ultima atualizacao: 2026-03-30

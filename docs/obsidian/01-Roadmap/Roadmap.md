@@ -126,6 +126,21 @@
 - [x] Syncthing removido (redundante com rsync do deploy)
 - [ ] Integrar histórico Luna ao RAG
 
+## Fase 2.95 — Code Studio Avançado (✅ concluída)
+
+- [x] Code Studio Multi-Projeto com auto-clone VCS (v0.37.0-v0.37.1)
+- [x] Histórico de atividades + feedback detalhado com diff (v0.38.0)
+- [x] Company Context Total — 3 níveis: minimal/standard/full + RAG integrado (v0.39.0)
+- [x] Chat resiliente com timeout 30min + retomar conversa (v0.40.0)
+- [x] One-Click Apply+Deploy — pipeline: backup → aplicar → Test Master → commit → push (v0.41.0)
+- [x] Push & PR & Merge direto do Code Studio via GitHub API (v0.42.0)
+- [x] Live Agents — progresso rotativo, balão status, shimmer (v0.43.0)
+- [x] Painéis redimensionáveis com drag handle (v0.44.0)
+- [x] Sistema de conversas separadas no AgentPanel com persistência localStorage (v0.45.0)
+- [x] 3 Agentes Elite: Test Master, GitHub Master, GitBucket Master (v0.46.0)
+- [x] Botão Novo Projeto + modal de criação (v0.47.0)
+- [x] Preview de arquivos por commit + horário Brasília no PushDialog (v0.48.0)
+
 ## Fase 3 — Multi-Produto e Governança (🟡 em andamento)
 
 - [x] Sistema de Projetos com proprietário, líder técnico e membros
@@ -174,4 +189,4 @@
 
 ---
 
-> Última atualização: 2026-03-27
+> Última atualização: 2026-03-30
