@@ -1,11 +1,12 @@
 /* Equipe — Liderança premium dark-mode (zero emojis, zero fundos claros) */
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { usePolling } from '../hooks/usePolling'
-import { buscarUsuarios } from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
+import { buscarUsuarios, excluirUsuarioPermanente } from '../services/api'
 import {
   Shield, CheckCircle2, Mail, Crown, Briefcase, Users,
-  Rocket, ShieldCheck, Zap, Target, Megaphone, Radio,
+  Rocket, ShieldCheck, Zap, Target, Megaphone, Radio, Trash2,
 } from 'lucide-react'
 
 /* Cores premium por papel */
@@ -31,8 +32,27 @@ const areaConfig: Record<string, { label: string; icon: typeof Zap }> = {
 const avatarCores = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', '#6366f1', '#ef4444', '#14b8a6']
 
 export default function Equipe() {
+  const { usuario: eu } = useAuth()
   const fetcher = useCallback(() => buscarUsuarios(), [])
-  const { dados, erro, carregando } = usePolling(fetcher, 30000)
+  const { dados, erro, carregando, recarregar } = usePolling(fetcher, 30000)
+  const [confirmExcluir, setConfirmExcluir] = useState<{ id: string; nome: string } | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
+
+  const ehCeo = eu?.papeis?.includes('ceo')
+
+  const handleExcluir = async () => {
+    if (!confirmExcluir) return
+    setExcluindo(true)
+    try {
+      await excluirUsuarioPermanente(confirmExcluir.id)
+      setConfirmExcluir(null)
+      recarregar()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Erro ao excluir')
+    } finally {
+      setExcluindo(false)
+    }
+  }
 
   if (carregando) {
     return (
@@ -100,13 +120,27 @@ export default function Equipe() {
                     <p className="text-sm sf-text-dim">{usuario.cargo || 'Sem cargo definido'}</p>
                   </div>
 
-                  {/* Badge ativo */}
-                  {usuario.ativo && (
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                      <CheckCircle2 size={12} className="text-emerald-400" />
-                      <span className="text-[11px] text-emerald-400 font-medium">Ativo</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {/* Badge ativo */}
+                    {usuario.ativo && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                        <CheckCircle2 size={12} className="text-emerald-400" />
+                        <span className="text-[11px] text-emerald-400 font-medium">Ativo</span>
+                      </div>
+                    )}
+
+                    {/* Botao excluir — so CEO, nao no proprio card */}
+                    {ehCeo && String(usuario.id) !== String(eu?.id) && (
+                      <button
+                        onClick={() => setConfirmExcluir({ id: String(usuario.id), nome: usuario.nome })}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500/20"
+                        style={{ color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}
+                        title="Excluir usuario permanentemente"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Papéis */}
@@ -174,6 +208,48 @@ export default function Equipe() {
           )
         })}
       </div>
+
+      {/* Modal de confirmação de exclusão */}
+      {confirmExcluir && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6"
+            style={{ background: 'var(--sf-bg-1)', border: '1px solid var(--sf-border-default)' }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.1)' }}>
+                <Trash2 size={18} style={{ color: '#ef4444' }} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold" style={{ color: 'var(--sf-text-0)' }}>Excluir usuario</h3>
+                <p className="text-[11px]" style={{ color: 'var(--sf-text-3)' }}>Esta acao e irreversivel</p>
+              </div>
+            </div>
+
+            <p className="text-[12px] mb-4" style={{ color: 'var(--sf-text-2)' }}>
+              Tem certeza que deseja excluir <strong style={{ color: 'var(--sf-text-0)' }}>{confirmExcluir.nome}</strong> permanentemente?
+              Todas as conversas, tarefas e dados serao removidos. O email ficara livre para reconvite.
+            </p>
+
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={() => setConfirmExcluir(null)}
+                disabled={excluindo}
+                className="px-4 py-2 rounded-lg text-[11px] font-medium transition-all"
+                style={{ background: 'var(--sf-bg-3)', color: 'var(--sf-text-2)' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleExcluir}
+                disabled={excluindo}
+                className="px-4 py-2 rounded-lg text-[11px] font-bold transition-all hover:brightness-110 disabled:opacity-50"
+                style={{ background: '#ef4444', color: '#fff' }}
+              >
+                {excluindo ? 'Excluindo...' : 'Excluir permanentemente'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
