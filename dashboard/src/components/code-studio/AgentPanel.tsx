@@ -43,15 +43,26 @@ const ACOES_RAPIDAS = [
   { label: 'Testar', icon: TestTube2, tipo: 'testar' as const, instrucao: 'Crie testes unitários completos para este código. Use o framework adequado (pytest para Python, vitest/jest para TypeScript). Mostre o código completo dos testes dentro de um único bloco de código.' },
 ]
 
-/** Extrai o maior bloco de código de uma resposta markdown */
+/** Extrai o maior bloco de codigo de uma resposta markdown.
+ * Suporta: ```lang\n, ```lang , ``` (sem lang), e variantes com \r\n */
 function extrairBlocoCodigo(conteudo: string): string | null {
-  const regex = /```[\w]*\n([\s\S]*?)```/g
+  // Regex robusta: aceita linguagem opcional, \n ou \r\n ou espaco apos ```
+  const regex = /```[\w]*[\s]*\n([\s\S]*?)```/g
   let maior = ''
   let match
   while ((match = regex.exec(conteudo)) !== null) {
-    if (match[1].length > maior.length) maior = match[1]
+    const bloco = match[1].trim()
+    if (bloco.length > maior.length) maior = bloco
   }
-  return maior.trim() || null
+  // Fallback: tentar sem newline obrigatorio (```lang codigo ```)
+  if (!maior) {
+    const fallback = /```[\w]*\s+([\s\S]*?)```/g
+    while ((match = fallback.exec(conteudo)) !== null) {
+      const bloco = match[1].trim()
+      if (bloco.length > maior.length) maior = bloco
+    }
+  }
+  return maior || null
 }
 
 /** Gera caminho do arquivo de teste baseado no arquivo original */
