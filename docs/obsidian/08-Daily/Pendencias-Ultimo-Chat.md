@@ -1,8 +1,18 @@
 # Pendencias do Ultimo Chat — 29/Mar/2026
 
-> Atualizado em 29/Mar/2026 (sessao 17)
+> Atualizado em 29/Mar/2026 (sessao 18)
 
 ## Concluido nesta sessao
+
+### v0.38.0 — Historico de Atividades + Feedback Detalhado no Code Studio
+- [x] Novo endpoint GET /api/code-studio/historico com paginacao e filtro por projeto
+- [x] Calculo de diff no apply-action via difflib (linhas adicionadas/removidas)
+- [x] Novo componente HistoricoPanel — lista cronologica com icones, tempo relativo, paginacao
+- [x] Toast detalhado ao aplicar acao IA: mostra diff (+N/-N linhas), commit hash e branch VCS
+- [x] Confirmacao inline antes de aplicar acoes (Confirmar/Cancelar)
+- [x] Botao Historico na Toolbar (toggle mutuamente exclusivo com AgentPanel)
+- [x] Clique em arquivo no historico abre diretamente no editor
+- [x] Deployado e ativo na AWS
 
 ### v0.37.1 — Auto-Clone VCS no Code Studio
 - [x] Auto-clone VCS: quando projeto tem VCS configurado mas sem diretorio local, clona para `/opt/projetos/{slug}/`
@@ -139,6 +149,7 @@
 
 ## Status Atual
 - Tudo em producao (AWS)
+- Code Studio com historico de atividades, feedback detalhado e confirmacao inline (v0.38.0)
 - Code Studio multi-projeto com auto-clone VCS: clona repositorio automaticamente se diretorio nao existe (v0.37.1)
 - VCS integrado ao Code Studio com commit + push automatico (rotas e audit log corrigidos v0.36.1/v0.36.2)
 - Avatares reais dos agentes implementados em todas as telas

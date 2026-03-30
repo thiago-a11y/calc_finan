@@ -172,4 +172,18 @@ Cada projeto tem necessidades diferentes de governança. Um projeto interno pode
 
 ---
 
+## Por que histórico usa AuditLogDB existente (não nova tabela)?
+
+O endpoint `GET /api/code-studio/historico` reutiliza a tabela `AuditLogDB` já existente, filtrando com `LIKE 'code_studio%'` na coluna de ação. Criar uma tabela separada seria redundante — os dados já estão lá por causa do audit log LGPD. Vantagem: zero migration, dados retroativos disponíveis desde a v0.34.0, e o histórico herda automaticamente todas as entradas futuras do Code Studio.
+
+## Por que diff calculado com difflib no backend (não no frontend)?
+
+O cálculo de diff (linhas adicionadas/removidas) é feito no backend com `difflib` do Python, limitado a 5000 linhas por performance. Fazer no frontend seria possível, mas exigiria enviar o conteúdo anterior e novo para o navegador (duplicando tráfego). No backend, comparamos antes e depois do apply-action in-memory e retornamos apenas os números (+N/-N). Limite de 5000 linhas previne timeout em arquivos muito grandes.
+
+## Por que painéis mutuamente exclusivos (AgentPanel OU HistoricoPanel)?
+
+O Code Studio tem espaço horizontal limitado: editor + painel lateral. Abrir AgentPanel e HistoricoPanel simultaneamente comprimiria o editor a ponto de ficar inutilizável em telas menores. A solução foi torná-los mutuamente exclusivos via toggle na toolbar — clicar em "Histórico" fecha o "Agente" e vice-versa. O editor sempre mantém largura mínima confortável.
+
+---
+
 > Última atualização: 2026-03-29

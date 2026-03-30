@@ -4,6 +4,19 @@
 
 ---
 
+## v0.38.0 — Histórico de Atividades + Feedback Detalhado no Code Studio (2026-03-29)
+
+### Funcionalidades
+- **Novo endpoint** `GET /api/code-studio/historico` — Lista cronológica de atividades com paginação e filtro por projeto
+- **Cálculo de diff no apply-action** — Retorna linhas adicionadas/removidas via `difflib` ao aplicar ação do agente IA
+- **Novo componente HistoricoPanel** — Painel com lista cronológica de atividades, ícones por tipo, tempo relativo e paginação
+- **Toast detalhado ao aplicar ação IA** — Mostra diff (+N/-N linhas), commit hash e branch VCS no feedback visual
+- **Confirmação inline antes de aplicar ações** — Botões Confirmar/Cancelar antes de executar ação do agente IA
+- **Botão Histórico na Toolbar** — Toggle mutuamente exclusivo com AgentPanel para não comprimir o editor
+- **Clique em arquivo no histórico** — Abre diretamente no editor ao clicar em uma entrada do histórico
+
+---
+
 ## v0.37.1 — Auto-Clone VCS no Code Studio (2026-03-29)
 
 ### Funcionalidades
