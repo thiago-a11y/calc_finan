@@ -881,18 +881,27 @@ _INDICADORES_PROBLEMA = [
     re.compile(r'deploy.*(falh|err|prob)|prod.*(caiu|fora)', re.IGNORECASE),
     re.compile(r'segurança|vulnerabilidade|vazamento', re.IGNORECASE),
     re.compile(r'performance|lento|timeout|memory|memória', re.IGNORECASE),
+    re.compile(r'test(e|es|ar|ando)|cobertura|coverage|unit test', re.IGNORECASE),
+    re.compile(r'pull request|PR|merge|branch|conflito', re.IGNORECASE),
+    re.compile(r'git(hub|bucket)|reposit(ório|orio)|commit|push', re.IGNORECASE),
+    re.compile(r'pipeline|ci.?cd|actions|workflow', re.IGNORECASE),
 ]
 
 # Mapa categoria → perfis recomendados
 _CATEGORIA_PERFIS = {
-    "codigo": ["backend_dev", "frontend_dev", "tech_lead"],
+    "codigo": ["backend_dev", "frontend_dev", "qa_seguranca"],
     "infraestrutura": ["devops", "tech_lead", "qa_seguranca"],
     "seguranca": ["qa_seguranca", "tech_lead", "backend_dev"],
     "performance": ["backend_dev", "devops", "tech_lead"],
     "arquitetura": ["tech_lead", "arquiteto", "backend_dev"],
     "negocio": ["product_manager", "tech_lead", "secretaria_executiva"],
     "frontend": ["frontend_dev", "tech_lead", "qa_seguranca"],
-    "deploy": ["devops", "tech_lead", "qa_seguranca"],
+    "deploy": ["devops", "qa_seguranca", "tech_lead"],
+    "testes": ["qa_seguranca", "backend_dev", "tech_lead"],
+    "github": ["devops", "tech_lead", "qa_seguranca"],
+    "gitbucket": ["devops", "tech_lead", "qa_seguranca"],
+    "pr": ["devops", "qa_seguranca", "tech_lead"],
+    "merge": ["devops", "tech_lead", "qa_seguranca"],
 }
 
 
