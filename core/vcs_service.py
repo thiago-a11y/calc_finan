@@ -177,6 +177,7 @@ class VCSService:
     ) -> ResultadoCommit:
         """Faz git add, commit e push dos arquivos alterados."""
         cwd = caminho_projeto
+        remote_original = None
 
         try:
             # Verificar se é um repositório git
@@ -184,7 +185,12 @@ class VCSService:
             if result.returncode != 0:
                 return ResultadoCommit(False, "Diretório não é um repositório git")
 
-            # Configurar remote com token (temporário)
+            # Salvar remote original ANTES de alterar
+            remote_result = self._run_git(["remote", "get-url", "origin"], cwd)
+            if remote_result.returncode == 0:
+                remote_original = remote_result.stdout.decode().strip()
+
+            # Configurar remote com token (temporário — será restaurado no finally)
             remote_url = self._construir_remote_url()
             if remote_url:
                 self._run_git(["remote", "set-url", "origin", remote_url], cwd)
@@ -238,6 +244,15 @@ class VCSService:
         except Exception as e:
             logger.error(f"[VCS] Erro em commit_e_push: {str(e)[:300]}")
             return ResultadoCommit(False, f"Erro: {str(e)[:200]}")
+
+        finally:
+            # SEMPRE restaurar o remote original para nao corromper o repositorio
+            if remote_original:
+                try:
+                    self._run_git(["remote", "set-url", "origin", remote_original], cwd)
+                    logger.debug(f"[VCS] Remote restaurado para URL original")
+                except Exception:
+                    logger.warning(f"[VCS] Falha ao restaurar remote original")
 
     # ----------------------------------------------------------
     # Helpers
