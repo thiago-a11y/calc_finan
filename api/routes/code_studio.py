@@ -800,11 +800,13 @@ async def git_pull(
                         )
                         stdout = result.stdout.decode("utf-8", errors="replace").strip()
                         stderr = result.stderr.decode("utf-8", errors="replace").strip()
+                        # Git usa stderr para progresso (From https://...) mesmo em sucesso
+                        output_completo = stdout or stderr
                         if result.returncode != 0:
-                            logger.warning(f"[CodeStudio] git pull (token) falhou em {base}: {stderr[:300]}")
-                            return {"sucesso": False, "mensagem": stderr[:300], "branch": branch}
+                            logger.warning(f"[CodeStudio] git pull (token) falhou em {base}: {output_completo[:300]}")
+                            return {"sucesso": False, "mensagem": output_completo[:300], "branch": branch}
                         logger.info(f"[CodeStudio] git pull OK (token) em {base} ({branch})")
-                        return {"sucesso": True, "mensagem": stdout[:300], "branch": branch}
+                        return {"sucesso": True, "mensagem": output_completo[:300], "branch": branch}
 
         # Git pull sem token (fallback)
         env["GIT_TERMINAL_PROMPT"] = "0"
@@ -818,13 +820,14 @@ async def git_pull(
 
         stdout = result.stdout.decode("utf-8", errors="replace").strip()
         stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        output_completo = stdout or stderr
 
         if result.returncode != 0:
-            logger.warning(f"[CodeStudio] git pull falhou em {base}: {stderr[:300]}")
-            return {"sucesso": False, "mensagem": stderr[:300], "branch": branch}
+            logger.warning(f"[CodeStudio] git pull falhou em {base}: {output_completo[:300]}")
+            return {"sucesso": False, "mensagem": output_completo[:300], "branch": branch}
 
-        logger.info(f"[CodeStudio] git pull OK em {base} ({branch}): {stdout[:200]}")
-        return {"sucesso": True, "mensagem": stdout[:300], "branch": branch}
+        logger.info(f"[CodeStudio] git pull OK em {base} ({branch}): {output_completo[:200]}")
+        return {"sucesso": True, "mensagem": output_completo[:300], "branch": branch}
 
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Timeout no git pull (60s).")

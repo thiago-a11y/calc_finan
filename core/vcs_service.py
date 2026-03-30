@@ -31,6 +31,9 @@ logger = logging.getLogger("synerium.vcs")
 
 def _obter_chave_fernet() -> bytes:
     """Deriva chave Fernet do JWT_SECRET_KEY do ambiente."""
+    # Garantir que .env esta carregado (systemd pode nao carregar automaticamente)
+    from dotenv import load_dotenv
+    load_dotenv()
     secret = os.getenv("JWT_SECRET_KEY", "synerium-factory-default-key-2026")
     # Fernet requer chave de 32 bytes base64-encoded
     chave_raw = hashlib.sha256(secret.encode()).digest()
