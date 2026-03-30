@@ -45,24 +45,42 @@ const ACOES_RAPIDAS = [
 ]
 
 /** Extrai o maior bloco de codigo de uma resposta markdown.
- * Suporta: ```lang\n, ```lang , ``` (sem lang), e variantes com \r\n */
+ * Suporta todas as variantes: ```lang\n, ```lang , ``` (sem lang), \r\n, etc. */
 function extrairBlocoCodigo(conteudo: string): string | null {
-  // Regex robusta: aceita linguagem opcional, \n ou \r\n ou espaco apos ```
-  const regex = /```[\w]*[\s]*\n([\s\S]*?)```/g
+  if (!conteudo) return null
   let maior = ''
   let match
-  while ((match = regex.exec(conteudo)) !== null) {
+
+  // 1. Padrao principal: ```lang\ncodigo```
+  const r1 = /```[\w+-]*\s*\r?\n([\s\S]*?)```/g
+  while ((match = r1.exec(conteudo)) !== null) {
     const bloco = match[1].trim()
     if (bloco.length > maior.length) maior = bloco
   }
-  // Fallback: tentar sem newline obrigatorio (```lang codigo ```)
+
+  // 2. Fallback: ``` sem newline obrigatorio
   if (!maior) {
-    const fallback = /```[\w]*\s+([\s\S]*?)```/g
-    while ((match = fallback.exec(conteudo)) !== null) {
+    const r2 = /```[\w+-]*\s+([\s\S]*?)```/g
+    while ((match = r2.exec(conteudo)) !== null) {
       const bloco = match[1].trim()
       if (bloco.length > maior.length) maior = bloco
     }
   }
+
+  // 3. Fallback agressivo: qualquer coisa entre ``` e ```
+  if (!maior) {
+    const r3 = /```([\s\S]*?)```/g
+    while ((match = r3.exec(conteudo)) !== null) {
+      let bloco = match[1].trim()
+      // Remover linguagem da primeira linha se presente
+      const primeiraLinha = bloco.split('\n')[0]
+      if (primeiraLinha && /^[\w+-]+$/.test(primeiraLinha.trim())) {
+        bloco = bloco.slice(primeiraLinha.length).trim()
+      }
+      if (bloco.length > maior.length) maior = bloco
+    }
+  }
+
   return maior || null
 }
 
