@@ -810,7 +810,10 @@ def listar_historico(
     return [_to_response(t) for t in tarefas]
 
 
-@router.get("/{tarefa_id}", response_model=TarefaResponse)
+# IMPORTANTE: Esta rota usa path parameter generico {tarefa_id}
+# Deve ficar DEPOIS de todas as rotas com nomes fixos (command-center, evolucoes, autonomo)
+# para nao interceptar requests como /command-center → tarefa_id="command-center"
+@router.get("/detalhe/{tarefa_id}", response_model=TarefaResponse)
 def buscar_tarefa(
     tarefa_id: str,
     usuario: UsuarioDB = Depends(obter_usuario_atual),

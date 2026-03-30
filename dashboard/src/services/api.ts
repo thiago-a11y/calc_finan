@@ -262,7 +262,7 @@ export const buscarHistoricoTarefas = (limite = 20) =>
   get<TarefaResultado[]>(`/tarefas/historico?limite=${limite}`)
 
 export const buscarTarefa = (id: string) =>
-  get<TarefaResultado>(`/tarefas/${id}`)
+  get<TarefaResultado>(`/tarefas/detalhe/${id}`)
 
 export const executarReuniao = (dados: {
   squad_nome: string
