@@ -246,18 +246,197 @@ quick_flow:
   gate: "Aprovação do Tech Lead ou PM Central"
 
 # ==============================================================
-# MAPEAMENTO: Agentes BMAD → Squad Synerium Factory
+# REGISTRO COMPLETO: Todos os Agentes do Catálogo no BMAD
 # ==============================================================
-mapeamento_agentes:
-  bmad_mary_analyst: "Marco (Product Manager) — absorve papel de analista"
-  bmad_paige_tech_writer: "Sofia (Secretária Executiva) — documentação"
-  bmad_john_pm: "Marco (Product Manager) — PRD e épicos"
-  bmad_sally_ux: "Carlos (Frontend Developer) — UX design"
-  bmad_winston_architect: "Kenji (Tech Lead) — arquitetura e ADRs"
-  bmad_bob_scrum_master: "Alex (PM Central) — sprint planning via Sofia"
-  bmad_amelia_dev: "Amara (Backend) + Carlos (Frontend) — desenvolvimento"
-  bmad_quinn_qa: "Fatima (QA) — testes e segurança"
-  bmad_barry_quick_flow: "Qualquer agente do squad — quick flow"
+# 15 agentes mapeados com fase, responsabilidade e convocação
+# IDs correspondem ao AgenteCatalogoDB no banco SQLite
+
+registro_agentes:
+  # --- FASE 1: ANÁLISE ---
+  - id: 8
+    nome: "Product Manager e Analista de Negocios"
+    perfil: product_manager
+    categoria: gestao
+    fases_bmad: [1, 2]
+    responsabilidades:
+      - "Brainstorming e pesquisa de mercado (Fase 1)"
+      - "Criar PRD com 12 etapas (Fase 2)"
+      - "Quebrar PRD em epicos e stories BDD (Fase 3)"
+      - "Validar stories com criterios de aceitacao"
+    convocado_quando: "negocio, estrategia, roadmap, feature, requisitos, PRD"
+
+  # --- FASE 2: PLANEJAMENTO ---
+  - id: 3
+    nome: "Desenvolvedor Frontend React/TypeScript"
+    perfil: frontend_dev
+    categoria: desenvolvimento
+    fases_bmad: [2, 4]
+    responsabilidades:
+      - "UX Design e fluxos de usuario (Fase 2)"
+      - "Desenvolvimento frontend TDD (Fase 4)"
+      - "Componentes React, Tailwind, responsividade"
+    convocado_quando: "frontend, UI, UX, React, CSS, componente, layout, responsivo"
+
+  # --- FASE 3: SOLUÇÃO (Arquitetura) ---
+  - id: 1
+    nome: "Tech Lead / Arquiteto de Software"
+    perfil: tech_lead
+    categoria: desenvolvimento
+    fases_bmad: [1, 3, 4]
+    responsabilidades:
+      - "Pesquisa tecnica e viabilidade (Fase 1)"
+      - "Criar arquitetura e ADRs (Fase 3)"
+      - "Code review adversarial (Fase 4)"
+      - "Decisoes tecnicas finais"
+    convocado_quando: "arquitetura, design pattern, decisao tecnica, refatorar, migrar"
+
+  - id: 11
+    nome: "Arquiteto de Infraestrutura e DevOps"
+    perfil: arquiteto
+    categoria: operacional
+    fases_bmad: [3]
+    responsabilidades:
+      - "Arquitetura de infraestrutura (AWS, servidores, rede)"
+      - "Design de pipelines CI/CD"
+      - "Planejamento de escalabilidade e disaster recovery"
+    convocado_quando: "AWS, infraestrutura, servidor, escala, cloud, rede, load balancer"
+
+  - id: 4
+    nome: "Especialista em Inteligencia Artificial"
+    perfil: especialista_ia
+    categoria: ia
+    fases_bmad: [3, 4]
+    responsabilidades:
+      - "Arquitetura de solucoes IA (RAG, agents, LLM)"
+      - "Otimizacao de prompts e modelos"
+      - "Integracao com providers (Anthropic, OpenAI, Gemini)"
+    convocado_quando: "IA, inteligencia artificial, LLM, prompt, RAG, agente, modelo, embeddings"
+
+  - id: 14
+    nome: "GitHub Master — Staff Engineer de Platform"
+    perfil: devops
+    categoria: infraestrutura
+    fases_bmad: [3, 4]
+    responsabilidades:
+      - "Criar PRs com descricao completa"
+      - "Gerenciar branches e branch protection"
+      - "Configurar GitHub Actions"
+      - "Code review via API"
+      - "Merge squash quando aprovado"
+    condicao: "vcs_tipo == 'github'"
+    convocado_quando: "PR, pull request, merge, branch, GitHub, Actions, release"
+
+  - id: 15
+    nome: "GitBucket Master — Staff Engineer de Platform"
+    perfil: devops
+    categoria: infraestrutura
+    fases_bmad: [3, 4]
+    responsabilidades:
+      - "Gerenciar repos GitBucket on-premise"
+      - "Criar PRs via API REST"
+      - "Configurar webhooks para CI interno"
+      - "Resolver conflitos de merge"
+    condicao: "vcs_tipo == 'gitbucket'"
+    convocado_quando: "GitBucket, repo interno, on-premise, webhook"
+
+  # --- FASE 4: IMPLEMENTAÇÃO ---
+  - id: 2
+    nome: "Desenvolvedor Backend PHP/Python"
+    perfil: backend_dev
+    categoria: desenvolvimento
+    fases_bmad: [4]
+    responsabilidades:
+      - "Desenvolvimento backend TDD (red-green-refactor)"
+      - "APIs REST, banco de dados, migrations"
+      - "PHP 7.4 (SyneriumX) e Python 3.13 (Factory)"
+    convocado_quando: "backend, API, banco, SQL, migration, endpoint, PHP, Python, FastAPI"
+
+  - id: 5
+    nome: "Especialista em Integracoes e APIs"
+    perfil: integracao
+    categoria: desenvolvimento
+    fases_bmad: [4]
+    responsabilidades:
+      - "Integracao com servicos externos (SES, Stripe, SAP)"
+      - "Webhooks, OAuth, APIs de terceiros"
+      - "Resolucao de problemas de conectividade"
+    convocado_quando: "integracao, webhook, OAuth, API externa, terceiro, conector, SES, Stripe"
+
+  - id: 6
+    nome: "Engenheiro DevOps e Infraestrutura"
+    perfil: devops
+    categoria: operacional
+    fases_bmad: [4]
+    responsabilidades:
+      - "Deploy e monitoramento"
+      - "CI/CD pipelines"
+      - "Configuracao de servidores (AWS, cPanel, LiteSpeed)"
+      - "Docker, systemd, nginx"
+    convocado_quando: "deploy, servidor, nginx, systemd, Docker, CI/CD, monitoramento, cPanel"
+
+  - id: 7
+    nome: "Engenheiro de QA e Seguranca"
+    perfil: qa_seguranca
+    categoria: seguranca
+    fases_bmad: [3, 4]
+    responsabilidades:
+      - "Definir criterios de teste por story (Fase 3)"
+      - "Testes E2E e validacao (Fase 4)"
+      - "Analise de vulnerabilidades"
+      - "Conformidade LGPD"
+    convocado_quando: "QA, seguranca, vulnerabilidade, LGPD, XSS, SQL injection, pentest"
+
+  - id: 12
+    nome: "Analista de Seguranca e LGPD"
+    perfil: qa_seguranca
+    categoria: seguranca
+    fases_bmad: [3, 4]
+    responsabilidades:
+      - "Auditoria de seguranca e compliance"
+      - "Analise de conformidade LGPD"
+      - "Revisao de politicas de dados"
+      - "Testes de penetracao"
+    convocado_quando: "LGPD, compliance, auditoria, privacidade, dados pessoais, consentimento"
+
+  - id: 10
+    nome: "Revisor de Codigo Senior"
+    perfil: diretor
+    categoria: seguranca
+    fases_bmad: [4]
+    responsabilidades:
+      - "Code review profundo e adversarial"
+      - "Identificar code smells, anti-patterns"
+      - "Validar padronizacao e boas praticas"
+      - "Review de seguranca em codigo critico"
+    convocado_quando: "code review, revisao, padrao, anti-pattern, code smell, qualidade"
+
+  - id: 13
+    nome: "Test Master — Principal Engineer de Testes"
+    perfil: qa_seguranca
+    categoria: qualidade
+    fases_bmad: [4]
+    obrigatorio: true
+    pipeline_position: "ANTES de commit/push/merge — BLOQUEANTE"
+    responsabilidades:
+      - "Validacao obrigatoria no Apply+Deploy"
+      - "Rodar testes automatizados (pytest/vitest/PHPUnit)"
+      - "Validacao sintatica quando sem framework"
+      - "BLOQUEAR pipeline se testes falharem"
+    convocado_quando: "teste, testes, coverage, cobertura, TDD, CI, pipeline, deploy"
+
+  # --- TODAS AS FASES (Suporte) ---
+  - id: 9
+    nome: "Secretaria Executiva"
+    perfil: secretaria_executiva
+    categoria: operacional
+    fases_bmad: [1, 2, 3, 4]
+    responsabilidades:
+      - "Documentacao e tech writing (Fase 1)"
+      - "Sprint planning e kanban (Fase 4)"
+      - "Compilar ATAs de reunioes"
+      - "Enviar emails e notificacoes"
+      - "Gerar relatorios e apresentacoes"
+    convocado_quando: "ata, documentacao, email, relatorio, apresentacao, sprint, kanban"
 
 # ==============================================================
 # AGENTES ELITE — Big Tech 2026 (v1.0)

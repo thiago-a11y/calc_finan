@@ -34,26 +34,25 @@ Para bug fixes e melhorias pequenas (< 1 dia):
 Ideia → mini-spec → implementa com TDD → review → deploy
 ```
 
-## Mapeamento de Agentes
+## Registro Completo de Agentes (15 agentes)
 
-| BMAD | Synerium Factory | Fase |
-|------|------------------|------|
-| Mary (Analyst) | Marco (PM) | 1 |
-| Paige (Tech Writer) | Sofia (Secretária) | 1 |
-| John (PM) | Marco (PM) | 2 |
-| Sally (UX) | Carlos (Frontend) | 2 |
-| Winston (Architect) | Kenji (Tech Lead) | 3 |
-| Bob (Scrum Master) | Sofia (Secretária) | 4 |
-| Amelia (Dev) | Amara + Carlos | 4 |
-| Quinn (QA) | Fatima (QA) | 4 |
-
-## Agentes Elite (Big Tech 2026)
-
-| Agente | Nivel | Fase | Obrigatorio em |
-|--------|-------|------|---------------|
-| Test Master | Principal Engineer | 4 (Implementacao) | Apply+Deploy (bloqueante), Quick Flow, Code Review |
-| GitHub Master | Staff Engineer | 3 (Solucao) | Push+PR quando VCS = GitHub |
-| GitBucket Master | Staff Engineer | 3 (Solucao) | Push+PR quando VCS = GitBucket |
+| ID | Agente | Perfil | Fases | Convocado quando |
+|----|--------|--------|-------|------------------|
+| 1 | Tech Lead / Arquiteto | tech_lead | 1,3,4 | arquitetura, refatorar, decisao tecnica |
+| 2 | Backend PHP/Python | backend_dev | 4 | API, banco, migration, PHP, Python |
+| 3 | Frontend React/TS | frontend_dev | 2,4 | UI, UX, React, CSS, componente |
+| 4 | Especialista IA | especialista_ia | 3,4 | LLM, RAG, prompt, agente, embeddings |
+| 5 | Integracoes/APIs | integracao | 4 | webhook, OAuth, API externa, SES |
+| 6 | DevOps/Infra | devops | 4 | deploy, nginx, Docker, CI/CD |
+| 7 | QA e Seguranca | qa_seguranca | 3,4 | vulnerabilidade, LGPD, XSS, pentest |
+| 8 | Product Manager | product_manager | 1,2 | negocio, roadmap, feature, PRD |
+| 9 | Secretaria Executiva | secretaria_executiva | 1-4 | ata, email, relatorio, sprint |
+| 10 | Revisor de Codigo Sr | diretor | 4 | code review, anti-pattern, qualidade |
+| 11 | Arquiteto Infra | arquiteto | 3 | AWS, cloud, escala, rede |
+| 12 | Analista LGPD | qa_seguranca | 3,4 | compliance, privacidade, auditoria |
+| **13** | **Test Master** | qa_seguranca | **4** | **OBRIGATORIO: testes, deploy, pipeline** |
+| **14** | **GitHub Master** | devops | 3,4 | PR, merge, GitHub, Actions |
+| **15** | **GitBucket Master** | devops | 3,4 | GitBucket, on-premise, webhook |
 
 ### Pipeline One-Click Apply+Deploy
 ```
