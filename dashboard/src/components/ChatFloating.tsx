@@ -1,10 +1,10 @@
 /* ChatFloating — Janela de chat flutuante com modo expandido */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { executarTarefa, buscarTarefa, buscarHistoricoTarefas, uploadArquivos, retomarTarefa } from '../services/api'
+import { executarTarefa, executarReuniao, buscarTarefa, buscarHistoricoTarefas, uploadArquivos, retomarTarefa, montarTime, type AgenteSugerido } from '../services/api'
 import { FileUploadArea } from './FileUpload'
 import type { TarefaResultado, FileAttachment } from '../types'
-import { Maximize2, Minimize2, Minus, X, Send, Bot, Loader2, Paperclip } from 'lucide-react'
+import { Maximize2, Minimize2, Minus, X, Send, Bot, Loader2, Paperclip, Users } from 'lucide-react'
 import AgentAvatar from './AgentAvatar'
 
 interface Props {
@@ -28,6 +28,10 @@ export default function ChatFloating({
   const [anexos, setAnexos] = useState<FileAttachment[]>([])
   const [expandido, setExpandido] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [montandoTime, setMontandoTime] = useState(false)
+  const [sugestaoTime, setSugestaoTime] = useState<{
+    agentes: AgenteSugerido[]; razao: string; confianca: number
+  } | null>(null)
   const chatRef = useRef<HTMLDivElement>(null)
   const dragCounter = useRef(0)
 
@@ -126,6 +130,57 @@ export default function ChatFloating({
       setAnexos([])
     } catch { /* silencioso */ }
     finally { setEnviando(false) }
+  }
+
+  // Montar time — detecção + sugestão
+  const handleMontarTime = async () => {
+    const ultimaMensagem = historico.find(t => t.descricao)?.descricao || mensagem.trim()
+    if (!ultimaMensagem) return
+    setMontandoTime(true)
+    try {
+      const resultado = await montarTime({
+        mensagem: ultimaMensagem,
+        squad_nome: squadNome,
+        agente_atual_idx: agenteIdx,
+      })
+      if (resultado.necessita_time && resultado.agentes_sugeridos?.length) {
+        setSugestaoTime({
+          agentes: resultado.agentes_sugeridos,
+          razao: resultado.razao_geral || '',
+          confianca: resultado.confianca || 0,
+        })
+      } else {
+        // Sem sugestão automática — informar
+        setHistorico(prev => [{
+          id: `info-${Date.now()}`, squad_nome: squadNome, agente_nome: agenteNome,
+          agente_indice: agenteIdx, descricao: '🤝 Montar Time',
+          resultado: resultado.razao || 'Sem necessidade de time detectada. Use o Escritório para reuniões manuais.',
+          status: 'concluida', usuario_id: 0, usuario_nome: '', criado_em: new Date().toISOString(),
+          tipo: 'tarefa',
+        } as any, ...prev])
+      }
+    } catch { /* silencioso */ }
+    finally { setMontandoTime(false) }
+  }
+
+  // Iniciar reunião com time sugerido
+  const handleIniciarReuniao = async () => {
+    if (!sugestaoTime) return
+    const pauta = historico.find(t => t.descricao)?.descricao || 'Resolver problema identificado'
+    try {
+      // Encontrar indices dos agentes sugeridos no squad
+      // Como usamos catalogo, precisamos mapear para indices do squad
+      // Por simplicidade, usar todos os agentes disponíveis (0, 1, 2...)
+      const indices = sugestaoTime.agentes.map((_, i) => i).slice(0, 3)
+      const resultado = await executarReuniao({
+        squad_nome: squadNome,
+        agentes_indices: indices,
+        pauta: `[AUTO-MONTADO] ${pauta}`,
+        paralelo: true,
+      })
+      setHistorico(prev => [resultado, ...prev])
+      setSugestaoTime(null)
+    } catch { /* silencioso */ }
   }
 
   const nomeAbreviado = agenteNome.split('/')[0].trim()
@@ -290,9 +345,49 @@ export default function ChatFloating({
         </div>
       )}
 
+      {/* Card de sugestão de time */}
+      {sugestaoTime && (
+        <div className="mx-3 mb-2 p-3 rounded-xl" style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}>
+          <p className="text-[11px] font-bold mb-1.5" style={{ color: '#a78bfa' }}>
+            🤝 Time sugerido ({Math.round(sugestaoTime.confianca * 100)}% confianca)
+          </p>
+          <p className="text-[10px] mb-2" style={{ color: 'var(--sf-text-3)' }}>{sugestaoTime.razao}</p>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {sugestaoTime.agentes.map((ag, i) => (
+              <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.15)' }}>
+                <span className="text-[10px] font-medium" style={{ color: '#c4b5fd' }}>{ag.nome.split('/')[0].trim()}</span>
+                <span className="text-[8px]" style={{ color: 'var(--sf-text-3)' }}>{ag.perfil}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleIniciarReuniao}
+              className="flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all hover:brightness-110"
+              style={{ background: '#10b981', color: '#fff' }}>
+              Iniciar Reuniao ⚡
+            </button>
+            <button onClick={() => setSugestaoTime(null)}
+              className="px-3 py-1.5 rounded-lg text-[10px] font-medium"
+              style={{ background: 'var(--sf-bg-3)', color: 'var(--sf-text-3)' }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="p-3 flex items-center gap-2 shrink-0" style={{ borderTop: '1px solid var(--sf-border-default)' }}>
         <FileUploadArea compact onUpload={(novos) => setAnexos(prev => [...prev, ...novos])} />
+        {/* Botao Montar Time */}
+        <button
+          onClick={handleMontarTime}
+          disabled={montandoTime || enviando}
+          className="p-1.5 rounded transition-colors disabled:opacity-40"
+          style={{ color: montandoTime ? '#a78bfa' : 'var(--sf-text-3)' }}
+          title="Montar time de especialistas"
+        >
+          {montandoTime ? <Loader2 size={14} className="animate-spin" style={{ color: '#a78bfa' }} /> : <Users size={14} />}
+        </button>
         <input
           value={mensagem}
           onChange={e => setMensagem(e.target.value)}

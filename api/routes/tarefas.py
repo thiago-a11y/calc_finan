@@ -9,8 +9,10 @@ GET  /api/tarefas/{id}             — Detalhes + rodadas em tempo real
 """
 
 import logging
+import re
 import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from api.dependencias import obter_fabrica, obter_usuario_atual
 from database.session import get_db, SessionLocal
-from database.models import UsuarioDB, TarefaDB
+from database.models import UsuarioDB, TarefaDB, AgenteCatalogoDB
 
 logger = logging.getLogger("synerium.tarefas")
 
@@ -39,6 +41,7 @@ class ReuniaoRequest(BaseModel):
     squad_nome: str
     agentes_indices: list[int]
     pauta: str
+    paralelo: bool = True  # True = agentes respondem em paralelo (mais rapido)
 
 
 class ContinuarReuniaoRequest(BaseModel):
@@ -163,7 +166,192 @@ def _executar_tarefa_bg(tarefa_id: str, squad_nome: str, agente_idx: int,
         db.close()
 
 
-# --- Background: Reunião com rodadas ---
+# --- Helper: executa 1 agente isolado (para uso em thread pool) ---
+
+def _executar_agente_isolado(agente, prompt, resultado_esperado, rodada_num):
+    """Executa 1 agente em thread separada. Retorna dict com resultado."""
+    from crewai import Task, Crew, Process
+    try:
+        crewai_tarefa = Task(
+            description=prompt,
+            expected_output=resultado_esperado,
+            agent=agente,
+        )
+        crew = Crew(agents=[agente], tasks=[crewai_tarefa],
+                     process=Process.sequential, verbose=True)
+        resultado = crew.kickoff()
+        return {
+            "rodada": rodada_num,
+            "agente": agente.role,
+            "resposta": str(resultado),
+            "timestamp": datetime.utcnow().isoformat(),
+            "sucesso": True,
+        }
+    except Exception as e:
+        return {
+            "rodada": rodada_num,
+            "agente": agente.role,
+            "resposta": f"[Erro: {str(e)}]",
+            "timestamp": datetime.utcnow().isoformat(),
+            "sucesso": False,
+        }
+
+
+# --- Background: Reunião PARALELA ---
+
+def _executar_reuniao_paralela_bg(tarefa_id: str, squad_nome: str,
+                                   agentes_indices: list[int], pauta: str,
+                                   fabrica, rodada_num: int = 1,
+                                   feedback_anterior: str = ""):
+    """Executa uma rodada da reunião com agentes em PARALELO (ThreadPoolExecutor)."""
+    db = SessionLocal()
+    try:
+        tarefa = db.query(TarefaDB).filter_by(id=tarefa_id).first()
+        if not tarefa:
+            return
+
+        tarefa.status = "executando"
+        tarefa.rodada_atual = rodada_num
+        tarefa.agente_atual = f"⚡ {len(agentes_indices)} agentes em paralelo"
+        db.commit()
+
+        squad = fabrica.squads.get(squad_nome)
+        if not squad:
+            tarefa.status = "erro"
+            tarefa.erro = "Squad não encontrado."
+            db.commit()
+            return
+
+        agentes = [squad.agentes[i] for i in agentes_indices if i < len(squad.agentes)]
+        if not agentes:
+            tarefa.status = "erro"
+            tarefa.erro = "Nenhum agente válido."
+            db.commit()
+            return
+
+        rodadas = tarefa.rodadas or []
+
+        # Montar contexto com rodadas anteriores
+        contexto_anterior = ""
+        if rodadas:
+            contexto_anterior = "\n\n--- RODADAS ANTERIORES ---\n"
+            for r in rodadas:
+                contexto_anterior += f"\n[Rodada {r['rodada']}] {r['agente']}:\n{r['resposta']}\n"
+
+        if feedback_anterior:
+            contexto_anterior += f"\n\n--- FEEDBACK DO CEO (Thiago) ---\n{feedback_anterior}\n"
+
+        # Preparar prompts para todos os agentes
+        prompts = []
+        for agente in agentes:
+            prompt = (
+                f"REUNIÃO DE EQUIPE — Rodada {rodada_num} (modo paralelo)\n"
+                f"Pauta: {pauta}\n"
+                f"{contexto_anterior}\n\n"
+                f"Você é {agente.role}. Contribua com sua perspectiva especializada. "
+                f"Seja objetivo e prático. Responda em português brasileiro."
+            )
+            prompts.append((agente, prompt))
+
+        logger.info(f"[REUNIÃO-PARALELA] Rodada {rodada_num} — {len(agentes)} agentes em paralelo...")
+
+        # Executar todos os agentes em paralelo
+        with ThreadPoolExecutor(max_workers=min(len(agentes), 4)) as executor:
+            futures = {
+                executor.submit(
+                    _executar_agente_isolado,
+                    agente, prompt,
+                    f"Contribuição de {agente.role} — objetiva e prática.",
+                    rodada_num,
+                ): agente
+                for agente, prompt in prompts
+            }
+
+            for future in as_completed(futures):
+                resultado = future.result()
+                rodadas.append(resultado)
+
+                # Salvar progresso incremental (cada agente que termina)
+                tarefa_db = db.query(TarefaDB).filter_by(id=tarefa_id).first()
+                nomes_concluidos = [r["agente"] for r in rodadas if r["rodada"] == rodada_num]
+                tarefa_db.agente_atual = f"⚡ {len(nomes_concluidos)}/{len(agentes)} concluídos"
+                tarefa_db.rodadas = rodadas
+                db.commit()
+
+                logger.info(f"[REUNIÃO-PARALELA] {resultado['agente']} concluiu ({len(nomes_concluidos)}/{len(agentes)})")
+
+        # Sofia faz ATA (sequencial — precisa de todas as respostas)
+        sofia = None
+        for ag in agentes:
+            if "Secretária" in ag.role or "Sofia" in ag.role:
+                sofia = ag
+                break
+        if not sofia:
+            for sq in fabrica.squads.values():
+                for ag in sq.agentes:
+                    if "Secretária" in ag.role or "Sofia" in ag.role:
+                        sofia = ag
+                        break
+                if sofia:
+                    break
+
+        if sofia:
+            tarefa_db_s = db.query(TarefaDB).filter_by(id=tarefa_id).first()
+            tarefa_db_s.agente_atual = "Sofia — compilando ATA"
+            db.commit()
+
+            contribuicoes = "\n".join([
+                f"{r['agente']}:\n{r['resposta']}"
+                for r in rodadas if r["rodada"] == rodada_num
+            ])
+
+            prompt_sofia = (
+                f"REUNIÃO DE EQUIPE — Rodada {rodada_num}\nPauta: {pauta}\n\n"
+                f"--- CONTRIBUIÇÕES (paralelas) ---\n{contribuicoes}\n\n"
+                f"{'--- FEEDBACK DO CEO ---' + chr(10) + feedback_anterior + chr(10) if feedback_anterior else ''}"
+                f"Compile uma ATA profissional: resumo, decisões, pendências, próximos passos. "
+                f"Responda em português brasileiro."
+            )
+
+            resultado_sofia = _executar_agente_isolado(
+                sofia, prompt_sofia, "ATA da reunião.", rodada_num
+            )
+            resultado_sofia["agente"] = "📋 Sofia — Secretária Executiva (ATA)"
+            rodadas.append(resultado_sofia)
+
+            tarefa_db_s = db.query(TarefaDB).filter_by(id=tarefa_id).first()
+            tarefa_db_s.rodadas = rodadas
+            db.commit()
+
+        # Rodada concluída
+        tarefa_db = db.query(TarefaDB).filter_by(id=tarefa_id).first()
+        tarefa_db.rodadas = rodadas
+        tarefa_db.agente_atual = None
+        tarefa_db.status = "aguardando_feedback"
+
+        resultado_rodada = f"=== RODADA {rodada_num} (⚡ PARALELO) ===\n\n"
+        for r in rodadas:
+            if r["rodada"] == rodada_num:
+                resultado_rodada += f"**{r['agente']}:**\n{r['resposta']}\n\n"
+        tarefa_db.resultado = resultado_rodada
+        db.commit()
+
+        logger.info(f"[REUNIÃO-PARALELA] Rodada {rodada_num} concluída — {len(agentes)} agentes.")
+
+    except Exception as e:
+        tarefa = db.query(TarefaDB).filter_by(id=tarefa_id).first()
+        if tarefa:
+            tarefa.status = "erro"
+            tarefa.erro = str(e)
+            tarefa.agente_atual = None
+            tarefa.concluido_em = datetime.utcnow()
+            db.commit()
+        logger.error(f"[REUNIÃO-PARALELA] Erro: {e}")
+    finally:
+        db.close()
+
+
+# --- Background: Reunião com rodadas (SEQUENCIAL — original) ---
 
 def _executar_reuniao_bg(tarefa_id: str, squad_nome: str,
                           agentes_indices: list[int], pauta: str,
@@ -436,8 +624,13 @@ def executar_reuniao(
     db.commit()
     db.refresh(tarefa)
 
+    # Escolher modo de execução: paralelo (default) ou sequencial
+    func_bg = _executar_reuniao_paralela_bg if req.paralelo else _executar_reuniao_bg
+    modo = "paralelo" if req.paralelo else "sequencial"
+    logger.info(f"[REUNIÃO] Iniciada ({modo}): {len(nomes)} agentes — {req.pauta[:60]}...")
+
     threading.Thread(
-        target=_executar_reuniao_bg,
+        target=func_bg,
         args=(tarefa_id, req.squad_nome, req.agentes_indices, req.pauta, fabrica),
         daemon=True,
     ).start()
@@ -479,14 +672,15 @@ def continuar_reuniao(
 
     agentes_indices = tarefa.agentes_indices or []
 
+    # Continuar no mesmo modo (paralelo por default)
     threading.Thread(
-        target=_executar_reuniao_bg,
+        target=_executar_reuniao_paralela_bg,
         args=(tarefa_id, tarefa.squad_nome, agentes_indices,
               tarefa.descricao, fabrica, nova_rodada, req.feedback),
         daemon=True,
     ).start()
 
-    logger.info(f"[REUNIÃO] Rodada {nova_rodada} iniciada com feedback: {req.feedback[:60]}...")
+    logger.info(f"[REUNIÃO] Rodada {nova_rodada} (paralelo) com feedback: {req.feedback[:60]}...")
     db.refresh(tarefa)
     return _to_response(tarefa)
 
@@ -670,3 +864,156 @@ def limpar_travadas(
     logger.info(f"[LIMPEZA] {resetadas} tarefa(s) travada(s) resetada(s) por {usuario.nome}")
 
     return {"resetadas": resetadas, "mensagem": f"{resetadas} tarefa(s) resetada(s)."}
+
+
+# =====================================================================
+# Dynamic Team Assembly — Montagem inteligente de time
+# =====================================================================
+
+# Indicadores de problema que sugerem necessidade de time
+_INDICADORES_PROBLEMA = [
+    re.compile(r'(deu|dá|ta dando|está dando)\s*(pau|erro|bug|problema)', re.IGNORECASE),
+    re.compile(r'quebr(ou|ando|a|ei)', re.IGNORECASE),
+    re.compile(r'não\s*(funciona|roda|compila|builda|deploy)', re.IGNORECASE),
+    re.compile(r'preciso de ajuda|me ajuda', re.IGNORECASE),
+    re.compile(r'emergência|urgente|crítico|urgencia', re.IGNORECASE),
+    re.compile(r'refatorar|migrar|arquitetura|redesign', re.IGNORECASE),
+    re.compile(r'deploy.*(falh|err|prob)|prod.*(caiu|fora)', re.IGNORECASE),
+    re.compile(r'segurança|vulnerabilidade|vazamento', re.IGNORECASE),
+    re.compile(r'performance|lento|timeout|memory|memória', re.IGNORECASE),
+]
+
+# Mapa categoria → perfis recomendados
+_CATEGORIA_PERFIS = {
+    "codigo": ["backend_dev", "frontend_dev", "tech_lead"],
+    "infraestrutura": ["devops", "tech_lead", "qa_seguranca"],
+    "seguranca": ["qa_seguranca", "tech_lead", "backend_dev"],
+    "performance": ["backend_dev", "devops", "tech_lead"],
+    "arquitetura": ["tech_lead", "arquiteto", "backend_dev"],
+    "negocio": ["product_manager", "tech_lead", "secretaria_executiva"],
+    "frontend": ["frontend_dev", "tech_lead", "qa_seguranca"],
+    "deploy": ["devops", "tech_lead", "qa_seguranca"],
+}
+
+
+class MontarTimeRequest(BaseModel):
+    mensagem: str
+    squad_nome: str
+    agente_atual_idx: int = -1
+    contexto: str = ""
+
+
+def _detectar_necessidade_time(mensagem: str) -> bool:
+    """Detecta se a mensagem indica problema que precisa de time (regex, custo zero)."""
+    for padrao in _INDICADORES_PROBLEMA:
+        if padrao.search(mensagem):
+            return True
+    return False
+
+
+async def _selecionar_agentes_llm(mensagem: str, agentes_catalogo: list[dict]) -> dict:
+    """Usa Sonnet para selecionar os agentes mais adequados (~$0.01)."""
+    try:
+        from langchain_anthropic import ChatAnthropic
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        lista_agentes = "\n".join([
+            f"- ID:{a['id']} | {a['nome']} ({a['perfil']}) — categoria: {a['categoria']}"
+            for a in agentes_catalogo
+        ])
+
+        system = (
+            "Voce e um seletor de agentes do Synerium Factory. "
+            "Dado um problema, selecione 2-3 agentes do catalogo que melhor podem resolver. "
+            "Retorne APENAS um JSON valido (sem markdown) no formato: "
+            '{"agentes": [{"id": N, "razao": "breve"}], "razao_geral": "resumo", "confianca": 0.9}'
+        )
+        prompt = (
+            f"Problema do usuario:\n{mensagem[:500]}\n\n"
+            f"Agentes disponiveis:\n{lista_agentes}\n\n"
+            f"Selecione 2-3 agentes mais relevantes. JSON:"
+        )
+
+        llm = ChatAnthropic(model="claude-sonnet-4-20250514", max_tokens=500, temperature=0)
+        resp = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=prompt)])
+
+        import json
+        # Extrair JSON da resposta (pode vir com texto extra)
+        texto = resp.content.strip()
+        # Tentar encontrar JSON na resposta
+        inicio = texto.find("{")
+        fim = texto.rfind("}") + 1
+        if inicio >= 0 and fim > inicio:
+            return json.loads(texto[inicio:fim])
+        return {"agentes": [], "razao_geral": "Nao foi possivel analisar", "confianca": 0}
+
+    except Exception as e:
+        logger.warning(f"[MontarTime] Erro LLM: {e}")
+        return {"agentes": [], "razao_geral": f"Erro: {str(e)[:100]}", "confianca": 0}
+
+
+@router.post("/montar-time")
+async def montar_time(
+    req: MontarTimeRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """
+    Analisa a mensagem do usuario e sugere um time de agentes para resolver o problema.
+    Usa regex (custo zero) + LLM Sonnet (~$0.01) para selecao inteligente.
+    """
+    # 1. Buscar agentes do catalogo
+    agentes_db = db.query(AgenteCatalogoDB).filter_by(ativo=True).all()
+    if not agentes_db:
+        return {
+            "necessita_time": False,
+            "razao": "Nenhum agente no catalogo",
+            "agentes": [],
+        }
+
+    agentes_lista = [
+        {
+            "id": a.id,
+            "nome": a.nome_exibicao,
+            "perfil": a.perfil_agente,
+            "categoria": a.categoria,
+            "papel": a.papel,
+            "icone": a.icone,
+        }
+        for a in agentes_db
+    ]
+
+    # 2. Deteccao rapida (regex)
+    necessita = _detectar_necessidade_time(req.mensagem)
+
+    if not necessita:
+        # Mesmo sem indicador forte, permitir montagem manual
+        return {
+            "necessita_time": False,
+            "razao": "Mensagem nao indica problema complexo. Clique 'Montar Time' para forcar.",
+            "agentes": agentes_lista,  # Retorna catalogo completo para selecao manual
+        }
+
+    # 3. Selecao inteligente via LLM
+    resultado_llm = await _selecionar_agentes_llm(req.mensagem, agentes_lista)
+
+    # 4. Enriquecer com dados do catalogo
+    agentes_selecionados = []
+    for sel in resultado_llm.get("agentes", []):
+        agente_db = next((a for a in agentes_lista if a["id"] == sel.get("id")), None)
+        if agente_db:
+            agentes_selecionados.append({
+                **agente_db,
+                "razao": sel.get("razao", ""),
+            })
+
+    confianca = resultado_llm.get("confianca", 0)
+
+    return {
+        "necessita_time": True,
+        "razao_geral": resultado_llm.get("razao_geral", ""),
+        "agentes_sugeridos": agentes_selecionados,
+        "confianca": confianca,
+        "auto_iniciar": confianca >= 0.85,
+        "catalogo_completo": agentes_lista,  # Para ajuste manual
+    }

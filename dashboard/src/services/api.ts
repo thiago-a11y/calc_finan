@@ -268,7 +268,22 @@ export const executarReuniao = (dados: {
   squad_nome: string
   agentes_indices: number[]
   pauta: string
-}) => post<TarefaResultado>('/tarefas/reuniao', dados)
+  paralelo?: boolean
+}) => post<TarefaResultado>('/tarefas/reuniao', { paralelo: true, ...dados })
+
+export interface AgenteSugerido {
+  id: number; nome: string; perfil: string; categoria: string; razao: string; icone: string
+}
+export interface MontarTimeResult {
+  necessita_time: boolean
+  razao_geral?: string; razao?: string
+  agentes_sugeridos?: AgenteSugerido[]
+  confianca?: number; auto_iniciar?: boolean
+  catalogo_completo?: AgenteSugerido[]
+}
+export const montarTime = (dados: {
+  mensagem: string; squad_nome: string; agente_atual_idx?: number; contexto?: string
+}) => post<MontarTimeResult>('/tarefas/montar-time', dados)
 
 export const continuarReuniao = (id: string, feedback: string) =>
   post<TarefaResultado>(`/tarefas/${id}/continuar`, { feedback })
