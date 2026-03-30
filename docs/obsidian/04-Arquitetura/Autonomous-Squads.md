@@ -106,6 +106,48 @@ def aprovar_gate(workflow_id, usuario):
 
 ---
 
+## Session SQLite Isolada por Fase
+
+A partir da v0.50.0, cada fase do workflow cria sua própria `SessionLocal()` em vez de compartilhar uma única session entre todas as fases. Isso resolve o crash `commit() can't be called` que ocorria em threads longas.
+
+```python
+def _executar_fase(fase, workflow_id):
+    db = SessionLocal()  # Session isolada por fase
+    try:
+        # ... execução da fase ...
+        db.commit()
+    finally:
+        db.close()
+```
+
+---
+
+## Fila de Workflows Automática
+
+Quando um workflow conclui ou falha, o sistema verifica automaticamente se há workflows com status `aguardando_fila` e inicia o próximo. Isso evita que workflows fiquem presos aguardando início manual.
+
+```
+Workflow A (executando) → conclui/falha
+    └── Verifica fila → Workflow B (aguardando_fila) → inicia automaticamente
+```
+
+---
+
+## Progresso Percentual por Fase
+
+Cada fase do BMAD representa 25% do progresso total. O Command Center exibe uma barra de progresso em cada card de squad:
+
+| Fase | Progresso |
+|------|-----------|
+| Business | 25% |
+| Marketing | 50% |
+| Architecture | 75% |
+| Development | 100% |
+
+O progresso é atualizado em tempo real conforme o workflow avança pelas fases.
+
+---
+
 ## Recovery de Workflows Travados
 
 No startup do servidor (`api/main.py`), uma verificação automática:

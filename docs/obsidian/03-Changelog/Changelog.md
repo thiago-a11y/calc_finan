@@ -4,6 +4,32 @@
 
 ---
 
+## v0.50.0 — Vision-to-Product + Correções Críticas (2026-03-30)
+
+### Funcionalidades
+- **Vision-to-Product** — PM Central gera roadmap, estimativa de dias e custo estimado a partir de uma visão de produto
+- **Features com prioridade e complexidade** no Comando Estratégico do Command Center
+- **Barra de progresso %** em cada card de squad no Command Center
+- **Session SQLite isolada por fase** no Autonomous Squads (fix crítico — `SessionLocal()` por fase evita crash de `commit()`)
+- **Fila de workflows automática** — Próximo workflow inicia automaticamente ao concluir/falhar o anterior
+- **LLM Fallback robusto** — `core/llm_fallback.py` com cadeia Anthropic → Groq → OpenAI
+- **6 pontos de chamada LLM** atualizados para usar fallback centralizado
+- **langchain-groq** instalado no servidor para suporte ao fallback Groq
+- **Rota conflito corrigida** — `GET /{tarefa_id}` → `GET /detalhe/{tarefa_id}`
+- **Botão Novo Projeto** na página Projetos + modal de criação (CEO only)
+- **Sistema de conversas separadas** no AgentPanel (localStorage por projeto, máx 20)
+- **Scroll inteligente** no AgentPanel (início da resposta, não final)
+- **Convites corrigidos** — Tratamento naive vs aware datetime em `auth.py` e `convites.py`
+- **Painel Geral** busca usuários do banco (não mais config estático)
+- **Jonatas removido do seed** — Agora entra via sistema de convites
+- **CEO pode excluir qualquer usuário** exceto ele mesmo
+- **permissoes.py corrompido** restaurado via SCP do servidor
+- **Pull no Code Studio** com token VCS + auto-pull após merge
+- **Push dialog** — Invalid Date corrigido + commits já mergeados somem da lista
+- **Regex extrairBlocoCodigo** com 3 fallbacks para robustez
+
+---
+
 ## v0.49.0 — Autonomous Squads + Self-Evolving Factory + Command Center (2026-03-30)
 
 ### Funcionalidades

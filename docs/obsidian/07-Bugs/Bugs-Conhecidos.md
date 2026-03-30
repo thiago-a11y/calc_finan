@@ -46,6 +46,13 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 | 30 | CEO não podia excluir outros proprietários | Regra de permissão bloqueava exclusão de usuários com role `proprietario`, mas o CEO também é proprietário e precisa poder excluir outros | Corrigido: CEO (por ID específico) pode excluir qualquer usuário exceto a si mesmo | 2026-03-30 |
 | 31 | Git pull HTTPS sem token no fetch (origin/main desatualizado) | Comando `git fetch` para sincronizar `origin/main` não incluía token VCS, falhando com "could not read Username" | Fetch agora injeta token VCS na URL temporariamente para sincronizar origin/main antes de listar commits | 2026-03-30 |
 
+| 32 | Session SQLite crash em threads longas (`commit() can't be called`) | Mesma session SQLAlchemy compartilhada entre fases do workflow, causando conflito em threads longas | `SessionLocal()` isolada por fase — cada fase cria e fecha sua própria session | 2026-03-30 |
+| 33 | Workflows `aguardando_fila` nunca iniciavam | Não havia mecanismo para iniciar o próximo workflow após conclusão/falha do anterior | Fila automática implementada — ao concluir/falhar, verifica e inicia o próximo da fila | 2026-03-30 |
+| 34 | Gate approval sem verificação de permissão (race condition) | Endpoint de aprovação não tinha lock, permitindo aprovações duplicadas em requests simultâneos | `threading.Lock` + verificação explícita de CEO/OpsLead antes de aprovar | 2026-03-30 |
+| 35 | Rota `/{tarefa_id}` conflitava com `/command-center` | FastAPI resolvia `/command-center` como `{tarefa_id}="command-center"` por ordem de registro | Renomeada para `/detalhe/{tarefa_id}` para evitar colisão | 2026-03-30 |
+| 36 | `langchain_groq` não instalado no servidor | Import falhava com `ModuleNotFoundError` ao tentar usar fallback Groq | `pip install langchain-groq` no servidor de produção | 2026-03-30 |
+| 37 | `load_dotenv` faltando no `llm_fallback.py` | Chaves de API não eram carregadas do `.env`, causando falha em todos os providers | Adicionado `load_dotenv()` no início do módulo | 2026-03-30 |
+
 ### Lições Aprendidas
 
 - **Bug #3 e #9**: `create_all()` do SQLAlchemy só cria tabelas novas, nunca altera esquema de tabelas existentes. Para próximos deploys com novos campos, incluir migration manual no bootstrap ou adotar Alembic. Problema reincidente — priorizar solução definitiva.
