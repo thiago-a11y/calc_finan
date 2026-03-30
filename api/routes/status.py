@@ -11,14 +11,15 @@ from fastapi import APIRouter, Depends
 from api.dependencias import obter_fabrica, obter_usuario_atual
 from api.schemas import StatusGeralResponse, SquadResumo, VaultResumo, UsuarioResumo
 from database.models import UsuarioDB
+from database.session import get_db
+from sqlalchemy.orm import Session
 from gates.approval_gates import approval_gate
-from config.usuarios import listar_usuarios
 
 router = APIRouter(prefix="/api", tags=["Status"])
 
 
 @router.get("/status", response_model=StatusGeralResponse)
-def obter_status(fabrica=Depends(obter_fabrica), usuario: UsuarioDB = Depends(obter_usuario_atual)):
+def obter_status(fabrica=Depends(obter_fabrica), usuario: UsuarioDB = Depends(obter_usuario_atual), db: Session = Depends(get_db)):
     """Retorna o status geral da fábrica — squads, aprovações, RAG."""
 
     squads = [
@@ -39,14 +40,16 @@ def obter_status(fabrica=Depends(obter_fabrica), usuario: UsuarioDB = Depends(ob
 
     pendentes = len(approval_gate.listar_pendentes())
 
+    # Buscar usuarios ATIVOS do banco (nao do config estatico)
+    usuarios_db = db.query(UsuarioDB).filter_by(ativo=True).all()
     lideranca = [
         UsuarioResumo(
             id=u.id,
             nome=u.nome,
-            cargo=u.cargo,
-            pode_aprovar=u.pode_aprovar,
+            cargo=u.cargo or "",
+            pode_aprovar=u.pode_aprovar or False,
         )
-        for u in listar_usuarios()
+        for u in usuarios_db
     ]
 
     return StatusGeralResponse(
