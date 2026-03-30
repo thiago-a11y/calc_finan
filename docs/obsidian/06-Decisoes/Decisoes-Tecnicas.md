@@ -204,4 +204,32 @@ Alguns usuários preferem respostas mais rápidas e diretas, sem o overhead de c
 
 ---
 
-> Última atualização: 2026-03-29
+## Por que timeout de 30 minutos para tarefas e reuniões (não 10min)?
+
+O timeout original de 10 minutos era insuficiente para consultas complexas envolvendo múltiplos agentes, análise RAG e reuniões com vários participantes. Tarefas de arquitetura, revisão de código e reuniões de planejamento frequentemente levam 15-25 minutos. Aumentar para 30 minutos cobre 99% dos cenários sem risco de processos órfãos, pois o endpoint `/tarefas/{id}/retomar` permite recuperação manual caso algo trave.
+
+## Por que token VCS injetado na URL HTTPS (não GIT_ASKPASS ou credential helper)?
+
+Três alternativas foram avaliadas para autenticação git no servidor:
+1. **GIT_ASKPASS** — exige script externo no filesystem, complicação desnecessária
+2. **git credential helper** — persiste credenciais no disco, risco de segurança em servidor compartilhado
+3. **Token na URL HTTPS** — `https://token@github.com/repo.git`, efêmero (só existe na memória do processo), sem persistência, sem script externo
+
+A opção 3 é a mais simples e segura para automação. O token já está criptografado (Fernet) no banco e é descriptografado apenas no momento do git pull. Combinado com `GIT_TERMINAL_PROMPT=0`, garante que o git nunca trave esperando input em ambiente headless.
+
+## Por que regras obrigatórias injetadas no prompt do agente (não configuração externa)?
+
+Agentes IA podem executar ações inesperadas se o prompt não contiver restrições explícitas. O agente do Escritório Virtual enviava emails automaticamente sem pedir autorização. A solução foi injetar regras obrigatórias diretamente no system prompt:
+1. **Nunca enviar email sem autorização explícita do usuário**
+2. **Sugerir Code Studio para tarefas de código** (em vez de tentar editar pelo chat)
+3. **Confirmar ações irreversíveis antes de executar**
+
+Essas regras ficam no prompt (não em configuração externa) porque o LLM precisa tê-las no contexto de decisão. Regras em banco de dados ou variáveis de ambiente não são visíveis ao modelo durante a geração.
+
+## Por que cache thread-safe com TTLCache + threading.Lock no CompanyContext?
+
+O CompanyContextBuilder é chamado por múltiplas requests simultâneas do FastAPI (que roda em threads via uvicorn). Sem lock, duas threads poderiam atualizar o cache ao mesmo tempo, causando race condition. A solução usa `cachetools.TTLCache` (cache com expiração automática) protegido por `threading.Lock`. O lock é adquirido apenas na leitura/escrita do cache (microsegundos), sem impacto perceptível na latência. TTL de 5 minutos para projetos e sem expiração para dados da empresa.
+
+---
+
+> Última atualização: 2026-03-30

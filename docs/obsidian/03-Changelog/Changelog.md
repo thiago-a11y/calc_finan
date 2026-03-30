@@ -4,6 +4,31 @@
 
 ---
 
+## v0.40.0 — Chat Resiliente + Timeout + Retomar Conversa (2026-03-30)
+
+### Funcionalidades
+- **Timeout de tarefas/reuniões aumentado** de 10 para 30 minutos — consultas complexas não expiram mais prematuramente
+- **Novo endpoint** `POST /tarefas/{id}/retomar` — Re-executa tarefa ou reabre reunião que deu erro/timeout
+- **Botão "Retomar conversa"** no ChatFloating do Escritório Virtual quando agente retorna erro
+- **Botão "Retomar de onde parou"** no ReuniaoModal quando reunião dá timeout ou erro
+- **Git Pull com token VCS** — Code Studio agora injeta token VCS na URL HTTPS para autenticação automática no git pull
+- **GIT_TERMINAL_PROMPT=0** — Evita que o git trave esperando input do usuário em operações HTTPS
+
+### Correções
+- **LLM tracked incompatível com CrewAI 1.11+** — Corrigido com `**kwargs` no wrapper (parâmetro `available_tools`)
+- **Gemini 2.0-flash descontinuado** — Atualizado para Gemini 2.5-flash
+- **LangSmith 403 no RAG** — Removido `@traceable` do endpoint de query que causava erro de permissão
+- **Chroma deprecation warning** — Migrado de `langchain_community.vectorstores` para `langchain_chroma`
+- **Estimador de tokens inflado** — Valores fantasma ($55) corrigidos para refletir custos reais
+- **Botão "Aplicar" não aparecia em Refatorar/Documentar** — Regex corrigida para capturar todas as ações, não só Otimizar
+- **NetworkError no fetch do analyze** — Timeout aumentado para 120s com AbortController
+- **Estouro de 213K tokens ao enviar imagem** — Imagens agora são tratadas como descrição textual no contexto
+- **Texto muted com baixo contraste** — Cores de texto `muted` ajustadas para acessibilidade em dark/light mode
+- **Git Pull falhava com "could not read Username"** — Resolvido com injeção de token VCS na URL HTTPS
+- **Agente do Escritório enviava emails sem pedir** — Bloqueado com regras obrigatórias no prompt do agente
+
+---
+
 ## v0.39.0 — 2026-03-29
 ### Company Context Total — Agente IA com Conhecimento Completo
 - **Novo módulo** core/company_context.py com CompanyContextBuilder (3 níveis: minimal/standard/full)
