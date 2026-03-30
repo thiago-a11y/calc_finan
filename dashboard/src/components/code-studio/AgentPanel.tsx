@@ -500,14 +500,14 @@ export default function AgentPanel({
                   <MarkdownRenderer content={msg.conteudo} />
                 </div>
 
-                {/* Botões de ação automática */}
-                {msg.tipoAcao && msg.tipoAcao !== 'geral' && extrairBlocoCodigo(msg.conteudo) && (
+                {/* Botões de ação automática — aparecem sempre em respostas de ação (nao geral) */}
+                {msg.tipoAcao && msg.tipoAcao !== 'geral' && (
                   <div className="flex items-center gap-1.5 mt-2 pt-2"
                     style={{ borderTop: '1px solid var(--sf-border-subtle)' }}>
                     {/* Aplicar */}
                     <button
                       onClick={() => pedirConfirmacao(i, msg)}
-                      disabled={aplicando !== null || confirmacao !== null}
+                      disabled={aplicando !== null || confirmacao !== null || !extrairBlocoCodigo(msg.conteudo)}
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all hover:brightness-110 disabled:opacity-40"
                       style={{
                         background: msg.tipoAcao === 'testar' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)',
@@ -527,7 +527,7 @@ export default function AgentPanel({
                     {msg.tipoAcao !== 'testar' && (
                       <button
                         onClick={() => handleApplyDeploy(i, msg)}
-                        disabled={deployando !== null || aplicando !== null}
+                        disabled={deployando !== null || aplicando !== null || !extrairBlocoCodigo(msg.conteudo)}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all hover:brightness-110 disabled:opacity-40"
                         style={{
                           background: 'rgba(168,85,247,0.15)',
