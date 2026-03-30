@@ -1354,184 +1354,271 @@ def _executar_workflow_autonomo_bg(
 ):
     """
     Executa o workflow BMAD autonomo em background.
-    Para cada fase: monta time → executa reuniao → salva output → verifica gate.
+    IMPORTANTE: Cada fase usa SessionLocal() ISOLADA para evitar erros de thread.
+    Ao concluir/falhar, inicia proximo workflow da fila automaticamente.
     """
     from crewai import Task, Crew, Process
 
-    db = SessionLocal()
+    squad = fabrica.squads.get(squad_nome)
+    if not squad:
+        db_err = SessionLocal()
+        try:
+            wf = db_err.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+            if wf:
+                wf.status = "erro"
+                wf.outputs = {**(wf.outputs or {}), "erro": f"Squad '{squad_nome}' nao encontrado"}
+                db_err.commit()
+        finally:
+            db_err.close()
+        return
+
+    fase = fase_inicial
+    outputs = {}
+
+    # Carregar outputs existentes
+    db_init = SessionLocal()
     try:
-        wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+        wf = db_init.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
         if not wf or wf.status == "cancelado":
             return
-
-        squad = fabrica.squads.get(squad_nome)
-        if not squad:
-            wf.status = "erro"
-            wf.outputs = {**(wf.outputs or {}), "erro": f"Squad '{squad_nome}' nao encontrado"}
-            db.commit()
-            return
-
-        fase = fase_inicial
         outputs = wf.outputs or {}
+    finally:
+        db_init.close()
 
-        while fase <= 4:
-            if wf.status == "cancelado":
+    while fase <= 4:
+        logger.info(f"[AUTONOMO] Workflow {workflow_id} — Iniciando Fase {fase}: {FASES_BMAD[fase]}")
+
+        # === Session isolada para atualizar status ===
+        db_status = SessionLocal()
+        try:
+            wf = db_status.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+            if not wf or wf.status == "cancelado":
                 break
-
-            logger.info(f"[AUTONOMO] Workflow {workflow_id} — Iniciando Fase {fase}: {FASES_BMAD[fase]}")
-
-            # Atualizar status
             wf.fase_atual = fase
             wf.status = "em_execucao"
             wf.atualizado_em = datetime.utcnow()
-            db.commit()
+            db_status.commit()
 
-            # Selecionar agentes para esta fase
-            perfis_fase = AGENTES_POR_FASE.get(fase, ["tech_lead", "backend_dev"])
-            agentes_disponiveis = [
-                a for i, a in enumerate(squad.agentes)
-                if i < len(squad.agentes)
-            ]
+            usuario_id = wf.usuario_id
+            usuario_nome = wf.usuario_nome
+            company_id = wf.company_id
+        finally:
+            db_status.close()
 
-            # Usar ate 3 agentes (limite de economia)
-            agentes_fase = agentes_disponiveis[:min(3, len(agentes_disponiveis))]
-            if not agentes_fase:
-                wf.status = "erro"
-                outputs[f"fase_{fase}"] = "Erro: nenhum agente disponivel no squad"
-                wf.outputs = outputs
-                db.commit()
-                break
+        # Selecionar agentes
+        agentes_fase = squad.agentes[:min(3, len(squad.agentes))]
+        if not agentes_fase:
+            db_err = SessionLocal()
+            try:
+                wf = db_err.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+                if wf:
+                    wf.status = "erro"
+                    outputs[f"fase_{fase}"] = "Erro: nenhum agente disponivel"
+                    wf.outputs = outputs
+                    db_err.commit()
+            finally:
+                db_err.close()
+            break
 
-            # Montar prompt da fase
-            output_anterior = outputs.get(f"fase_{fase - 1}", "")
-            prompt = PROMPTS_FASE.get(fase, "").format(
-                titulo=titulo,
-                descricao=descricao,
-                output_anterior=output_anterior[:3000],
-            )
+        # Montar prompt
+        output_anterior = outputs.get(f"fase_{fase - 1}", "")
+        prompt = PROMPTS_FASE.get(fase, "").format(
+            titulo=titulo,
+            descricao=descricao,
+            output_anterior=output_anterior[:3000],
+        )
 
-            # Executar agentes em paralelo
-            resultados_fase = []
-            tarefa_id = str(uuid.uuid4())[:8]
+        # === Session isolada para criar tarefa ===
+        tarefa_id = str(uuid.uuid4())[:8]
+        db_tarefa = SessionLocal()
+        try:
             tarefa_db = TarefaDB(
-                id=tarefa_id, squad_nome=squad_nome, agente_nome=f"Fase {fase}: {FASES_BMAD[fase]}",
+                id=tarefa_id, squad_nome=squad_nome,
+                agente_nome=f"Fase {fase}: {FASES_BMAD[fase]}",
                 agente_indice=-1, descricao=prompt,
                 status="executando", tipo="reuniao",
                 participantes=[a.role for a in agentes_fase],
                 rodadas=[], rodada_atual=1,
-                usuario_id=wf.usuario_id, usuario_nome=wf.usuario_nome,
-                company_id=wf.company_id,
+                usuario_id=usuario_id, usuario_nome=usuario_nome,
+                company_id=company_id,
             )
-            db.add(tarefa_db)
-            wf.tarefa_atual_id = tarefa_id
-            db.commit()
+            db_tarefa.add(tarefa_db)
+            wf = db_tarefa.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+            if wf:
+                wf.tarefa_atual_id = tarefa_id
+            db_tarefa.commit()
+        finally:
+            db_tarefa.close()
 
-            with ThreadPoolExecutor(max_workers=3) as executor:
-                def executar_agente(agente, idx):
-                    try:
-                        tarefa_upd = db.query(TarefaDB).filter_by(id=tarefa_id).first()
-                        if tarefa_upd:
-                            tarefa_upd.agente_atual = f"⚡ {agente.role}"
-                            db.commit()
+        # === Executar agentes em paralelo (cada agente usa sua propria session) ===
+        resultados_fase = []
 
-                        crewai_tarefa = Task(
-                            description=prompt,
-                            expected_output=f"Resultado da {FASES_BMAD[fase]} — completo e estruturado.",
-                            agent=agente,
-                        )
-                        crew = Crew(agents=[agente], tasks=[crewai_tarefa],
-                                     process=Process.sequential, verbose=True)
-                        resultado = crew.kickoff()
-                        return {"agente": agente.role, "resposta": str(resultado), "sucesso": True}
-                    except Exception as e:
-                        return {"agente": agente.role, "resposta": f"Erro: {str(e)[:200]}", "sucesso": False}
+        def executar_agente(agente, idx):
+            # Session isolada por agente
+            db_ag = SessionLocal()
+            try:
+                t = db_ag.query(TarefaDB).filter_by(id=tarefa_id).first()
+                if t:
+                    t.agente_atual = f"⚡ {agente.role}"
+                    db_ag.commit()
+            except Exception:
+                pass
+            finally:
+                db_ag.close()
 
-                futures = {executor.submit(executar_agente, ag, i): ag for i, ag in enumerate(agentes_fase)}
-                for future in as_completed(futures):
-                    result = future.result()
-                    resultados_fase.append(result)
+            try:
+                crewai_tarefa = Task(
+                    description=prompt,
+                    expected_output=f"Resultado da {FASES_BMAD[fase]} — completo e estruturado.",
+                    agent=agente,
+                )
+                crew = Crew(agents=[agente], tasks=[crewai_tarefa],
+                             process=Process.sequential, verbose=True)
+                resultado = crew.kickoff()
+                return {"agente": agente.role, "resposta": str(resultado), "sucesso": True}
+            except Exception as e:
+                return {"agente": agente.role, "resposta": f"Erro: {str(e)[:200]}", "sucesso": False}
 
-                    # Salvar progresso incremental
-                    tarefa_upd = db.query(TarefaDB).filter_by(id=tarefa_id).first()
-                    if tarefa_upd:
-                        rodadas = tarefa_upd.rodadas or []
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {executor.submit(executar_agente, ag, i): ag for i, ag in enumerate(agentes_fase)}
+            for future in as_completed(futures):
+                result = future.result()
+                resultados_fase.append(result)
+
+                # Salvar progresso com session isolada
+                db_prog = SessionLocal()
+                try:
+                    t = db_prog.query(TarefaDB).filter_by(id=tarefa_id).first()
+                    if t:
+                        rodadas = t.rodadas or []
                         rodadas.append({
                             "rodada": 1,
                             "agente": result["agente"],
                             "resposta": result["resposta"],
                             "timestamp": datetime.utcnow().isoformat(),
                         })
-                        tarefa_upd.rodadas = rodadas
-                        tarefa_upd.agente_atual = f"⚡ {len(resultados_fase)}/{len(agentes_fase)} concluidos"
-                        db.commit()
+                        t.rodadas = rodadas
+                        t.agente_atual = f"⚡ {len(resultados_fase)}/{len(agentes_fase)} concluidos"
+                        db_prog.commit()
+                except Exception:
+                    pass
+                finally:
+                    db_prog.close()
 
-            # Compilar output da fase
-            output_fase = f"=== FASE {fase}: {FASES_BMAD[fase].upper()} ===\n\n"
-            for r in resultados_fase:
-                output_fase += f"**{r['agente']}:**\n{r['resposta']}\n\n"
+        # === Session isolada para salvar output da fase ===
+        output_fase = f"=== FASE {fase}: {FASES_BMAD[fase].upper()} ===\n\n"
+        for r in resultados_fase:
+            output_fase += f"**{r['agente']}:**\n{r['resposta']}\n\n"
+        outputs[f"fase_{fase}"] = output_fase
 
-            outputs[f"fase_{fase}"] = output_fase
-            wf.outputs = outputs
+        db_save = SessionLocal()
+        try:
+            wf = db_save.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+            if wf:
+                wf.outputs = outputs
 
-            # Finalizar tarefa
-            tarefa_upd = db.query(TarefaDB).filter_by(id=tarefa_id).first()
-            if tarefa_upd:
-                tarefa_upd.status = "concluida"
-                tarefa_upd.resultado = output_fase[:5000]
-                tarefa_upd.agente_atual = None
-                tarefa_upd.concluido_em = datetime.utcnow()
+            t = db_save.query(TarefaDB).filter_by(id=tarefa_id).first()
+            if t:
+                t.status = "concluida"
+                t.resultado = output_fase[:5000]
+                t.agente_atual = None
+                t.concluido_em = datetime.utcnow()
 
-            db.commit()
-            logger.info(f"[AUTONOMO] Fase {fase} concluida ({len(resultados_fase)} agentes)")
+            db_save.commit()
+        finally:
+            db_save.close()
 
-            # Verificar gate
-            gate_tipo = GATES_FASE.get(fase, "soft")
-            if gate_tipo == "soft":
-                gates = wf.gates or {}
-                gates[f"fase_{fase}"] = {"status": "auto_pass", "por": "sistema"}
-                wf.gates = gates
-                db.commit()
-                fase += 1
-                continue
+        logger.info(f"[AUTONOMO] Fase {fase} concluida ({len(resultados_fase)} agentes)")
 
-            # Gate hard — pausar e aguardar aprovacao
-            wf.status = "aguardando_gate"
+        # === Verificar gate ===
+        gate_tipo = GATES_FASE.get(fase, "soft")
+        if gate_tipo == "soft":
+            db_gate = SessionLocal()
+            try:
+                wf = db_gate.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+                if wf:
+                    gates = wf.gates or {}
+                    gates[f"fase_{fase}"] = {"status": "auto_pass", "por": "sistema"}
+                    wf.gates = gates
+                    db_gate.commit()
+            finally:
+                db_gate.close()
+            fase += 1
+            continue
+
+        # Gate hard — pausar
+        db_gate = SessionLocal()
+        try:
+            wf = db_gate.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+            if wf:
+                wf.status = "aguardando_gate"
+                wf.atualizado_em = datetime.utcnow()
+                db_gate.commit()
+        finally:
+            db_gate.close()
+        logger.info(f"[AUTONOMO] Workflow {workflow_id} — Aguardando gate Fase {fase}")
+        break  # Retomado quando CEO aprovar
+
+    # === Verificar se concluiu todas as fases ===
+    db_final = SessionLocal()
+    try:
+        wf = db_final.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+        if wf and fase > 4 and wf.status == "em_execucao":
+            wf.status = "concluido"
             wf.atualizado_em = datetime.utcnow()
-            db.commit()
-            logger.info(f"[AUTONOMO] Workflow {workflow_id} — Aguardando aprovacao do gate da Fase {fase}")
-            break  # Sai do loop — sera retomado quando CEO aprovar
-
-        # Se completou todas as fases
-        wf_final = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
-        if wf_final and wf_final.fase_atual > 4:
-            wf_final.status = "concluido"
-            wf_final.atualizado_em = datetime.utcnow()
-            db.commit()
+            db_final.commit()
             logger.info(f"[AUTONOMO] Workflow {workflow_id} CONCLUIDO!")
 
-            # Auto-review: Factory Optimizer analisa a execucao
+            # Auto-review
             try:
+                threading.Thread(target=_executar_review_session, args=(workflow_id,), daemon=True).start()
+            except Exception:
+                pass
+
+        # === FILA: Iniciar proximo workflow aguardando_fila ===
+        if wf and wf.status in ("concluido", "erro"):
+            proximo = db_final.query(WorkflowAutonomoDB).filter_by(
+                status="aguardando_fila",
+                squad_nome=squad_nome,
+            ).order_by(WorkflowAutonomoDB.criado_em.asc()).first()
+
+            if proximo:
+                proximo.status = "em_execucao"
+                db_final.commit()
+                logger.info(f"[FILA] Iniciando proximo workflow: {proximo.id} — {proximo.titulo}")
                 threading.Thread(
-                    target=_executar_review_session,
-                    args=(workflow_id,),
+                    target=_executar_workflow_autonomo_bg,
+                    args=(proximo.id, proximo.squad_nome, proximo.titulo, proximo.descricao or "", 1, fabrica),
                     daemon=True,
                 ).start()
-                logger.info(f"[EVOLUCAO] Review session iniciada para workflow {workflow_id}")
-            except Exception as re:
-                logger.warning(f"[EVOLUCAO] Falha ao iniciar review: {re}")
 
     except Exception as e:
-        wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
-        if wf:
-            wf.status = "erro"
-            outputs = wf.outputs or {}
-            outputs["erro"] = str(e)[:500]
-            wf.outputs = outputs
-            wf.atualizado_em = datetime.utcnow()
-            db.commit()
-        logger.error(f"[AUTONOMO] Erro: {e}")
+        logger.error(f"[AUTONOMO] Erro final: {e}")
+        try:
+            wf = db_final.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+            if wf and wf.status == "em_execucao":
+                wf.status = "erro"
+                wf.outputs = {**(wf.outputs or {}), "erro": str(e)[:500]}
+                wf.atualizado_em = datetime.utcnow()
+                db_final.commit()
+
+            # FILA: Mesmo com erro, iniciar proximo
+            proximo = db_final.query(WorkflowAutonomoDB).filter_by(
+                status="aguardando_fila", squad_nome=squad_nome,
+            ).order_by(WorkflowAutonomoDB.criado_em.asc()).first()
+            if proximo:
+                proximo.status = "em_execucao"
+                db_final.commit()
+                logger.info(f"[FILA] Workflow {workflow_id} falhou → iniciando proximo: {proximo.id}")
+                threading.Thread(
+                    target=_executar_workflow_autonomo_bg,
+                    args=(proximo.id, proximo.squad_nome, proximo.titulo, proximo.descricao or "", 1, fabrica),
+                    daemon=True,
+                ).start()
+        except Exception:
+            pass
     finally:
-        db.close()
+        db_final.close()
 
 
 # =====================================================================
