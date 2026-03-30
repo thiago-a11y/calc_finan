@@ -60,8 +60,15 @@
 - [x] Solicitação de agentes — usuário pede, admin aprova/rejeita
 - [x] Hot-reload de squads ao atribuir/remover agentes
 - [x] 3 Agentes Elite: Test Master, GitHub Master, GitBucket Master (v0.46.0)
-- [x] BMAD mapeamento completo — 15 agentes com fases e palavras-chave (v0.46.0)
+- [x] BMAD mapeamento completo — 16 agentes com fases e palavras-chave (v0.46.0+v0.49.0)
 - [x] Live Agents — progresso rotativo, balão de status, shimmer (v0.43.0)
+- [x] Autonomous Squads — Workflow BMAD completo autônomo (v0.49.0) ✅
+- [x] Self-Evolving Factory — Review sessions, Factory Optimizer, EvolucaoFactoryDB (v0.49.0) ✅
+- [x] Command Center — Painel CEO com KPIs, comando estratégico, spawn de squads (v0.49.0) ✅
+- [x] Vision-to-Product — PM Central gera roadmap com estimativa de custo/prazo (v0.50.0) ✅
+- [x] LLM Fallback centralizado — Anthropic → Groq → OpenAI, 6 pontos atualizados (v0.50.0) ✅
+- [x] Dynamic Team Assembly — Detecção automática + seleção de agentes por LLM (v0.49.0) ✅
+- [x] 16 agentes mapeados no catálogo (v0.50.0) ✅
 - [ ] Mapear os 45 funcionários da Objetiva
 - [ ] Criar squad personalizado para cada um
 - [ ] Sistema de registro e gestão escalável de squads

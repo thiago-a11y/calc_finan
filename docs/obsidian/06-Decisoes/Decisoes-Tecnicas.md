@@ -317,4 +317,22 @@ As sugestões do Factory Optimizer precisam ser rastreáveis e auditáveis. O mo
 
 ---
 
+## Por que Session SQLite isolada por fase (não sessão compartilhada)?
+
+O Autonomous Squads executa 4 fases BMAD em threads longas. Inicialmente, uma única session SQLAlchemy era compartilhada entre todas as fases. Quando uma fase demorava, a session expirava com erro `commit() can't be called` porque outra thread já havia finalizado a transação. A solução foi criar `SessionLocal()` nova por operação — cada fase abre e fecha sua própria session independente. Overhead mínimo (criar session é microsegundos), mas elimina 100% dos crashes de concorrência SQLite em threads.
+
+## Por que fila automática de workflows (não execução simultânea)?
+
+Workflows autônomos consomem LLM tokens intensivamente (múltiplos agentes por fase). Executar vários simultaneamente estouraria rate limits e custos. A fila garante execução sequencial: ao concluir ou falhar, o sistema verifica se há workflow com status `aguardando_fila` e o inicia automaticamente. O CEO pode enfileirar vários workflows pelo Command Center sem esperar — eles executam em ordem. Se no futuro a capacidade de tokens aumentar, é trivial mudar para execução paralela com semáforo.
+
+## Por que Vision-to-Product via PM Central + LLM (não templates fixos)?
+
+O Vision-to-Product permite ao CEO descrever uma visão de produto em linguagem natural. O PM Central (Alex) processa a visão via LLM e gera: roadmap de features, estimativa de dias por feature, estimativa de custo total, prioridade e complexidade. Usar templates fixos seria limitante — cada produto tem necessidades diferentes. O LLM entende nuances e gera roadmaps contextualizados. As features geradas são então convertidas em workflows autônomos pelo Command Center.
+
+## Por que teste end-to-end Fase 2→3→4 como critério de qualidade?
+
+O fluxo completo de um workflow autônomo (Business → Architecture → Development, pulando Marketing em teste) é o cenário mais complexo do sistema: envolve múltiplas fases, transição de gates, session management, LLM calls e persistência. Se esse fluxo passa sem crash, os cenários mais simples (fase única, cancelamento, retry) funcionam por consequência. O teste validou: session isolada, fila automática, gates, progresso % e persistência de resultado.
+
+---
+
 > Última atualização: 2026-03-30

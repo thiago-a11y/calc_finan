@@ -13,6 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
+**Versão Atual:** v0.50.0 (30/Mar/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -51,7 +52,8 @@ CEO (Thiago)
         ├── Squad Jonatas (3 agentes atribuídos do catálogo)
         ├── Squad Dev Backend, Dev Frontend, Marketing (squads de área)
         ├── Autonomous Squads — Workflows BMAD autônomos com gates
-        └── [Novos squads criados dinamicamente via atribuição do catálogo]
+        ├── Vision-to-Product — PM Central gera roadmap + estimativa custo/prazo
+    └── [Novos squads criados dinamicamente via atribuição do catálogo]
 ```
 
 ## Squad do CEO (Piloto) — 9 Agentes
@@ -162,6 +164,7 @@ CEO (Thiago)
 ├── core/                        # Motores e lógica central
 │   ├── luna_engine.py           # Motor da Luna: streaming + fallback (Opus→Sonnet→Groq→Fireworks→Together)
 │   ├── llm_router.py            # Smart Router multi-provider
+│   ├── llm_fallback.py          # LLM Fallback centralizado (Anthropic → Groq → OpenAI)
 │   └── vcs_service.py           # Serviço VCS (GitHub/GitBucket) com Fernet
 ├── api/                         # API REST (FastAPI)
 │   ├── main.py                  # App principal
@@ -227,8 +230,8 @@ CEO (Thiago)
 ├── database/                    # Banco de dados
 │   ├── models.py                # Modelos SQLAlchemy
 │   ├── session.py               # Engine + sessão
-│   ├── seed.py                  # Seed (Thiago + Jonatas)
-│   ├── seed_catalogo.py         # Seed dos 12 agentes no catálogo
+│   ├── seed.py                  # Seed (Thiago — Jonatas entra via convite)
+│   ├── seed_catalogo.py         # Seed dos 16 agentes no catálogo
 │   └── (tabelas Luna: luna_conversas, luna_mensagens)
 ├── data/                        # Dados persistidos
 │   ├── synerium.db              # Banco SQLite
@@ -297,7 +300,9 @@ SyneriumFactory-notes/
 │   ├── Code-Studio.md
 │   ├── VCS-Integration.md
 │   ├── Autonomous-Squads.md
-│   └── Self-Evolving-Factory.md
+│   ├── Self-Evolving-Factory.md
+│   ├── Command-Center.md
+│   └── LLM-Fallback.md
 ├── 09-Squads/
 │   ├── Mapa-Squads.md
 │   └── Squad-CEO-Thiago.md
@@ -419,6 +424,7 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.47.0** — **Novo Projeto** — Botão Novo Projeto na página Projetos + modal de criação (CEO only)
 - **v0.48.0** — **Preview por Commit** — Preview de arquivos alterados por commit no PushDialog + horário Brasília
 - **v0.49.0** — **Autonomous Squads + Self-Evolving Factory + Command Center** — Workflows BMAD autônomos (4 fases, gates soft/hard), Factory Optimizer (PDCA), Command Center CEO, LLM Fallback robusto (Anthropic→Groq→OpenAI), recovery de workflows travados
+- **v0.50.0** — **Vision-to-Product + Session Isolada + Fila de Workflows** — PM Central gera roadmap com estimativa de custo/prazo, session SQLite isolada por fase (fix crítico), fila automática de workflows, 16 agentes no catálogo, teste end-to-end aprovado (Fase 2→3→4 sem crash)
 
 ---
 
@@ -432,7 +438,7 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 
 ## Auto-Timeout de Reuniões
 
-- Reuniões executando há +10 minutos são resetadas automaticamente
+- Reuniões/tarefas executando há +30 minutos são resetadas automaticamente
 - Verificação silenciosa a cada consulta de histórico
 - Endpoint manual: `POST /api/tarefas/limpar-travadas`
 
@@ -528,11 +534,15 @@ Editor de código completo integrado ao dashboard com funcionalidades avançadas
 - **Preview por commit** (v0.48.0) — Arquivos alterados por commit no PushDialog com horário Brasília
 - **Rota:** `/code-studio` no dashboard
 
-## Autonomous Squads (novo em v0.49.0)
+## Autonomous Squads (novo em v0.49.0, consolidado v0.50.0)
 
 Workflow BMAD completo automatizado:
 - **4 fases**: Business → Marketing → Architecture → Development
 - **Gates soft/hard**: Soft prossegue automaticamente, hard aguarda CEO/OpsLead
+- **Session isolada por fase** (v0.50.0) — Cada fase cria e fecha sua própria `SessionLocal()` SQLite, evitando crash em threads longas
+- **Fila automática** (v0.50.0) — Ao concluir/falhar, verifica e inicia o próximo workflow da fila
+- **Dynamic Team Assembly** — Detecção automática de tipo de tarefa + seleção de agentes por LLM
+- **Teste end-to-end aprovado** — Fase 2→3→4 sem crash
 - **Modelo**: `WorkflowAutonomoDB` com status, fase atual e resultado JSON
 - **Endpoints**: `POST /api/autonomo`, `GET /api/autonomo/{id}`, aprovar-gate, cancelar
 - **Recovery**: Workflows travados >30min são marcados como erro no startup
@@ -547,19 +557,25 @@ Sistema de auto-evolução contínua:
 - **Fluxo**: workflow conclui → review → sugestões → CEO aprova → implementação
 - **Endpoints**: `/api/evolucao` (listar, aprovar, rejeitar)
 
-## Command Center (novo em v0.49.0)
+## Command Center (novo em v0.49.0, expandido v0.50.0)
 
 Painel estratégico do CEO:
 - **KPIs em tempo real** — Workflows ativos, concluídos, taxa de sucesso
-- **Comando estratégico** — Disparar workflows autônomos
+- **Comando estratégico** — Disparar workflows autônomos com features priorizadas e complexidade
+- **Vision-to-Product** (v0.50.0) — PM Central gera roadmap com estimativa de dias e custo a partir de uma visão de produto
+- **Barra de progresso %** em cada card de squad no Command Center
 - **Spawn de squads** — Criar squads sob demanda
 - **Gates pendentes** — Visualização e aprovação de gates
+- **Fila automática de workflows** — Próximo inicia ao concluir/falhar o anterior
+- **Endpoints**: `GET /command-center` (KPIs, workflows, evoluções), `POST /command-center/estrategia` (PM Central quebra em features)
 
-## LLM Fallback Robusto (novo em v0.49.0)
+## LLM Fallback Robusto (novo em v0.49.0, consolidado v0.50.0)
 
 Cadeia centralizada em `core/llm_fallback.py`:
 - **Anthropic** (Claude) → **Groq** (Llama) → **OpenAI** (GPT-4o)
 - Qualquer módulo chama `obter_llm_fallback()` e recebe o provider disponível
+- **6 pontos de chamada** atualizados para usar fallback centralizado
+- Detecção automática de erro de crédito/quota/rate limit
 - Nunca mais para por falta de créditos ou rate limit
 
 ---
