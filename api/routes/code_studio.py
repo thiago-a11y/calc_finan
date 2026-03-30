@@ -1166,12 +1166,33 @@ async def git_log_pendentes(
             for linha in log_r.stdout.decode().strip().split("\n"):
                 partes = linha.split("|", 4)
                 if len(partes) >= 5:
+                    commit_hash = partes[0]
+                    # Buscar arquivos alterados neste commit
+                    arquivos = []
+                    try:
+                        stat_r = subprocess.run(
+                            ["git", "diff-tree", "--no-commit-id", "--name-status", "-r", commit_hash],
+                            cwd=str(base), capture_output=True, timeout=5,
+                        )
+                        if stat_r.returncode == 0:
+                            for sl in stat_r.stdout.decode().strip().split("\n"):
+                                if sl.strip():
+                                    stat_parts = sl.split("\t", 1)
+                                    if len(stat_parts) == 2:
+                                        arquivos.append({
+                                            "status": stat_parts[0],  # M=modified, A=added, D=deleted
+                                            "arquivo": stat_parts[1],
+                                        })
+                    except Exception:
+                        pass
+
                     commits.append({
-                        "hash": partes[0],
+                        "hash": commit_hash,
                         "hash_curto": partes[1],
                         "mensagem": partes[2],
                         "autor": partes[3],
                         "data": partes[4],
+                        "arquivos": arquivos,
                     })
 
         return {

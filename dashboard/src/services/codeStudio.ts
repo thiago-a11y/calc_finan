@@ -291,12 +291,18 @@ export async function buscarHistorico(projetoId = 0, limit = 50, page = 1): Prom
 // Git Log + Push (commits pendentes + criar PR)
 // ============================================================
 
+export interface ArquivoAlterado {
+  status: string  // M=modified, A=added, D=deleted
+  arquivo: string
+}
+
 export interface GitCommitInfo {
   hash: string
   hash_curto: string
   mensagem: string
   autor: string
   data: string
+  arquivos?: ArquivoAlterado[]
 }
 
 export interface GitLogResponse {

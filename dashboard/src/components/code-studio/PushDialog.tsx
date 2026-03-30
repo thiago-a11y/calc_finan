@@ -1,7 +1,8 @@
 /* PushDialog — Modal de selecao de commits para Push + PR + Merge */
+/* v2: Preview expandivel + horario Brasilia + arquivos alterados */
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Loader2, GitBranch, Check, ExternalLink, AlertCircle, GitCommitHorizontal, GitMerge } from 'lucide-react'
+import { X, Loader2, GitBranch, Check, ExternalLink, AlertCircle, GitCommitHorizontal, GitMerge, ChevronDown, ChevronRight, FileEdit, FilePlus, FileX } from 'lucide-react'
 import { gitLog, gitPush, gitMerge, type GitCommitInfo } from '../../services/codeStudio'
 
 interface PushDialogProps {
@@ -10,18 +11,26 @@ interface PushDialogProps {
   onFechar: () => void
 }
 
-function tempoRelativo(dataStr: string): string {
+/** Converte data ISO/git para horario de Brasilia formatado */
+function formatarBrasilia(dataStr: string): string {
   if (!dataStr) return ''
-  const agora = Date.now()
-  const data = new Date(dataStr.replace(' ', 'T')).getTime()
-  const diff = agora - data
-  if (diff < 0 || isNaN(diff)) return ''
-  const min = Math.floor(diff / 60000)
-  if (min < 60) return `${min}min`
-  const h = Math.floor(min / 60)
-  if (h < 24) return `${h}h`
-  const d = Math.floor(h / 24)
-  return `${d}d`
+  try {
+    const d = new Date(dataStr.replace(' ', 'T'))
+    return d.toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch { return dataStr }
+}
+
+/** Icone e cor por status do arquivo */
+function statusArquivo(status: string) {
+  switch (status.toUpperCase()) {
+    case 'A': return { icon: FilePlus, cor: '#10b981', label: 'Adicionado' }
+    case 'D': return { icon: FileX, cor: '#ef4444', label: 'Removido' }
+    default: return { icon: FileEdit, cor: '#f59e0b', label: 'Modificado' }
+  }
 }
 
 type Etapa = 'selecao' | 'enviando' | 'pr_criada' | 'fazendo_merge' | 'merge_concluido' | 'erro'
@@ -32,6 +41,7 @@ export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDia
   const [branchRemoto, setBranchRemoto] = useState('')
   const [carregando, setCarregando] = useState(true)
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
   const [etapa, setEtapa] = useState<Etapa>('selecao')
   const [erro, setErro] = useState('')
 
@@ -60,6 +70,15 @@ export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDia
 
   const toggleCommit = (hash: string) => {
     setSelecionados(prev => {
+      const novo = new Set(prev)
+      if (novo.has(hash)) novo.delete(hash)
+      else novo.add(hash)
+      return novo
+    })
+  }
+
+  const toggleExpandido = (hash: string) => {
+    setExpandidos(prev => {
       const novo = new Set(prev)
       if (novo.has(hash)) novo.delete(hash)
       else novo.add(hash)
@@ -218,7 +237,7 @@ export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDia
             </div>
           )}
 
-          {/* === ETAPA: SELECAO DE COMMITS === */}
+          {/* === ETAPA: SELECAO DE COMMITS (com preview) === */}
           {!carregando && commits.length > 0 && etapa === 'selecao' && (
             <>
               <div className="flex items-center justify-between mb-2">
@@ -231,33 +250,85 @@ export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDia
                   {selecionados.size === commits.length ? 'Desmarcar todos' : 'Selecionar todos'}
                 </button>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {commits.map(c => {
                   const sel = selecionados.has(c.hash)
+                  const exp = expandidos.has(c.hash)
+                  const arquivos = c.arquivos || []
                   return (
-                    <button key={c.hash} onClick={() => toggleCommit(c.hash)}
-                      className="w-full flex items-start gap-2.5 px-3 py-2 rounded-lg text-left transition-all"
+                    <div key={c.hash} className="rounded-lg overflow-hidden transition-all"
                       style={{
                         background: sel ? 'rgba(16,185,129,0.06)' : 'transparent',
                         border: `1px solid ${sel ? 'rgba(16,185,129,0.15)' : 'var(--sf-border-subtle)'}`,
                       }}>
-                      <div className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 mt-0.5"
-                        style={{ borderColor: sel ? '#10b981' : 'var(--sf-border-default)', background: sel ? '#10b981' : 'transparent' }}>
-                        {sel && <Check size={10} color="#fff" strokeWidth={3} />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <GitCommitHorizontal size={11} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                          <span className="text-[10px] font-mono" style={{ color: '#f59e0b' }}>{c.hash_curto}</span>
-                          <span className="text-[11px] font-medium truncate" style={{ color: 'var(--sf-text-1)' }}>{c.mensagem}</span>
+                      {/* Linha principal do commit */}
+                      <div className="flex items-start gap-2.5 px-3 py-2">
+                        {/* Checkbox */}
+                        <button onClick={() => toggleCommit(c.hash)}
+                          className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 mt-0.5"
+                          style={{ borderColor: sel ? '#10b981' : 'var(--sf-border-default)', background: sel ? '#10b981' : 'transparent' }}>
+                          {sel && <Check size={10} color="#fff" strokeWidth={3} />}
+                        </button>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <GitCommitHorizontal size={11} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                            <span className="text-[10px] font-mono" style={{ color: '#f59e0b' }}>{c.hash_curto}</span>
+                            <span className="text-[11px] font-medium truncate" style={{ color: 'var(--sf-text-1)' }}>{c.mensagem}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[9px]" style={{ color: 'var(--sf-text-3)' }}>{c.autor}</span>
+                            <span className="text-[9px]" style={{ color: 'var(--sf-text-3)', opacity: 0.5 }}>·</span>
+                            <span className="text-[9px]" style={{ color: 'var(--sf-text-3)' }}>{formatarBrasilia(c.data)}</span>
+                            {arquivos.length > 0 && (
+                              <>
+                                <span className="text-[9px]" style={{ color: 'var(--sf-text-3)', opacity: 0.5 }}>·</span>
+                                <span className="text-[9px]" style={{ color: 'var(--sf-text-3)', opacity: 0.7 }}>
+                                  {arquivos.length} arquivo{arquivos.length !== 1 ? 's' : ''}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[9px]" style={{ color: 'var(--sf-text-3)' }}>{c.autor}</span>
-                          <span className="text-[9px]" style={{ color: 'var(--sf-text-3)', opacity: 0.5 }}>·</span>
-                          <span className="text-[9px]" style={{ color: 'var(--sf-text-3)', opacity: 0.6 }}>{tempoRelativo(c.data)}</span>
-                        </div>
+
+                        {/* Botão preview */}
+                        {arquivos.length > 0 && (
+                          <button onClick={() => toggleExpandido(c.hash)}
+                            className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-medium hover:bg-white/5 flex-shrink-0"
+                            style={{ color: '#818cf8' }}
+                            title="Ver arquivos alterados neste commit">
+                            {exp ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                            Detalhes
+                          </button>
+                        )}
                       </div>
-                    </button>
+
+                      {/* Preview expandido — lista de arquivos */}
+                      {exp && arquivos.length > 0 && (
+                        <div className="px-3 pb-2.5 pt-0.5 ml-6" style={{ borderTop: '1px solid var(--sf-border-subtle)' }}>
+                          <div className="max-h-40 overflow-auto space-y-0.5" style={{ scrollbarWidth: 'thin' }}>
+                            {arquivos.map((a, ai) => {
+                              const st = statusArquivo(a.status)
+                              const Icon = st.icon
+                              return (
+                                <div key={ai} className="flex items-center gap-2 py-0.5">
+                                  <Icon size={11} style={{ color: st.cor, flexShrink: 0 }} />
+                                  <span className="text-[10px] font-mono truncate" style={{ color: 'var(--sf-text-2)' }}>
+                                    {a.arquivo}
+                                  </span>
+                                  <span className="text-[8px] px-1.5 py-0.5 rounded flex-shrink-0" style={{
+                                    background: `${st.cor}15`,
+                                    color: st.cor,
+                                  }}>
+                                    {st.label}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
