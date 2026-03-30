@@ -22,7 +22,8 @@ from datetime import datetime
 
 logger = logging.getLogger("synerium.deploy")
 
-SYNERIUMX_PATH = os.path.expanduser("~/propostasap")
+from tools.syneriumx_tools import SYNERIUMX_BASE
+SYNERIUMX_PATH = SYNERIUMX_BASE  # Resolvido dinamicamente (banco → /opt/projetos/syneriumx → ~/propostasap)
 PROPOSTAS_DIR = os.path.expanduser("~/synerium-factory/data/propostas_edicao")
 DEPLOYS_DIR = os.path.expanduser("~/synerium-factory/data/deploys")
 

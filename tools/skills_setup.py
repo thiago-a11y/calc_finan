@@ -473,7 +473,7 @@ def inicializar_skills(rag_query=None, vault_factory_path: str = "") -> SkillReg
     logger.info("[SKILL] Criar Projeto + ZIP ativados!")
 
     # ==============================================================
-    # 11. SKILLS: Edição Real do SyneriumX (~/propostasap)
+    # 11. SKILLS: Edição Real do SyneriumX ((caminho dinamico))
     # ==============================================================
     from tools.syneriumx_tools import (
         LerArquivoSyneriumX, ListarDiretorioSyneriumX,
@@ -484,7 +484,7 @@ def inicializar_skills(rag_query=None, vault_factory_path: str = "") -> SkillReg
     skill_registry.registrar(SkillDefinition(
         id="sx_ler_arquivo",
         nome="Ler Arquivo SyneriumX",
-        descricao="Lê arquivos do projeto real SyneriumX em ~/propostasap. Código PHP, React, configs, etc.",
+        descricao="Lê arquivos do projeto real SyneriumX em (caminho dinamico). Código PHP, React, configs, etc.",
         categoria="syneriumx",
         ferramenta=LerArquivoSyneriumX(),
         icone="📖",
@@ -535,7 +535,7 @@ def inicializar_skills(rag_query=None, vault_factory_path: str = "") -> SkillReg
         icone="💻",
     ))
 
-    logger.info("[SKILL] SyneriumX Tools (6 ferramentas) ativadas — base: ~/propostasap")
+    logger.info("[SKILL] SyneriumX Tools (6 ferramentas) ativadas — base: (caminho dinamico)")
 
     # ==============================================================
     # PERFIS DE AGENTES — Quais skills cada um recebe

@@ -24,7 +24,8 @@ from pathlib import Path
 
 logger = logging.getLogger("synerium.deploy.v2")
 
-SYNERIUMX_PATH = os.path.expanduser("~/propostasap")
+from tools.syneriumx_tools import SYNERIUMX_BASE
+SYNERIUMX_PATH = SYNERIUMX_BASE  # Resolvido dinamicamente (banco → /opt/projetos/syneriumx → ~/propostasap)
 DEPLOYS_DIR = os.path.expanduser("~/synerium-factory/data/deploys_v2")
 
 
