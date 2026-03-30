@@ -125,8 +125,18 @@ def _executar_tarefa_bg(tarefa_id: str, squad_nome: str, agente_idx: int,
         tarefa.agente_atual = agente.role
         db.commit()
 
+        # Enriquecer descricao com regras de comportamento
+        descricao_enriquecida = (
+            f"{descricao}\n\n"
+            "REGRAS OBRIGATORIAS:\n"
+            "- NUNCA envie emails sem o usuario pedir explicitamente\n"
+            "- Se nao conseguir acessar arquivos do projeto, informe ao usuario e sugira usar o Code Studio\n"
+            "- Responda de forma direta e objetiva em portugues brasileiro\n"
+            "- NAO invente informacoes — use suas ferramentas para consultar dados reais"
+        )
+
         crewai_tarefa = Task(
-            description=descricao,
+            description=descricao_enriquecida,
             expected_output=resultado_esperado,
             agent=agente,
         )

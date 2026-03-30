@@ -541,8 +541,10 @@ def inicializar_skills(rag_query=None, vault_factory_path: str = "") -> SkillReg
     # PERFIS DE AGENTES — Quais skills cada um recebe
     # ==============================================================
 
-    # Skills compartilhadas — todos os agentes têm acesso
-    _skills_comuns = ["email_enviar", "email_enviar_anexo", "projeto_criar", "zip_criar"]
+    # Skills compartilhadas — todos os agentes tem acesso
+    # NOTA: email removido dos comuns para evitar envio automatico sem aprovacao
+    # Apenas Sofia (secretaria_executiva) pode enviar emails
+    _skills_comuns = ["projeto_criar", "zip_criar"]
 
     # Skills do SyneriumX — acesso ao repositório real
     _skills_syneriumx = [

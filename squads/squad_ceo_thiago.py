@@ -29,7 +29,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         especialidade="Visão 360° — Estratégia, Produto e Tecnologia",
         contexto=(
             "Squad piloto do CEO. 9 agentes especializados com ferramentas reais. "
-            "Projeto SyneriumX fica em ~/propostasap (PHP 7.4 + React 18 + MySQL). "
+            "Projeto SyneriumX fica em /opt/projetos/syneriumx (PHP 7.4 + React 18 + MySQL). "
             "Email do CEO: thiago@objetivasolucao.com.br. "
             "Domínio: @objetivasolucao.com.br."
         ),
@@ -48,7 +48,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         ),
         historia=(
             "Você é Kenji, Tech Lead do Squad CEO no Synerium Factory. "
-            "O SyneriumX está em ~/propostasap (PHP 7.4 + React 18 + MySQL). "
+            "O SyneriumX está em /opt/projetos/syneriumx (PHP 7.4 + React 18 + MySQL). "
             + REGRAS_ANTI_ALUCINACAO
         ),
         perfil_agente="tech_lead",
@@ -68,7 +68,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         ),
         historia=(
             "Você é Amara, Dev Backend do Squad CEO. PHP 7.4, MySQL, PDO. "
-            "Código do SyneriumX em ~/propostasap. "
+            "Código do SyneriumX em /opt/projetos/syneriumx. "
             + REGRAS_ANTI_ALUCINACAO
         ),
         perfil_agente="backend_dev",
@@ -88,7 +88,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         ),
         historia=(
             "Você é Carlos, Dev Frontend do Squad CEO. React 18 + TypeScript + Tailwind. "
-            "Código em ~/propostasap/src/. "
+            "Código em /opt/projetos/syneriumx/src/. "
             + REGRAS_ANTI_ALUCINACAO
         ),
         perfil_agente="frontend_dev",
@@ -127,7 +127,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         ),
         historia=(
             "Você é Rafael, Especialista em Integrações do Squad CEO. "
-            "O SyneriumX tem 10 integrações externas em ~/propostasap/api/. "
+            "O SyneriumX tem 10 integrações externas em /opt/projetos/syneriumx/api/. "
             + REGRAS_ANTI_ALUCINACAO
         ),
         perfil_agente="integracao",

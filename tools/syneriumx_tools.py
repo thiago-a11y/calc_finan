@@ -7,7 +7,7 @@ Regras de segurança:
 - GIT push/merge/reset: requer aprovação
 - Terminal: apenas comandos de leitura (ls, find, grep, cat, wc, etc.)
 
-Path base restrito a: ~/propostasap
+Path base: resolve dinamicamente do banco (ProjetoDB) com fallbacks.
 """
 
 import os
@@ -19,8 +19,50 @@ from pydantic import Field
 
 logger = logging.getLogger("synerium.tools.syneriumx")
 
-# Caminho base do SyneriumX — NUNCA operar fora dele
-SYNERIUMX_BASE = os.path.expanduser("~/propostasap")
+
+def _resolver_base_syneriumx() -> str:
+    """
+    Resolve o caminho base do SyneriumX dinamicamente.
+
+    Ordem de prioridade:
+    1. Variavel de ambiente SYNERIUMX_BASE (override manual)
+    2. Banco de dados (ProjetoDB com nome SyneriumX)
+    3. /opt/projetos/syneriumx (padrao AWS)
+    4. ~/propostasap (dev local Mac)
+    """
+    # Override via env
+    env_base = os.getenv("SYNERIUMX_BASE", "")
+    if env_base and os.path.isdir(env_base):
+        return env_base
+
+    # Tentar buscar do banco
+    try:
+        from database.session import SessionLocal
+        from database.models import ProjetoDB
+        db = SessionLocal()
+        projeto = db.query(ProjetoDB).filter(
+            ProjetoDB.nome.ilike("%syneriumx%"),
+            ProjetoDB.ativo == True,
+        ).first()
+        if projeto and projeto.caminho and os.path.isdir(projeto.caminho):
+            db.close()
+            return projeto.caminho
+        db.close()
+    except Exception:
+        pass
+
+    # Fallbacks por path
+    for path in ["/opt/projetos/syneriumx", os.path.expanduser("~/propostasap")]:
+        if os.path.isdir(path):
+            return path
+
+    # Ultimo recurso
+    return "/opt/projetos/syneriumx"
+
+
+# Caminho base do SyneriumX — resolvido dinamicamente
+SYNERIUMX_BASE = _resolver_base_syneriumx()
+logger.info(f"[SyneriumX Tools] Base path: {SYNERIUMX_BASE}")
 
 # Comandos bloqueados por segurança
 COMANDOS_BLOQUEADOS = [
