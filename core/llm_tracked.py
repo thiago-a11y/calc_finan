@@ -124,18 +124,22 @@ def criar_llm_tracked(
         do CrewAI (tools, available_tools, available_functions,
         callbacks, tool_choice, etc.).
         """
-        # Estimar tokens de input
+        # Estimar tokens de input (apenas conteudo textual, nao objetos serializados)
         texto_input = ""
         if isinstance(messages, list):
             for msg in messages:
                 if isinstance(msg, dict):
                     texto_input += str(msg.get("content", ""))
-                else:
-                    texto_input += str(msg)
+                elif isinstance(msg, str):
+                    texto_input += msg
+                elif hasattr(msg, "content"):
+                    texto_input += str(getattr(msg, "content", ""))
+                # Ignora objetos complexos (tools, etc.) para nao inflar contagem
         elif isinstance(messages, str):
             texto_input = messages
         else:
-            texto_input = str(messages)
+            # Fallback conservador: limitar a 50K chars para evitar inflacao
+            texto_input = str(messages)[:50000]
 
         tokens_input = _estimar_tokens(texto_input)
         modelo_ref = getattr(llm, '_tracking_modelo_original', modelo)
@@ -147,27 +151,12 @@ def criar_llm_tracked(
         try:
             resultado = call_original(messages=messages, **kwargs)
         except Exception as e:
-            # Registrar tentativa falhada
+            # NAO registrar consumo em caso de erro — a request nao chegou ao provider
+            # ou foi rejeitada antes de consumir tokens reais
             duracao = time.time() - inicio
-            tracker.registrar(
-                provider_id=provider_id,
-                tokens_input=tokens_input,
-                tokens_output=0,
-                modelo=modelo_limpo,
-                tipo=llm._tracking_tipo,
-                agente_nome=llm._tracking_agente,
-                squad_nome=llm._tracking_squad,
-                usuario_id=llm._tracking_usuario_id,
-                usuario_nome=llm._tracking_usuario_nome,
-                detalhes={
-                    "erro": str(e)[:200],
-                    "duracao_seg": round(duracao, 2),
-                    "perfil": llm._tracking_perfil,
-                },
-            )
             logger.warning(
-                f"[TRACKED] ERRO {provider_id}/{modelo_limpo} | "
-                f"agente={llm._tracking_agente} | {e}"
+                f"[TRACKED] ERRO (nao cobrado) {provider_id}/{modelo_limpo} | "
+                f"{duracao:.1f}s | agente={llm._tracking_agente} | {e}"
             )
             raise
 
