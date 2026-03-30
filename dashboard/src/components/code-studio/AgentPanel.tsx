@@ -1,9 +1,9 @@
 /* AgentPanel — Painel lateral com chat do agente IA + ações automáticas */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Bot, Send, Sparkles, BookOpen, RefreshCw, FileCode, Loader2, X, TestTube2, Play, Copy, Check, AlertTriangle, Building2, Users } from 'lucide-react'
+import { Bot, Send, Sparkles, BookOpen, RefreshCw, FileCode, Loader2, X, TestTube2, Play, Copy, Check, AlertTriangle, Building2, Users, Rocket } from 'lucide-react'
 import MarkdownRenderer from '../luna/MarkdownRenderer'
-import { analisarCodigo, aplicarAcao, analisarCodigoComTime, type DiffResumo, type VCSResultado } from '../../services/codeStudio'
+import { analisarCodigo, aplicarAcao, analisarCodigoComTime, applyDeploy, type DiffResumo, type VCSResultado, type EtapaDeploy } from '../../services/codeStudio'
 import TeamDialog from './TeamDialog'
 
 interface Mensagem {
@@ -93,6 +93,8 @@ export default function AgentPanel({
   const [mostrarTeamDialog, setMostrarTeamDialog] = useState(false)
   const [chamandoTime, setChamandoTime] = useState(false)
   const [aplicando, setAplicando] = useState<number | null>(null)  // indice da mensagem sendo aplicada
+  const [deployando, setDeployando] = useState<number | null>(null)
+  const [deployEtapas, setDeployEtapas] = useState<EtapaDeploy[]>([])
   const [toast, setToast] = useState<ToastDetalhado | null>(null)
   const [copiado, setCopiado] = useState<number | null>(null)
   const [confirmacao, setConfirmacao] = useState<{ idx: number; msg: Mensagem } | null>(null)
@@ -262,6 +264,51 @@ export default function AgentPanel({
       setAplicando(null)
     }
   }, [caminhoAtivo, linguagem, aplicando, onArquivoAtualizado, projetoId])
+
+  // Apply + Deploy — pipeline completo sem confirmação
+  const handleApplyDeploy = useCallback(async (idx: number, msg: Mensagem) => {
+    if (!caminhoAtivo || deployando !== null) return
+    const codigo = extrairBlocoCodigo(msg.conteudo)
+    if (!codigo) {
+      setToast({ msg: 'Nenhum bloco de codigo encontrado', tipo: 'erro' })
+      return
+    }
+
+    setDeployando(idx)
+    setDeployEtapas([
+      { etapa: 'backup', sucesso: false, msg: 'Fazendo backup...' },
+    ])
+
+    try {
+      // Simular etapas enquanto backend processa
+      setTimeout(() => setDeployEtapas(prev => [...prev, { etapa: 'aplicar', sucesso: false, msg: 'Aplicando alteracao...' }]), 500)
+      setTimeout(() => setDeployEtapas(prev => [...prev, { etapa: 'testes', sucesso: false, msg: 'Executando testes...' }]), 1500)
+      setTimeout(() => setDeployEtapas(prev => [...prev, { etapa: 'commit_push', sucesso: false, msg: 'Commit + Push...' }]), 3000)
+
+      const resultado = await applyDeploy(caminhoAtivo, codigo, 'substituir', projetoId)
+
+      if (resultado.ok) {
+        setDeployEtapas(resultado.etapas)
+        setToast({
+          msg: 'Deploy concluido com sucesso!',
+          tipo: 'ok',
+          detalhes: { arquivo: resultado.caminho || caminhoAtivo, diff: resultado.diff_resumo, vcs: resultado.vcs },
+        })
+        onArquivoAtualizado?.()
+      } else {
+        setDeployEtapas(resultado.etapas)
+        setToast({ msg: resultado.erro || 'Falha no pipeline', tipo: 'erro' })
+      }
+    } catch (e) {
+      setToast({ msg: e instanceof Error ? e.message : 'Erro no apply-deploy', tipo: 'erro' })
+    } finally {
+      // Manter etapas visiveis por 5s, depois limpar
+      setTimeout(() => {
+        setDeployando(null)
+        setDeployEtapas([])
+      }, 5000)
+    }
+  }, [caminhoAtivo, deployando, projetoId, onArquivoAtualizado])
 
   /** Qual label mostrar no botão de aplicar */
   const labelAplicar = (tipo?: Mensagem['tipoAcao']) => {
@@ -476,6 +523,27 @@ export default function AgentPanel({
                       {aplicando === i ? 'Aplicando...' : labelAplicar(msg.tipoAcao)}
                     </button>
 
+                    {/* Apply + Deploy */}
+                    {msg.tipoAcao !== 'testar' && (
+                      <button
+                        onClick={() => handleApplyDeploy(i, msg)}
+                        disabled={deployando !== null || aplicando !== null}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all hover:brightness-110 disabled:opacity-40"
+                        style={{
+                          background: 'rgba(168,85,247,0.15)',
+                          color: '#a855f7',
+                          border: '1px solid rgba(168,85,247,0.2)',
+                        }}
+                      >
+                        {deployando === i ? (
+                          <Loader2 size={10} className="animate-spin" />
+                        ) : (
+                          <Rocket size={10} />
+                        )}
+                        {deployando === i ? 'Deploy...' : 'Aplicar + Deploy'}
+                      </button>
+                    )}
+
                     {/* Copiar código */}
                     <button
                       onClick={() => copiarCodigo(i, extrairBlocoCodigo(msg.conteudo) || '')}
@@ -485,6 +553,26 @@ export default function AgentPanel({
                       {copiado === i ? <Check size={10} /> : <Copy size={10} />}
                       {copiado === i ? 'Copiado!' : 'Copiar'}
                     </button>
+                  </div>
+                )}
+
+                {/* Indicador de progresso do Deploy */}
+                {deployando === i && deployEtapas.length > 0 && (
+                  <div className="mt-2 px-3 py-2 rounded-lg text-[10px] space-y-1.5"
+                    style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.15)' }}>
+                    <p className="font-bold text-[11px] flex items-center gap-1.5" style={{ color: '#a855f7' }}>
+                      <Rocket size={12} /> Pipeline em execucao
+                    </p>
+                    {deployEtapas.map((e, ei) => {
+                      const icone = e.sucesso ? '✅' : (deployando !== null && ei === deployEtapas.length - 1 && !e.sucesso ? '⏳' : '❌')
+                      return (
+                        <div key={ei} className="flex items-start gap-1.5" style={{ color: e.sucesso ? '#10b981' : 'var(--sf-text-2)' }}>
+                          <span>{icone}</span>
+                          <span className="font-medium capitalize">{e.etapa.replace('_', ' ')}:</span>
+                          <span style={{ color: 'var(--sf-text-3)' }}>{e.msg}</span>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
 

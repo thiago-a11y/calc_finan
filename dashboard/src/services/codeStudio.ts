@@ -139,6 +139,60 @@ export async function aplicarAcao(
   return res.json()
 }
 
+// === Apply + Deploy (pipeline completo) ===
+
+export interface EtapaDeploy {
+  etapa: string
+  sucesso: boolean
+  msg: string
+}
+
+export interface ApplyDeployResponse {
+  ok: boolean
+  etapas: EtapaDeploy[]
+  vcs?: VCSResultado | null
+  diff_resumo?: DiffResumo | null
+  caminho?: string
+  erro?: string
+}
+
+export async function applyDeploy(
+  caminhoDestino: string,
+  conteudoNovo: string,
+  tipoAcao: 'substituir' | 'criar' = 'substituir',
+  projetoId = 0
+): Promise<ApplyDeployResponse> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 180000) // 3min
+
+  try {
+    const res = await fetch(`${API}/api/code-studio/apply-deploy`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({
+        caminho_destino: caminhoDestino,
+        conteudo_novo: conteudoNovo,
+        tipo_acao: tipoAcao,
+        project_id: projetoId,
+      }),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Erro no apply-deploy' }))
+      throw new Error(err.detail || 'Erro no apply-deploy')
+    }
+    return res.json()
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error('Timeout: pipeline demorou mais de 3 minutos')
+    }
+    throw e
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+
 export async function analisarCodigo(
   caminho: string,
   conteudo: string,

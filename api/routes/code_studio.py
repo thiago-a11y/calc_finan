@@ -616,6 +616,188 @@ Regras obrigatorias:
         raise HTTPException(status_code=500, detail=f"Erro na analise: {str(e)}")
 
 
+# ============================================================
+# Apply + Deploy — Pipeline completo: backup → aplicar → testar → commit → push
+# ============================================================
+
+class ApplyDeployRequest(BaseModel):
+    caminho_destino: str
+    conteudo_novo: str
+    tipo_acao: str = "substituir"
+    project_id: int = 0
+
+
+@router.post("/apply-deploy")
+async def apply_deploy(
+    dados: ApplyDeployRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """
+    Pipeline completo: backup → aplicar → testar → commit → push.
+    Retorna resultado de cada etapa para progresso no frontend.
+    """
+    _verificar_escrita(usuario)
+    base, proj_id, projeto = _obter_base_projeto(dados.project_id, db, usuario)
+    caminho = _validar_caminho(dados.caminho_destino, base)
+
+    etapas = []
+    conteudo_original = ""
+    backup_path = ""
+
+    # === ETAPA 1: Backup ===
+    try:
+        backup_dir = base / "data" / "backups" / "code-studio"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if caminho.exists():
+            conteudo_original = caminho.read_text(encoding="utf-8", errors="replace")
+            backup_path = str(backup_dir / f"{caminho.name}.{ts}.bak")
+            shutil.copy2(str(caminho), backup_path)
+        etapas.append({"etapa": "backup", "sucesso": True, "msg": f"Backup salvo ({ts})"})
+    except Exception as e:
+        etapas.append({"etapa": "backup", "sucesso": False, "msg": str(e)[:200]})
+        return {"ok": False, "etapas": etapas, "erro": "Falha no backup"}
+
+    # === ETAPA 2: Aplicar ===
+    try:
+        if dados.tipo_acao == "criar":
+            caminho.parent.mkdir(parents=True, exist_ok=True)
+        caminho.write_text(dados.conteudo_novo, encoding="utf-8")
+        linhas_antes = len(conteudo_original.splitlines()) if conteudo_original else 0
+        linhas_depois = len(dados.conteudo_novo.splitlines())
+        etapas.append({"etapa": "aplicar", "sucesso": True, "msg": f"{linhas_antes} → {linhas_depois} linhas"})
+    except Exception as e:
+        # Reverter do backup
+        if backup_path and Path(backup_path).exists():
+            shutil.copy2(backup_path, str(caminho))
+        etapas.append({"etapa": "aplicar", "sucesso": False, "msg": str(e)[:200]})
+        return {"ok": False, "etapas": etapas, "erro": "Falha ao aplicar"}
+
+    # === ETAPA 3: Testes (opcional — se houver config de testes) ===
+    testes_ok = True
+    try:
+        # Detectar tipo de projeto e rodar testes
+        ext = caminho.suffix.lower()
+        test_cmd = None
+        if ext in (".py", ".pyx"):
+            # Python — tentar pytest
+            if (base / "pytest.ini").exists() or (base / "tests").exists() or (base / "pyproject.toml").exists():
+                test_cmd = ["python", "-m", "pytest", "--tb=short", "-q", "--timeout=30", "-x"]
+        elif ext in (".ts", ".tsx", ".js", ".jsx"):
+            # JavaScript/TypeScript — tentar vitest ou jest
+            if (base / "vitest.config.ts").exists() or (base / "vitest.config.js").exists():
+                test_cmd = ["npx", "vitest", "run", "--reporter=dot"]
+            elif (base / "package.json").exists():
+                pkg = (base / "package.json").read_text(errors="replace")
+                if '"test"' in pkg:
+                    test_cmd = ["npm", "test", "--", "--watchAll=false"]
+
+        if test_cmd:
+            result = subprocess.run(
+                test_cmd, cwd=str(base), capture_output=True, timeout=60,
+                env={**os.environ, "CI": "1"},
+            )
+            if result.returncode == 0:
+                etapas.append({"etapa": "testes", "sucesso": True, "msg": "Testes passaram"})
+            else:
+                stderr = result.stderr.decode("utf-8", errors="replace")[:300]
+                etapas.append({"etapa": "testes", "sucesso": False, "msg": f"Testes falharam: {stderr}"})
+                testes_ok = False
+        else:
+            etapas.append({"etapa": "testes", "sucesso": True, "msg": "Sem testes configurados — pulado"})
+    except subprocess.TimeoutExpired:
+        etapas.append({"etapa": "testes", "sucesso": False, "msg": "Timeout (60s)"})
+        testes_ok = False
+    except Exception as e:
+        etapas.append({"etapa": "testes", "sucesso": True, "msg": f"Testes nao disponiveis — pulado"})
+
+    # Se testes falharam, reverter
+    if not testes_ok:
+        if backup_path and Path(backup_path).exists():
+            shutil.copy2(backup_path, str(caminho))
+            etapas.append({"etapa": "revert", "sucesso": True, "msg": "Revertido para backup (testes falharam)"})
+        return {"ok": False, "etapas": etapas, "erro": "Testes falharam — alteracao revertida"}
+
+    # === ETAPA 4: Commit + Push via VCS ===
+    vcs_resultado = None
+    try:
+        from core.vcs_service import descriptografar_token, VCSService
+
+        filtro_vcs = {"ativo": True}
+        if proj_id:
+            filtro_vcs["projeto_id"] = proj_id
+
+        vcs = db.query(ProjetoVCSDB).filter_by(**filtro_vcs).first()
+        if vcs:
+            token = descriptografar_token(vcs.api_token_encrypted)
+            service = VCSService(vcs.vcs_tipo, vcs.repo_url, token, vcs.branch_padrao)
+
+            nomes_acao = {"substituir": "refactor", "criar": "feat"}
+            prefixo = nomes_acao.get(dados.tipo_acao, "chore")
+            nome_arquivo = dados.caminho_destino.split("/")[-1]
+            msg_commit = f"{prefixo}(code-studio): {dados.tipo_acao} em {nome_arquivo}"
+
+            resultado = service.commit_e_push(
+                caminho_projeto=str(base),
+                arquivos=[dados.caminho_destino],
+                mensagem_commit=msg_commit,
+                autor_nome=usuario.nome,
+                autor_email=usuario.email,
+            )
+            vcs_resultado = {
+                "sucesso": resultado.sucesso,
+                "mensagem": resultado.mensagem,
+                "commit_hash": resultado.commit_hash,
+                "branch": resultado.branch,
+            }
+            if resultado.sucesso:
+                etapas.append({"etapa": "commit_push", "sucesso": True, "msg": f"Commit {resultado.commit_hash} → {resultado.branch}"})
+            else:
+                etapas.append({"etapa": "commit_push", "sucesso": False, "msg": resultado.mensagem[:200]})
+        else:
+            etapas.append({"etapa": "commit_push", "sucesso": True, "msg": "VCS nao configurado — pulado"})
+    except Exception as e:
+        etapas.append({"etapa": "commit_push", "sucesso": False, "msg": str(e)[:200]})
+        logger.warning(f"[ApplyDeploy] VCS falhou: {e}")
+
+    # Audit log
+    try:
+        proj_label = projeto.nome if projeto else "Synerium Factory"
+        db.add(AuditLogDB(
+            user_id=usuario.id, email=usuario.email,
+            acao="code_studio_apply_deploy",
+            descricao=f"[{proj_label}] Apply+Deploy em {dados.caminho_destino}",
+            ip="api",
+        ))
+        db.commit()
+    except Exception:
+        pass
+
+    # Diff resumo
+    diff_resumo = None
+    try:
+        la = conteudo_original.splitlines() if conteudo_original else []
+        ld = dados.conteudo_novo.splitlines()
+        if len(la) <= 5000 and len(ld) <= 5000:
+            d = list(difflib.unified_diff(la, ld, lineterm=""))
+            diff_resumo = {
+                "linhas_antes": len(la), "linhas_depois": len(ld),
+                "linhas_adicionadas": sum(1 for x in d if x.startswith("+") and not x.startswith("+++")),
+                "linhas_removidas": sum(1 for x in d if x.startswith("-") and not x.startswith("---")),
+            }
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "etapas": etapas,
+        "vcs": vcs_resultado,
+        "diff_resumo": diff_resumo,
+        "caminho": dados.caminho_destino,
+    }
+
+
 @router.post("/apply-action")
 async def aplicar_acao(
     dados: AplicarAcaoRequest,
