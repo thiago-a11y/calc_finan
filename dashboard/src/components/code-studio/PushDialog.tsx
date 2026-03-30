@@ -1,8 +1,8 @@
-/* PushDialog — Modal de selecao de commits para Push + PR */
+/* PushDialog — Modal de selecao de commits para Push + PR + Merge */
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Loader2, GitBranch, Check, ExternalLink, AlertCircle, GitCommitHorizontal } from 'lucide-react'
-import { gitLog, gitPush, type GitCommitInfo } from '../../services/codeStudio'
+import { X, Loader2, GitBranch, Check, ExternalLink, AlertCircle, GitCommitHorizontal, GitMerge } from 'lucide-react'
+import { gitLog, gitPush, gitMerge, type GitCommitInfo } from '../../services/codeStudio'
 
 interface PushDialogProps {
   projetoId: number
@@ -10,7 +10,6 @@ interface PushDialogProps {
   onFechar: () => void
 }
 
-/** Tempo relativo compacto */
 function tempoRelativo(dataStr: string): string {
   if (!dataStr) return ''
   const agora = Date.now()
@@ -25,17 +24,22 @@ function tempoRelativo(dataStr: string): string {
   return `${d}d`
 }
 
+type Etapa = 'selecao' | 'enviando' | 'pr_criada' | 'fazendo_merge' | 'merge_concluido' | 'erro'
+
 export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDialogProps) {
   const [commits, setCommits] = useState<GitCommitInfo[]>([])
   const [branch, setBranch] = useState('')
   const [branchRemoto, setBranchRemoto] = useState('')
   const [carregando, setCarregando] = useState(true)
-  const [erro, setErro] = useState('')
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
-  const [enviando, setEnviando] = useState(false)
-  const [resultado, setResultado] = useState<{ sucesso: boolean; pr_url: string; mensagem: string } | null>(null)
+  const [etapa, setEtapa] = useState<Etapa>('selecao')
+  const [erro, setErro] = useState('')
 
-  // Carregar commits pendentes
+  // Dados da PR criada
+  const [prUrl, setPrUrl] = useState('')
+  const [prNumber, setPrNumber] = useState(0)
+  const [mergeSha, setMergeSha] = useState('')
+
   const carregar = useCallback(async () => {
     setCarregando(true)
     setErro('')
@@ -44,7 +48,6 @@ export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDia
       setCommits(dados.commits)
       setBranch(dados.branch)
       setBranchRemoto(dados.branch_remoto)
-      // Selecionar todos por padrao
       setSelecionados(new Set(dados.commits.map(c => c.hash)))
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro ao carregar commits')
@@ -65,27 +68,49 @@ export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDia
   }
 
   const toggleTodos = () => {
-    if (selecionados.size === commits.length) {
-      setSelecionados(new Set())
-    } else {
-      setSelecionados(new Set(commits.map(c => c.hash)))
+    if (selecionados.size === commits.length) setSelecionados(new Set())
+    else setSelecionados(new Set(commits.map(c => c.hash)))
+  }
+
+  // Etapa 1: Criar PR e Push
+  const executarPush = async () => {
+    if (selecionados.size === 0) return
+    setEtapa('enviando')
+    setErro('')
+    try {
+      const hashes = selecionados.size === commits.length ? [] : Array.from(selecionados)
+      const res = await gitPush(projetoId, hashes)
+      if (res.sucesso) {
+        setPrUrl(res.pr_url)
+        setPrNumber(res.pr_number)
+        setEtapa('pr_criada')
+      } else {
+        setErro(res.mensagem || 'Falha ao criar PR')
+        setEtapa('erro')
+      }
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Erro no push')
+      setEtapa('erro')
     }
   }
 
-  const executarPush = async () => {
-    if (selecionados.size === 0) return
-    setEnviando(true)
+  // Etapa 2: Fazer Merge
+  const executarMerge = async () => {
+    if (!prNumber) return
+    setEtapa('fazendo_merge')
     setErro('')
     try {
-      const hashes = selecionados.size === commits.length
-        ? []  // vazio = todos
-        : Array.from(selecionados)
-      const res = await gitPush(projetoId, hashes)
-      setResultado({ sucesso: res.sucesso, pr_url: res.pr_url, mensagem: res.mensagem })
+      const res = await gitMerge(projetoId, prNumber)
+      if (res.sucesso) {
+        setMergeSha(res.merge_sha)
+        setEtapa('merge_concluido')
+      } else {
+        setErro(res.mensagem || 'Falha no merge')
+        setEtapa('erro')
+      }
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Erro no push')
-    } finally {
-      setEnviando(false)
+      setErro(e instanceof Error ? e.message : 'Erro no merge')
+      setEtapa('erro')
     }
   }
 
@@ -103,7 +128,7 @@ export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDia
                 Push & Pull Request
               </h3>
               <p className="text-[10px]" style={{ color: 'var(--sf-text-3)' }}>
-                {projetoNome} · {branch} → {branchRemoto}
+                {projetoNome} · {branch || '...'} → {branchRemoto || 'main'}
               </p>
             </div>
           </div>
@@ -115,7 +140,7 @@ export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDia
         {/* Conteudo */}
         <div className="px-5 py-4 max-h-[60vh] overflow-auto" style={{ scrollbarWidth: 'thin' }}>
 
-          {/* Loading */}
+          {/* Loading inicial */}
           {carregando && (
             <div className="flex items-center justify-center py-8 gap-2">
               <Loader2 size={16} className="animate-spin" style={{ color: '#10b981' }} />
@@ -124,7 +149,7 @@ export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDia
           )}
 
           {/* Erro */}
-          {erro && !carregando && (
+          {erro && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-3"
               style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
               <AlertCircle size={14} style={{ color: '#ef4444' }} />
@@ -133,44 +158,69 @@ export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDia
           )}
 
           {/* Sem commits */}
-          {!carregando && !erro && commits.length === 0 && (
+          {!carregando && !erro && commits.length === 0 && etapa === 'selecao' && (
             <div className="text-center py-8">
               <Check size={28} className="mx-auto mb-2" style={{ color: '#10b981' }} />
-              <p className="text-[13px] font-medium" style={{ color: 'var(--sf-text-1)' }}>
-                Tudo sincronizado!
-              </p>
-              <p className="text-[11px] mt-1" style={{ color: 'var(--sf-text-3)' }}>
-                Nenhum commit pendente de push
-              </p>
+              <p className="text-[13px] font-medium" style={{ color: 'var(--sf-text-1)' }}>Tudo sincronizado!</p>
+              <p className="text-[11px] mt-1" style={{ color: 'var(--sf-text-3)' }}>Nenhum commit pendente de push</p>
             </div>
           )}
 
-          {/* Resultado do push */}
-          {resultado && (
-            <div className="px-4 py-3 rounded-xl mb-3"
-              style={{
-                background: resultado.sucesso ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                border: `1px solid ${resultado.sucesso ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
-              }}>
-              <p className="text-[12px] font-semibold" style={{ color: resultado.sucesso ? '#10b981' : '#ef4444' }}>
-                {resultado.sucesso ? '✅ PR criada com sucesso!' : '❌ Falhou'}
+          {/* === ETAPA: PR CRIADA — mostrar botao de Merge === */}
+          {etapa === 'pr_criada' && (
+            <div className="text-center py-4">
+              <div className="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center"
+                style={{ background: 'rgba(16,185,129,0.1)' }}>
+                <Check size={24} style={{ color: '#10b981' }} />
+              </div>
+              <p className="text-[14px] font-bold" style={{ color: '#10b981' }}>PR criada com sucesso!</p>
+              <p className="text-[11px] mt-1" style={{ color: 'var(--sf-text-3)' }}>
+                PR #{prNumber} pronta para merge
               </p>
-              <p className="text-[11px] mt-1" style={{ color: 'var(--sf-text-2)' }}>{resultado.mensagem}</p>
-              {resultado.pr_url && (
-                <a href={resultado.pr_url} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all hover:brightness-110"
-                  style={{ background: '#10b981', color: '#fff' }}>
-                  <ExternalLink size={11} />
-                  Abrir PR no GitHub
+              {prUrl && (
+                <a href={prUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-2 text-[10px] transition-colors hover:underline"
+                  style={{ color: '#818cf8' }}>
+                  <ExternalLink size={10} /> Ver no GitHub
                 </a>
               )}
             </div>
           )}
 
-          {/* Lista de commits */}
-          {!carregando && commits.length > 0 && !resultado && (
+          {/* === ETAPA: FAZENDO MERGE === */}
+          {etapa === 'fazendo_merge' && (
+            <div className="text-center py-8">
+              <Loader2 size={24} className="animate-spin mx-auto mb-3" style={{ color: '#8b5cf6' }} />
+              <p className="text-[13px] font-medium" style={{ color: 'var(--sf-text-1)' }}>Fazendo merge...</p>
+              <p className="text-[11px] mt-1" style={{ color: 'var(--sf-text-3)' }}>Unindo as alteracoes na branch {branchRemoto}</p>
+            </div>
+          )}
+
+          {/* === ETAPA: MERGE CONCLUIDO === */}
+          {etapa === 'merge_concluido' && (
+            <div className="text-center py-4">
+              <div className="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center"
+                style={{ background: 'rgba(139,92,246,0.1)' }}>
+                <GitMerge size={24} style={{ color: '#8b5cf6' }} />
+              </div>
+              <p className="text-[14px] font-bold" style={{ color: '#8b5cf6' }}>Merge concluido!</p>
+              <p className="text-[11px] mt-1" style={{ color: 'var(--sf-text-3)' }}>
+                PR #{prNumber} merged na {branchRemoto}
+                {mergeSha && <span className="font-mono"> ({mergeSha.slice(0, 8)})</span>}
+              </p>
+              {prUrl && (
+                <a href={prUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-2 text-[10px] transition-colors hover:underline"
+                  style={{ color: '#818cf8' }}>
+                  <ExternalLink size={10} /> Ver PR no GitHub
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* === ETAPA: SELECAO DE COMMITS === */}
+          {!carregando && commits.length > 0 && etapa === 'selecao' && (
             <>
-              {/* Header da lista */}
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold" style={{ color: 'var(--sf-text-2)' }}>
                   {commits.length} commit{commits.length !== 1 ? 's' : ''} pendente{commits.length !== 1 ? 's' : ''}
@@ -181,45 +231,30 @@ export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDia
                   {selecionados.size === commits.length ? 'Desmarcar todos' : 'Selecionar todos'}
                 </button>
               </div>
-
-              {/* Commits */}
               <div className="space-y-1">
                 {commits.map(c => {
                   const sel = selecionados.has(c.hash)
                   return (
-                    <button
-                      key={c.hash}
-                      onClick={() => toggleCommit(c.hash)}
+                    <button key={c.hash} onClick={() => toggleCommit(c.hash)}
                       className="w-full flex items-start gap-2.5 px-3 py-2 rounded-lg text-left transition-all"
                       style={{
                         background: sel ? 'rgba(16,185,129,0.06)' : 'transparent',
                         border: `1px solid ${sel ? 'rgba(16,185,129,0.15)' : 'var(--sf-border-subtle)'}`,
-                      }}
-                    >
-                      {/* Checkbox */}
+                      }}>
                       <div className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 mt-0.5"
-                        style={{
-                          borderColor: sel ? '#10b981' : 'var(--sf-border-default)',
-                          background: sel ? '#10b981' : 'transparent',
-                        }}>
+                        style={{ borderColor: sel ? '#10b981' : 'var(--sf-border-default)', background: sel ? '#10b981' : 'transparent' }}>
                         {sel && <Check size={10} color="#fff" strokeWidth={3} />}
                       </div>
-
-                      {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <GitCommitHorizontal size={11} style={{ color: '#f59e0b', flexShrink: 0 }} />
                           <span className="text-[10px] font-mono" style={{ color: '#f59e0b' }}>{c.hash_curto}</span>
-                          <span className="text-[11px] font-medium truncate" style={{ color: 'var(--sf-text-1)' }}>
-                            {c.mensagem}
-                          </span>
+                          <span className="text-[11px] font-medium truncate" style={{ color: 'var(--sf-text-1)' }}>{c.mensagem}</span>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[9px]" style={{ color: 'var(--sf-text-3)' }}>{c.autor}</span>
                           <span className="text-[9px]" style={{ color: 'var(--sf-text-3)', opacity: 0.5 }}>·</span>
-                          <span className="text-[9px]" style={{ color: 'var(--sf-text-3)', opacity: 0.6 }}>
-                            {tempoRelativo(c.data)}
-                          </span>
+                          <span className="text-[9px]" style={{ color: 'var(--sf-text-3)', opacity: 0.6 }}>{tempoRelativo(c.data)}</span>
                         </div>
                       </div>
                     </button>
@@ -228,52 +263,98 @@ export default function PushDialog({ projetoId, projetoNome, onFechar }: PushDia
               </div>
             </>
           )}
+
+          {/* === ETAPA: ENVIANDO === */}
+          {etapa === 'enviando' && (
+            <div className="text-center py-8">
+              <Loader2 size={24} className="animate-spin mx-auto mb-3" style={{ color: '#10b981' }} />
+              <p className="text-[13px] font-medium" style={{ color: 'var(--sf-text-1)' }}>Criando PR e Push...</p>
+              <p className="text-[11px] mt-1" style={{ color: 'var(--sf-text-3)' }}>Enviando commits para o GitHub</p>
+            </div>
+          )}
         </div>
 
-        {/* Footer */}
-        {!carregando && commits.length > 0 && !resultado && (
-          <div className="flex items-center justify-between px-5 py-3"
-            style={{ borderTop: '1px solid var(--sf-border-subtle)' }}>
-            <span className="text-[10px]" style={{ color: 'var(--sf-text-3)' }}>
-              {selecionados.size} de {commits.length} selecionado{selecionados.size !== 1 ? 's' : ''}
-            </span>
-            <div className="flex items-center gap-2">
+        {/* Footer — muda conforme etapa */}
+        <div className="flex items-center justify-between px-5 py-3"
+          style={{ borderTop: '1px solid var(--sf-border-subtle)' }}>
+
+          {/* Selecao */}
+          {etapa === 'selecao' && commits.length > 0 && (
+            <>
+              <span className="text-[10px]" style={{ color: 'var(--sf-text-3)' }}>
+                {selecionados.size} de {commits.length} selecionado{selecionados.size !== 1 ? 's' : ''}
+              </span>
+              <div className="flex items-center gap-2">
+                <button onClick={onFechar}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium hover:bg-white/5"
+                  style={{ color: 'var(--sf-text-3)', border: '1px solid var(--sf-border-subtle)' }}>
+                  Cancelar
+                </button>
+                <button onClick={executarPush} disabled={selecionados.size === 0}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:brightness-110 disabled:opacity-40"
+                  style={{ background: '#10b981', color: '#fff' }}>
+                  <GitBranch size={12} />
+                  Criar PR e Push
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* PR criada — botao Merge */}
+          {etapa === 'pr_criada' && (
+            <>
+              <span className="text-[10px]" style={{ color: 'var(--sf-text-3)' }}>
+                PR #{prNumber} pronta
+              </span>
+              <div className="flex items-center gap-2">
+                <button onClick={onFechar}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium hover:bg-white/5"
+                  style={{ color: 'var(--sf-text-3)', border: '1px solid var(--sf-border-subtle)' }}>
+                  Fazer depois
+                </button>
+                <button onClick={executarMerge}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:brightness-110"
+                  style={{ background: '#8b5cf6', color: '#fff' }}>
+                  <GitMerge size={12} />
+                  Fazer Merge
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Merge concluido ou sem commits */}
+          {(etapa === 'merge_concluido' || (etapa === 'selecao' && commits.length === 0 && !carregando)) && (
+            <div className="flex-1 flex justify-end">
               <button onClick={onFechar}
-                className="px-3 py-1.5 rounded-lg text-[11px] font-medium hover:bg-white/5"
-                style={{ color: 'var(--sf-text-3)', border: '1px solid var(--sf-border-subtle)' }}>
-                Cancelar
-              </button>
-              <button
-                onClick={executarPush}
-                disabled={selecionados.size === 0 || enviando}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:brightness-110 disabled:opacity-40"
-                style={{ background: '#10b981', color: '#fff' }}>
-                {enviando ? (
-                  <>
-                    <Loader2 size={12} className="animate-spin" />
-                    Criando PR...
-                  </>
-                ) : (
-                  <>
-                    <GitBranch size={12} />
-                    Criar PR e Push
-                  </>
-                )}
+                className="px-4 py-1.5 rounded-lg text-[11px] font-medium"
+                style={{ background: 'var(--sf-accent)', color: '#fff' }}>
+                Fechar
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Footer resultado */}
-        {resultado && (
-          <div className="flex justify-end px-5 py-3" style={{ borderTop: '1px solid var(--sf-border-subtle)' }}>
-            <button onClick={onFechar}
-              className="px-4 py-1.5 rounded-lg text-[11px] font-medium"
-              style={{ background: 'var(--sf-accent)', color: '#fff' }}>
-              Fechar
-            </button>
-          </div>
-        )}
+          {/* Erro — botao tentar novamente */}
+          {etapa === 'erro' && (
+            <>
+              <span />
+              <div className="flex items-center gap-2">
+                <button onClick={onFechar}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium hover:bg-white/5"
+                  style={{ color: 'var(--sf-text-3)', border: '1px solid var(--sf-border-subtle)' }}>
+                  Fechar
+                </button>
+                <button onClick={() => { setErro(''); setEtapa('selecao') }}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium"
+                  style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+                  Tentar novamente
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Enviando / fazendo merge — footer vazio */}
+          {(etapa === 'enviando' || etapa === 'fazendo_merge') && <span />}
+        </div>
       </div>
     </div>
   )

@@ -291,3 +291,23 @@ export async function gitPush(projetoId = 0, commitHashes: string[] = [], titulo
   }
   return res.json()
 }
+
+// Merge PR
+export interface GitMergeResponse {
+  sucesso: boolean
+  mensagem: string
+  merge_sha: string
+}
+
+export async function gitMerge(projetoId = 0, prNumber: number): Promise<GitMergeResponse> {
+  const res = await fetch(`${API}/api/code-studio/git-merge`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ project_id: projetoId, pr_number: prNumber }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Erro no merge' }))
+    throw new Error(err.detail || 'Erro no merge')
+  }
+  return res.json()
+}

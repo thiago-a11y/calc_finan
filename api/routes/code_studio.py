@@ -1072,3 +1072,100 @@ async def git_push_e_pr(
             pass
         logger.error(f"[CodeStudio/Push] Erro: {e}")
         raise HTTPException(status_code=500, detail=f"Erro no push: {str(e)[:200]}")
+
+
+# ============================================================
+# Git Merge — merge de PR via API
+# ============================================================
+
+class GitMergeRequest(BaseModel):
+    project_id: int = 0
+    pr_number: int
+
+
+@router.post("/git-merge")
+async def git_merge_pr(
+    dados: GitMergeRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Faz merge de uma PR no GitHub/GitBucket via API."""
+    _verificar_escrita(usuario)
+
+    _, proj_id, projeto = _obter_base_projeto(dados.project_id, db, usuario)
+
+    vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=proj_id or 0, ativo=True).first()
+    if not vcs:
+        raise HTTPException(status_code=400, detail="Projeto sem VCS configurado.")
+
+    try:
+        from core.vcs_service import descriptografar_token, VCSService
+        import httpx
+
+        token = descriptografar_token(vcs.api_token_encrypted)
+        service = VCSService(vcs.vcs_tipo, vcs.repo_url, token, vcs.branch_padrao or "main")
+        owner_repo = service._extrair_owner_repo()
+
+        if not owner_repo:
+            raise HTTPException(status_code=400, detail="URL do repositorio invalida.")
+
+        if vcs.vcs_tipo == "github":
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.put(
+                    f"https://api.github.com/repos/{owner_repo}/pulls/{dados.pr_number}/merge",
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                    },
+                    json={
+                        "merge_method": "squash",
+                        "commit_title": f"Merge PR #{dados.pr_number} via Synerium Factory",
+                    },
+                )
+
+            if resp.status_code == 200:
+                data = resp.json()
+                # Audit log
+                try:
+                    db.add(AuditLogDB(
+                        user_id=usuario.id, email=usuario.email,
+                        acao="code_studio_merge",
+                        descricao=f"[{projeto.nome if projeto else 'SF'}] Merge PR #{dados.pr_number} — {data.get('sha', '?')[:8]}",
+                        ip="api",
+                    ))
+                    db.commit()
+                except Exception:
+                    pass
+
+                logger.info(f"[CodeStudio/Merge] PR #{dados.pr_number} merged por {usuario.email}")
+                return {
+                    "sucesso": True,
+                    "mensagem": f"PR #{dados.pr_number} merged com sucesso (squash)",
+                    "merge_sha": data.get("sha", ""),
+                }
+            elif resp.status_code == 405:
+                return {"sucesso": False, "mensagem": "PR nao pode ser merged (conflitos ou regras)", "merge_sha": ""}
+            elif resp.status_code == 409:
+                return {"sucesso": False, "mensagem": "Conflito de merge — resolva no GitHub", "merge_sha": ""}
+            else:
+                return {"sucesso": False, "mensagem": f"GitHub API {resp.status_code}: {resp.text[:200]}", "merge_sha": ""}
+
+        elif vcs.vcs_tipo == "gitbucket":
+            base_url = vcs.repo_url.split("/git/")[0] if "/git/" in vcs.repo_url else ""
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.put(
+                    f"{base_url}/api/v3/repos/{owner_repo}/pulls/{dados.pr_number}/merge",
+                    headers={"Authorization": f"token {token}"},
+                )
+            if resp.status_code == 200:
+                return {"sucesso": True, "mensagem": f"PR #{dados.pr_number} merged", "merge_sha": ""}
+            else:
+                return {"sucesso": False, "mensagem": f"GitBucket {resp.status_code}", "merge_sha": ""}
+
+        raise HTTPException(status_code=400, detail=f"VCS tipo nao suportado: {vcs.vcs_tipo}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[CodeStudio/Merge] Erro: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro no merge: {str(e)[:200]}")
