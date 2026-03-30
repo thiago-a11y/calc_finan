@@ -365,6 +365,12 @@ export const uploadArquivos = async (files: File[]): Promise<import('../types').
 
 /* --- Gestão de Projetos (hierarquia e regras) --- */
 
+export const criarProjeto = (dados: {
+  nome: string; descricao?: string; stack?: string; repositorio?: string;
+  caminho?: string; icone?: string; fase_atual?: string;
+  proprietario_id?: number; lider_tecnico_id?: number;
+}) => post<any>('/projetos', dados)
+
 export const nomearProprietario = (projetoId: number, usuarioId: number) =>
   put<{ mensagem: string }>(`/projetos/${projetoId}/proprietario`, { usuario_id: usuarioId })
 

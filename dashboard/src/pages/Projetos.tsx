@@ -13,7 +13,7 @@ import {
 import {
   buscarVCS, salvarVCS, testarVCS, removerVCS,
   buscarUsuarios, nomearProprietario, nomearLider,
-  gerenciarMembro, atualizarRegrasAprovacao,
+  gerenciarMembro, atualizarRegrasAprovacao, criarProjeto,
 } from '../services/api'
 
 interface Membro { id: number; nome: string; papel: string }
@@ -79,6 +79,24 @@ export default function Projetos() {
   const [tipoMudanca, setTipoMudanca] = useState('grande')
   const [categoria, setCategoria] = useState('feature')
   const [mensagem, setMensagem] = useState('')
+  const [modalNovoProjeto, setModalNovoProjeto] = useState(false)
+  const [novoProjeto, setNovoProjeto] = useState({ nome: '', descricao: '', stack: '', repositorio: '', fase_atual: '' })
+  const [criandoProjeto, setCriandoProjeto] = useState(false)
+
+  const handleCriarProjeto = async () => {
+    if (!novoProjeto.nome.trim()) return
+    setCriandoProjeto(true)
+    try {
+      await criarProjeto(novoProjeto)
+      setMensagem('Projeto criado com sucesso!')
+      setModalNovoProjeto(false)
+      setNovoProjeto({ nome: '', descricao: '', stack: '', repositorio: '', fase_atual: '' })
+    } catch (e) {
+      setMensagem(e instanceof Error ? e.message : 'Erro ao criar projeto')
+    } finally {
+      setCriandoProjeto(false)
+    }
+  }
 
   const fetcher = useCallback(async () => {
     const res = await fetch('/api/projetos', { headers: { Authorization: `Bearer ${token}` } })
@@ -130,9 +148,17 @@ export default function Projetos() {
     <div className="sf-page">
       <div className="fixed top-0 right-1/4 w-[500px] h-[300px] bg-indigo-500/5 blur-[120px] pointer-events-none sf-glow" style={{ opacity: 'var(--sf-glow-opacity)' }} />
 
-      <div className="relative mb-8">
-        <h2 className="text-3xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent sf-text-white">Projetos</h2>
-        <p className="text-sm sf-text-dim mt-1">{projetos.length} projeto(s) registrado(s)</p>
+      <div className="relative mb-8 flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent sf-text-white">Projetos</h2>
+          <p className="text-sm sf-text-dim mt-1">{projetos.length} projeto(s) registrado(s)</p>
+        </div>
+        <button
+          onClick={() => setModalNovoProjeto(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:brightness-110"
+          style={{ background: '#10b981', color: '#fff' }}>
+          <Plus size={16} /> Novo Projeto
+        </button>
       </div>
 
       {mensagem && (
@@ -311,6 +337,64 @@ export default function Projetos() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Novo Projeto */}
+      {modalNovoProjeto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6"
+            style={{ background: 'var(--sf-bg-1)', border: '1px solid var(--sf-border-default)' }}>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <FolderKanban size={18} style={{ color: '#10b981' }} />
+                <h3 className="text-[16px] font-bold" style={{ color: 'var(--sf-text-0)' }}>Novo Projeto</h3>
+              </div>
+              <button onClick={() => setModalNovoProjeto(false)} className="p-1 rounded hover:bg-white/5" style={{ color: 'var(--sf-text-3)' }}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-medium uppercase tracking-wider mb-1 block" style={{ color: 'var(--sf-text-3)' }}>Nome *</label>
+                <input value={novoProjeto.nome} onChange={e => setNovoProjeto(p => ({ ...p, nome: e.target.value }))}
+                  placeholder="Ex: SyneriumX, PlaniFactory..." className={inputCls} />
+              </div>
+              <div>
+                <label className="text-[10px] font-medium uppercase tracking-wider mb-1 block" style={{ color: 'var(--sf-text-3)' }}>Descricao</label>
+                <input value={novoProjeto.descricao} onChange={e => setNovoProjeto(p => ({ ...p, descricao: e.target.value }))}
+                  placeholder="Breve descricao do projeto" className={inputCls} />
+              </div>
+              <div>
+                <label className="text-[10px] font-medium uppercase tracking-wider mb-1 block" style={{ color: 'var(--sf-text-3)' }}>Stack</label>
+                <input value={novoProjeto.stack} onChange={e => setNovoProjeto(p => ({ ...p, stack: e.target.value }))}
+                  placeholder="Ex: PHP 7.4 + React 18 + MySQL" className={inputCls} />
+              </div>
+              <div>
+                <label className="text-[10px] font-medium uppercase tracking-wider mb-1 block" style={{ color: 'var(--sf-text-3)' }}>Repositorio (URL)</label>
+                <input value={novoProjeto.repositorio} onChange={e => setNovoProjeto(p => ({ ...p, repositorio: e.target.value }))}
+                  placeholder="https://github.com/org/repo" className={inputCls} />
+              </div>
+              <div>
+                <label className="text-[10px] font-medium uppercase tracking-wider mb-1 block" style={{ color: 'var(--sf-text-3)' }}>Fase Atual</label>
+                <input value={novoProjeto.fase_atual} onChange={e => setNovoProjeto(p => ({ ...p, fase_atual: e.target.value }))}
+                  placeholder="Ex: Fase 3 — Solucao" className={inputCls} />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <button onClick={() => setModalNovoProjeto(false)}
+                className="px-4 py-2 rounded-lg text-[11px] font-medium hover:bg-white/5"
+                style={{ color: 'var(--sf-text-3)', border: '1px solid var(--sf-border-subtle)' }}>
+                Cancelar
+              </button>
+              <button onClick={handleCriarProjeto} disabled={!novoProjeto.nome.trim() || criandoProjeto}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[11px] font-semibold transition-all hover:brightness-110 disabled:opacity-40"
+                style={{ background: '#10b981', color: '#fff' }}>
+                {criandoProjeto ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                {criandoProjeto ? 'Criando...' : 'Criar Projeto'}
+              </button>
             </div>
           </div>
         </div>
