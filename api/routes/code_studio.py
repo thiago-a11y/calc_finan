@@ -582,31 +582,21 @@ Regras obrigatorias:
         from langchain_core.messages import HumanMessage, SystemMessage
         mensagens = [SystemMessage(content=system), HumanMessage(content=prompt)]
 
-        # Cadeia de fallback: tentar multiplos providers
-        erros = []
-        providers_tentativa = [
-            ("anthropic", modelo_nome if "claude" in modelo_nome else "claude-sonnet-4-20250514"),
-            ("anthropic", "claude-sonnet-4-20250514"),
-        ]
-
-        for prov, modelo in providers_tentativa:
-            try:
-                from langchain_anthropic import ChatAnthropic
-                llm = ChatAnthropic(model=modelo, max_tokens=4000, temperature=0.3)
-                resposta = await llm.ainvoke(mensagens)
-                return {
-                    "resposta": resposta.content,
-                    "provider": provider_nome,
-                    "modelo": modelo,
-                    "motivo": motivo,
-                    "context_level": context_level_usado,
-                }
-            except Exception as e:
-                erros.append(f"{prov}/{modelo}: {str(e)[:100]}")
-                continue
-
-        # Se todos falharam
-        logger.error(f"Todos os providers falharam: {erros}")
+        # Cadeia de fallback robusta: Anthropic → Groq → OpenAI
+        try:
+            from core.llm_fallback import chamar_llm_com_fallback_async
+            resposta, prov_usado, modelo_usado = await chamar_llm_com_fallback_async(
+                mensagens, max_tokens=4000, temperature=0.3,
+            )
+            return {
+                "resposta": resposta.content,
+                "provider": prov_usado,
+                "modelo": modelo_usado,
+                "motivo": motivo,
+                "context_level": context_level_usado,
+            }
+        except RuntimeError as e:
+            logger.error(f"Todos os providers falharam: {e}")
         raise HTTPException(status_code=500, detail="Todos os providers falharam. Tente novamente em alguns minutos.")
 
     except HTTPException:
@@ -1505,21 +1495,17 @@ async def _analisar_como_agente(
 ) -> dict:
     """Chama o LLM uma vez como um agente especifico."""
     try:
-        from langchain_anthropic import ChatAnthropic
+        from core.llm_fallback import chamar_llm_com_fallback_async
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        llm = ChatAnthropic(
-            model="claude-sonnet-4-20250514",
-            max_tokens=3000,
-            temperature=0.3,
-        )
-        mensagens = [SystemMessage(content=system), HumanMessage(content=prompt)]
-        resposta = await llm.ainvoke(mensagens)
+        msgs = [SystemMessage(content=system), HumanMessage(content=prompt)]
+        resposta, prov, modelo = await chamar_llm_com_fallback_async(msgs, max_tokens=3000)
 
         return {
             "agente": agente_nome,
             "resposta": resposta.content,
             "sucesso": True,
+            "provider": prov,
         }
     except Exception as e:
         logger.warning(f"[Team] Agente {agente_nome} falhou: {e}")
@@ -1567,13 +1553,9 @@ Instrucao original: {instrucao}
 
 Gere o parecer sintetizado."""
 
-    llm = ChatAnthropic(
-        model="claude-sonnet-4-20250514",
-        max_tokens=3000,
-        temperature=0.3,
-    )
-    mensagens = [SystemMessage(content=system), HumanMessage(content=prompt)]
-    resposta = await llm.ainvoke(mensagens)
+    from core.llm_fallback import chamar_llm_com_fallback_async
+    msgs = [SystemMessage(content=system), HumanMessage(content=prompt)]
+    resposta, _, _ = await chamar_llm_com_fallback_async(msgs, max_tokens=3000)
     return resposta.content
 
 

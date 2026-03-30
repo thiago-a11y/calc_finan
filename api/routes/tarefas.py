@@ -946,8 +946,11 @@ async def _selecionar_agentes_llm(mensagem: str, agentes_catalogo: list[dict]) -
             f"Selecione 2-3 agentes mais relevantes. JSON:"
         )
 
-        llm = ChatAnthropic(model="claude-sonnet-4-20250514", max_tokens=500, temperature=0)
-        resp = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=prompt)])
+        from core.llm_fallback import chamar_llm_com_fallback_async
+        resp, _, _ = await chamar_llm_com_fallback_async(
+            [SystemMessage(content=system), HumanMessage(content=prompt)],
+            max_tokens=500, temperature=0,
+        )
 
         import json
         # Extrair JSON da resposta (pode vir com texto extra)
@@ -1649,8 +1652,8 @@ def comando_estrategico(
         from langchain_core.messages import HumanMessage, SystemMessage
         import json as json_mod
 
-        llm = ChatAnthropic(model="claude-sonnet-4-20250514", max_tokens=2000, temperature=0.3)
-        mensagens = [
+        from core.llm_fallback import chamar_llm_com_fallback
+        msgs = [
             SystemMessage(content=(
                 "Voce e o PM Central (Alex) do Synerium Factory. "
                 "O CEO deu um comando estrategico. Quebre em features independentes. "
@@ -1659,7 +1662,7 @@ def comando_estrategico(
             )),
             HumanMessage(content=f"Comando do CEO: {req.visao}"),
         ]
-        resposta = llm.invoke(mensagens)
+        resposta, _, _ = chamar_llm_com_fallback(msgs, max_tokens=2000, temperature=0.3)
         texto = resposta.content
 
         # Extrair JSON
@@ -1789,13 +1792,11 @@ def _executar_review_session(workflow_id: str):
                 conteudo = outputs[fase_key]
                 resumo_outputs += f"\n{fase_key}: {conteudo[:500]}...\n"
 
-        # Chamar LLM (Sonnet — economico) como Factory Optimizer
+        # Chamar LLM com fallback (Sonnet → Groq → OpenAI) como Factory Optimizer
         try:
-            from langchain_anthropic import ChatAnthropic
+            from core.llm_fallback import chamar_llm_com_fallback
             from langchain_core.messages import HumanMessage, SystemMessage
             import json as json_mod
-
-            llm = ChatAnthropic(model="claude-sonnet-4-20250514", max_tokens=2000, temperature=0.3)
 
             system = (
                 "Voce e o Factory Optimizer do Synerium Factory — nivel Distinguished Engineer. "
@@ -1817,9 +1818,10 @@ def _executar_review_session(workflow_id: str):
                 f"Analise e sugira melhorias."
             )
 
-            mensagens = [SystemMessage(content=system), HumanMessage(content=prompt)]
-            resposta = llm.invoke(mensagens)
+            msgs_review = [SystemMessage(content=system), HumanMessage(content=prompt)]
+            resposta, provider_usado, modelo_usado = chamar_llm_com_fallback(msgs_review, max_tokens=2000)
             texto = resposta.content
+            logger.info(f"[EVOLUCAO] Review gerada via {provider_usado}/{modelo_usado}")
 
             # Extrair JSON
             import re as re_mod
