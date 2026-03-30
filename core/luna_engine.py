@@ -304,11 +304,89 @@ class LunaEngine:
             elif msg.papel == "assistant":
                 mensagens.append(AIMessage(content=conteudo))
 
-        # Adicionar nova mensagem do usuário (com anexos se houver)
-        conteudo_final = self._formatar_conteudo_com_anexos(nova_mensagem, anexos)
-        mensagens.append(HumanMessage(content=conteudo_final))
+        # Adicionar nova mensagem do usuario (com anexos se houver)
+        # Para imagens: enviar como conteudo multimodal (base64) para visao do LLM
+        imagens_base64 = []
+        anexos_texto = []
+        if anexos:
+            for a in anexos:
+                tipo = a.get("tipo", "documento")
+                url = a.get("url", "")
+                if tipo == "imagem" and url:
+                    b64 = self._imagem_para_base64(url)
+                    if b64:
+                        imagens_base64.append(b64)
+                        continue
+                anexos_texto.append(a)
+
+        if imagens_base64:
+            # Mensagem multimodal: texto + imagens em base64
+            conteudo_texto = self._formatar_conteudo_com_anexos(nova_mensagem, anexos_texto if anexos_texto else None)
+            content_parts: list[dict] = [{"type": "text", "text": conteudo_texto}]
+            for img_data in imagens_base64:
+                content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": img_data},
+                })
+            mensagens.append(HumanMessage(content=content_parts))
+        else:
+            conteudo_final = self._formatar_conteudo_com_anexos(nova_mensagem, anexos)
+            mensagens.append(HumanMessage(content=conteudo_final))
 
         return mensagens
+
+    def _imagem_para_base64(self, url_relativa: str) -> str | None:
+        """
+        Converte imagem de uploads para base64 data URI.
+
+        Args:
+            url_relativa: URL relativa do upload (ex: /uploads/chat/abc.png)
+
+        Returns:
+            Data URI string (data:image/png;base64,...) ou None se falhar.
+        """
+        import base64
+        from pathlib import Path
+
+        try:
+            # Resolver path absoluto do upload
+            if url_relativa.startswith("/uploads/"):
+                # Uploads ficam em data/uploads/ ou uploads/ relativo ao projeto
+                for base in ["data", "."]:
+                    caminho = Path(base) / url_relativa.lstrip("/")
+                    if caminho.is_file():
+                        break
+                else:
+                    logger.warning(f"[Luna] Imagem nao encontrada: {url_relativa}")
+                    return None
+            else:
+                caminho = Path(url_relativa)
+                if not caminho.is_file():
+                    return None
+
+            # Verificar tamanho (max 10MB para base64)
+            tamanho = caminho.stat().st_size
+            if tamanho > 10_485_760:
+                logger.warning(f"[Luna] Imagem muito grande para visao: {tamanho} bytes")
+                return None
+
+            # Detectar mime type
+            ext = caminho.suffix.lower()
+            mime_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                        ".gif": "image/gif", ".webp": "image/webp"}
+            mime = mime_map.get(ext, "image/png")
+
+            # Converter para base64
+            dados = caminho.read_bytes()
+            b64 = base64.b64encode(dados).decode("utf-8")
+            data_uri = f"data:{mime};base64,{b64}"
+
+            logger.info(f"[Luna] Imagem convertida para visao: {caminho.name} ({tamanho // 1024}KB)")
+            return data_uri
+
+        except Exception as e:
+            logger.warning(f"[Luna] Erro ao converter imagem: {e}")
+            return None
 
     def _decidir_modelo(self, mensagem: str, modelo_preferido: str = "auto") -> str | None:
         """
