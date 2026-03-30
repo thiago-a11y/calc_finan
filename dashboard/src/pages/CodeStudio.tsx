@@ -171,6 +171,7 @@ export default function CodeStudio() {
   // Estado de git pull
   const [fazendoPull, setFazendoPull] = useState(false)
   const [mensagemPull, setMensagemPull] = useState('')
+  const [pullSucesso, setPullSucesso] = useState(false)
   const [mostrarPushDialog, setMostrarPushDialog] = useState(false)
 
   const carregarArvore = useCallback(async () => {
@@ -191,17 +192,21 @@ export default function CodeStudio() {
   const executarPull = useCallback(async () => {
     setFazendoPull(true)
     setMensagemPull('')
+    setPullSucesso(false)
     try {
       const resultado = await gitPull(projetoAtivo?.id || 0)
-      setMensagemPull(resultado.sucesso ? `Pull OK (${resultado.branch})` : resultado.mensagem)
-      // Recarregar arvore apos pull
+      setPullSucesso(resultado.sucesso)
       if (resultado.sucesso) {
+        const msg = resultado.mensagem || ''
+        const jaAtualizado = msg.includes('Already up to date') || msg.includes('up-to-date')
+        setMensagemPull(jaAtualizado ? '✅ Já está atualizado' : `✅ Pull concluído (${resultado.branch})`)
         await carregarArvore()
-        // Limpar mensagem apos 3s
-        setTimeout(() => setMensagemPull(''), 3000)
+        setTimeout(() => setMensagemPull(''), 5000)
+      } else {
+        setMensagemPull(`❌ ${resultado.mensagem?.slice(0, 80) || 'Erro no pull'}`)
       }
     } catch (e) {
-      setMensagemPull(e instanceof Error ? e.message : 'Erro no pull')
+      setMensagemPull(`❌ ${e instanceof Error ? e.message : 'Erro no pull'}`)
     } finally {
       setFazendoPull(false)
     }
@@ -220,6 +225,8 @@ export default function CodeStudio() {
     setProjetoAtivo(projeto)
     localStorage.setItem(STORAGE_KEY, String(projeto.id))
     setDropProjeto(false)
+    setMensagemPull('')
+    setPullSucesso(false)
     // Limpar estado do editor
     setAbas([])
     setAbaAtiva('')
@@ -451,40 +458,39 @@ export default function CodeStudio() {
           </div>
         )}
 
-        {/* Botoes git pull + push */}
+        {/* Botao git pull — sempre visivel (todos os projetos tem git) */}
+        <button
+          onClick={executarPull}
+          disabled={fazendoPull}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all hover:bg-white/5 disabled:opacity-50"
+          style={{ borderColor: 'var(--sf-border-subtle)', color: 'var(--sf-text-2)' }}
+          title="Atualizar repositorio (git pull)"
+        >
+          {fazendoPull ? (
+            <Loader2 size={11} className="animate-spin" />
+          ) : (
+            <Download size={11} />
+          )}
+          Pull
+        </button>
+        {/* Botao push — so para projetos com VCS/repositorio configurado */}
         {projetoAtivo?.repositorio && (
-          <>
-            <button
-              onClick={executarPull}
-              disabled={fazendoPull}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all hover:bg-white/5 disabled:opacity-50"
-              style={{ borderColor: 'var(--sf-border-subtle)', color: 'var(--sf-text-2)' }}
-              title="Atualizar repositorio (git pull)"
-            >
-              {fazendoPull ? (
-                <Loader2 size={11} className="animate-spin" />
-              ) : (
-                <Download size={11} />
-              )}
-              Pull
-            </button>
-            <button
-              onClick={() => setMostrarPushDialog(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all hover:bg-white/5"
-              style={{ borderColor: 'var(--sf-border-subtle)', color: '#10b981' }}
-              title="Enviar commits e criar Pull Request"
-            >
-              <Upload size={11} />
-              Push
-            </button>
-          </>
+          <button
+            onClick={() => setMostrarPushDialog(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all hover:bg-white/5"
+            style={{ borderColor: 'var(--sf-border-subtle)', color: '#10b981' }}
+            title="Enviar commits e criar Pull Request"
+          >
+            <Upload size={11} />
+            Push
+          </button>
         )}
 
         {/* Mensagem do pull */}
         {mensagemPull && (
           <span className="text-[10px] px-2 py-0.5 rounded"
-            style={{ color: mensagemPull.includes('OK') ? '#34d399' : '#f87171', background: 'rgba(255,255,255,0.03)' }}>
-            {mensagemPull.slice(0, 60)}
+            style={{ color: pullSucesso ? '#34d399' : '#f87171', background: pullSucesso ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)' }}>
+            {mensagemPull.slice(0, 80)}
           </span>
         )}
 
