@@ -1545,8 +1545,10 @@ def _executar_workflow_autonomo_bg(
         finally:
             db_tarefa.close()
 
-        # === Executar agentes em paralelo (cada agente usa sua propria session) ===
+        # === Executar agentes (v0.53.3: retry com backoff para rate limit 429) ===
         resultados_fase = []
+        MAX_RETRIES_CREW = 3
+        BACKOFF_BASE_CREW = 5.0  # 5s, 10s, 20s — mais conservador que llm_fallback
 
         def executar_agente(agente, idx):
             # Session isolada por agente
@@ -1561,20 +1563,43 @@ def _executar_workflow_autonomo_bg(
             finally:
                 db_ag.close()
 
-            try:
-                crewai_tarefa = Task(
-                    description=prompt,
-                    expected_output=f"Resultado da {FASES_BMAD[fase]} — completo e estruturado.",
-                    agent=agente,
-                )
-                crew = Crew(agents=[agente], tasks=[crewai_tarefa],
-                             process=Process.sequential, verbose=True)
-                resultado = crew.kickoff()
-                return {"agente": agente.role, "resposta": str(resultado), "sucesso": True}
-            except Exception as e:
-                return {"agente": agente.role, "resposta": f"Erro: {str(e)[:200]}", "sucesso": False}
+            # Retry com backoff para rate limit 429 no CrewAI
+            for tentativa in range(MAX_RETRIES_CREW):
+                try:
+                    crewai_tarefa = Task(
+                        description=prompt,
+                        expected_output=f"Resultado da {FASES_BMAD[fase]} — completo e estruturado.",
+                        agent=agente,
+                    )
+                    crew = Crew(agents=[agente], tasks=[crewai_tarefa],
+                                 process=Process.sequential, verbose=True)
+                    resultado = crew.kickoff()
+                    if tentativa > 0:
+                        logger.info(f"[RETRY-CREW] {agente.role} sucesso na tentativa {tentativa + 1}")
+                    return {"agente": agente.role, "resposta": str(resultado), "sucesso": True}
+                except Exception as e:
+                    erro_str = str(e).lower()
+                    eh_rate_limit = any(t in erro_str for t in ["429", "rate_limit", "rate limit", "too many requests", "tokens per min"])
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
+                    if eh_rate_limit and tentativa < MAX_RETRIES_CREW - 1:
+                        delay = BACKOFF_BASE_CREW * (2 ** tentativa)
+                        logger.warning(
+                            f"[RETRY-CREW] {agente.role} rate limit 429 — "
+                            f"tentativa {tentativa + 1}/{MAX_RETRIES_CREW}, aguardando {delay:.0f}s"
+                        )
+                        import time as time_mod
+                        time_mod.sleep(delay)
+                        continue
+                    else:
+                        if eh_rate_limit:
+                            logger.warning(f"[RETRY-CREW] {agente.role} rate limit persistente ({MAX_RETRIES_CREW}x)")
+                        return {"agente": agente.role, "resposta": f"Erro: {str(e)[:200]}", "sucesso": False}
+
+            return {"agente": agente.role, "resposta": "Erro: max retries excedido", "sucesso": False}
+
+        # v0.53.3: Fase 4 usa max_workers=2 para reduzir pico de tokens (rate limit)
+        workers = 2 if fase == 4 else 3
+        with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {executor.submit(executar_agente, ag, i): ag for i, ag in enumerate(agentes_fase)}
             for future in as_completed(futures):
                 result = future.result()

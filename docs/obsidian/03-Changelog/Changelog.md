@@ -4,6 +4,15 @@
 
 ---
 
+## v0.53.3 — Retry no CrewAI + Throttling Fase 4 (31/Mar/2026)
+
+### Correções
+- **Retry com backoff no CrewAI** — `executar_agente()` agora faz até 3 tentativas com backoff (5s→10s→20s) quando `crew.kickoff()` dá 429. Antes, o erro era retornado direto sem retry.
+- **Fase 4 throttled** — `max_workers=2` na Fase 4 (Implementação) para reduzir pico de tokens. Fases 1-3 continuam com 3 workers paralelos.
+- **Root cause:** O GPT-4o-mini tem limite de 200K TPM. Com 3 agentes paralelos na Fase 4 (contexto ~40K tokens cada), ultrapassava o limite instantaneamente.
+
+---
+
 ## v0.53.2 — Instrução de Tools no Workflow Autônomo BMAD (31/Mar/2026)
 
 ### Correções
