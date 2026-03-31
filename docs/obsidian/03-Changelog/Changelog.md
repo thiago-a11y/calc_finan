@@ -8,11 +8,17 @@
 
 ### Funcionalidades
 - **Minimax MiniMax-Text-01** como LLM principal do sistema (mais barato: $0.0004/1K input)
-- **Nova ordem de prioridade:** Minimax → Groq → Anthropic → OpenAI
-- **core/llm_fallback.py** atualizado com MiniMaxChat via langchain_community
+- **Cadeia definitiva de fallback:** Minimax → Groq → Fireworks → Together → Anthropic → OpenAI
+- **Endpoint global correto:** `api.minimaxi.chat` (com **i**) — host China (`api.minimax.chat`) não funciona para contas globais
+- **core/llm_fallback.py** atualizado com 6 providers (Minimax, Groq, Fireworks, Together, Anthropic, OpenAI)
+- **Fireworks e Together** adicionados via API OpenAI-compatible
 - **Smart Router Global** com Provider.MINIMAX + PROVIDER_CONFIG
 - **config/settings.py** com minimax_api_key e minimax_group_id
 - **config/llm_providers.py** com ProviderID.MINIMAX
+- **API key pay-as-you-go** (`sk-api-`) — Token Plan Key (`sk-cp-`) NÃO funciona na API REST
+
+### Bug corrigido
+- **Bug #39**: Endpoint China (`api.minimax.chat`) vs Global (`api.minimaxi.chat`) — contas internacionais devem usar host com **i**
 
 ---
 

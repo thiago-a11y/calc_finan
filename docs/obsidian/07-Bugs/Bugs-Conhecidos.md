@@ -54,6 +54,8 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 | 37 | `load_dotenv` faltando no `llm_fallback.py` | Chaves de API não eram carregadas do `.env`, causando falha em todos os providers | Adicionado `load_dotenv()` no início do módulo | 2026-03-30 |
 | 38 | Review session e fila não disparavam no endpoint aprovar_gate | `_executar_review_session()` e lógica de fila só existiam na bg function, não no endpoint `aprovar_gate` — quando conclusão vinha do endpoint, review e fila eram ignorados | Adicionado `_executar_review_session()` e lógica de fila no bloco `proxima_fase > 4` do endpoint `aprovar_gate` | 2026-03-30 |
 
+| 39 | Minimax API retornava `invalid api key` (código 2049) para TODAS as keys geradas | Endpoint padrão `api.minimax.chat` é o host da China. Contas globais (interface em inglês) devem usar `api.minimaxi.chat` (com **i** no final) | Corrigido endpoint para `api.minimaxi.chat` no `core/llm_fallback.py`. Também descoberto: Token Plan Key (`sk-cp-`) não funciona na API REST — usar apenas key pay-as-you-go (`sk-api-`) | 2026-03-30 |
+
 ### Lições Aprendidas
 
 - **Bug #3 e #9**: `create_all()` do SQLAlchemy só cria tabelas novas, nunca altera esquema de tabelas existentes. Para próximos deploys com novos campos, incluir migration manual no bootstrap ou adotar Alembic. Problema reincidente — priorizar solução definitiva.
@@ -77,6 +79,7 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 - **Bug #29**: Operações que modificam o remote git temporariamente (injeção de token) devem SEMPRE restaurar o remote original em bloco `finally`, garantindo que credenciais nunca persistam na configuração do repositório.
 - **Bug #30**: Regras de permissão hierárquicas devem considerar exceções por papel — o CEO precisa poder gerenciar outros proprietários. Usar ID explícito para exceções em vez de lógica genérica por role.
 - **Bug #31**: `git fetch` também precisa de autenticação em repos HTTPS privados. Não basta autenticar apenas `git pull` — qualquer operação de rede (fetch, push, clone) precisa do token.
+- **Bug #39**: APIs com presença global e regional podem ter hosts diferentes. Minimax usa `api.minimax.chat` (China) e `api.minimaxi.chat` (Global). Sempre verificar a documentação do provider para a região correta. Além disso, providers podem ter múltiplos tipos de API key (pay-as-you-go vs Token Plan) que funcionam em contextos diferentes.
 
 ---
 

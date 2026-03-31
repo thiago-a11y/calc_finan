@@ -335,4 +335,30 @@ O fluxo completo de um workflow autônomo (Business → Architecture → Develop
 
 ---
 
+## Por que Minimax como LLM principal (não Groq ou Anthropic)?
+
+Minimax MiniMax-Text-01 oferece o menor custo por token entre todos os providers: $0.0004/1K input vs $0.00059 (Groq) vs $0.003 (Sonnet). Com 45 squads e workflows autônomos consumindo milhares de chamadas diárias, a diferença de custo é significativa. Qualidade suficiente para tarefas operacionais (análise, planejamento, geração de código).
+
+## Por que endpoint `api.minimaxi.chat` com i (não `api.minimax.chat`)?
+
+A Minimax tem dois hosts: `api.minimax.chat` (China) e `api.minimaxi.chat` (Global/Internacional). Contas registradas na plataforma global (interface em inglês, pagamento em USD) DEVEM usar o host com **i**. O host sem i retorna `invalid api key` (código 2049) para keys globais. Descoberto após investigação: não estava documentado de forma clara na documentação oficial.
+
+## Por que API key pay-as-you-go da Minimax (não Token Plan)?
+
+A Minimax oferece dois tipos de key: `sk-api-` (pay-as-you-go, cobra do Balance) e `sk-cp-` (Token Plan, assinatura mensal para ferramentas internas como OpenCode/OpenClaw). Apenas a key `sk-api-` funciona na API REST. A key `sk-cp-` retorna `invalid api key` na API REST. O Token Plan de $50/mês é uma assinatura separada para outras ferramentas, não para API REST.
+
+## Por que cadeia de 6 providers no fallback (não apenas 3)?
+
+A cadeia definitiva Minimax → Groq → Fireworks → Together → Anthropic → OpenAI garante máxima resiliência:
+1. **Minimax** — Mais barato ($0.0004/1K), provider principal
+2. **Groq** — Ultra-rápido, segundo mais barato ($0.00059/1K)
+3. **Fireworks** — Llama via OpenAI-compatible API, custo baixo ($0.0009/1K)
+4. **Together** — Llama via OpenAI-compatible API, outra opção open-source ($0.00088/1K)
+5. **Anthropic** — Claude Sonnet, qualidade premium ($0.003/1K), para quando todos os baratos falharem
+6. **OpenAI** — GPT-4o, última linha de defesa ($0.005/1K)
+
+Com 6 providers, a probabilidade de todos falharem simultaneamente é praticamente zero. O sistema NUNCA para.
+
+---
+
 > Última atualização: 2026-03-30
