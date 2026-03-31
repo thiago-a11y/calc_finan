@@ -250,8 +250,14 @@ def _executar_reuniao_paralela_bg(tarefa_id: str, squad_nome: str,
                 f"REUNIÃO DE EQUIPE — Rodada {rodada_num} (modo paralelo)\n"
                 f"Pauta: {pauta}\n"
                 f"{contexto_anterior}\n\n"
-                f"Você é {agente.role}. Contribua com sua perspectiva especializada. "
-                f"Seja objetivo e prático. Responda em português brasileiro."
+                f"Você é {agente.role}. Contribua com sua perspectiva especializada.\n\n"
+                f"REGRAS OBRIGATORIAS:\n"
+                f"- Voce TEM ferramentas disponiveis — USE-AS para ler arquivos, buscar codigo, consultar a base de conhecimento\n"
+                f"- Quando pedirem implementacao ou analise de codigo, USE suas ferramentas para ler o codigo real antes de responder\n"
+                f"- NAO invente informacoes — use suas ferramentas para consultar dados reais\n"
+                f"- NUNCA diga que nao tem ferramenta — voce tem. Se pedirem para resolver algo, RESOLVA usando suas tools\n"
+                f"- NUNCA envie emails sem o usuario pedir explicitamente\n"
+                f"- Responda em portugues brasileiro, de forma direta e pratica."
             )
             prompts.append((agente, prompt))
 
@@ -410,8 +416,14 @@ def _executar_reuniao_bg(tarefa_id: str, squad_nome: str,
                 f"REUNIÃO DE EQUIPE — Rodada {rodada_num}\n"
                 f"Pauta: {pauta}\n"
                 f"{contexto_anterior}\n\n"
-                f"Você é {agente.role}. Contribua com sua perspectiva especializada. "
-                f"Seja objetivo e prático. Responda em português brasileiro."
+                f"Você é {agente.role}. Contribua com sua perspectiva especializada.\n\n"
+                f"REGRAS OBRIGATORIAS:\n"
+                f"- Voce TEM ferramentas disponiveis — USE-AS para ler arquivos, buscar codigo, consultar a base de conhecimento\n"
+                f"- Quando pedirem implementacao ou analise de codigo, USE suas ferramentas para ler o codigo real antes de responder\n"
+                f"- NAO invente informacoes — use suas ferramentas para consultar dados reais\n"
+                f"- NUNCA diga que nao tem ferramenta — voce tem. Se pedirem para resolver algo, RESOLVA usando suas tools\n"
+                f"- NUNCA envie emails sem o usuario pedir explicitamente\n"
+                f"- Responda em portugues brasileiro, de forma direta e pratica."
             )
 
             try:
