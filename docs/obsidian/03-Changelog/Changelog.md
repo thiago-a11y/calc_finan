@@ -4,6 +4,24 @@
 
 ---
 
+## v0.52.2 — Build Gate + Deploy (31/Mar/2026)
+
+### Funcionalidades
+- **Build Gate** no `core/vcs_service.py` — Validação de build obrigatória antes de qualquer push
+  - Node.js: `npm run build` (bloqueante, timeout 3min)
+  - Python: `py_compile` nos arquivos alterados
+  - Se build falhar: commit revertido (`git reset HEAD~1`), push bloqueado
+- **Build Gate integrado em 3 pontos**: `commit_e_push()`, `push_branch()`, `deploy_pipeline_v2.py`
+- **deploy_pipeline_v2.py**: Stage 4 (Build) agora é estritamente bloqueante (antes era warning-only para PHP)
+
+### Bugs corrigidos
+- **Bug #43**: Factory destruiu `EditProposalModal.tsx` (PR #195 SyneriumX) — agente substituiu código React por descrição textual. Build Gate previne esse cenário
+
+### Merge
+- PR #2 mergeado na main: Smart Router Dinâmico v0.52.0 + Minimax fix v0.52.1 + Build Gate v0.52.2
+
+---
+
 ## v0.52.1 — Correção Minimax + Smart Router Luna (31/Mar/2026)
 
 ### Corrigido

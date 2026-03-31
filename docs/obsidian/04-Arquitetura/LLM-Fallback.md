@@ -142,4 +142,4 @@ O `llm_fallback.py` agora tem 6 providers (Minimax, Groq, Fireworks, Together, A
 
 ---
 
-> Ultima atualizacao: 2026-03-31 (v0.52.1)
+> Ultima atualizacao: 2026-03-31 (v0.52.2)

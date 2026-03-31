@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.52.0 (31/Mar/2026)
+**Versão Atual:** v0.52.2 (31/Mar/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -183,7 +183,7 @@ Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 │   ├── llm_router.py            # Smart Router multi-provider
 │   ├── classificador_mensagem.py # Smart Router Dinâmico — classifica por complexidade (SIMPLES/MEDIO/COMPLEXO/TOOLS)
 │   ├── llm_fallback.py          # LLM Fallback centralizado (Minimax → Groq → Anthropic → OpenAI)
-│   └── vcs_service.py           # Serviço VCS (GitHub/GitBucket) com Fernet
+│   └── vcs_service.py           # Serviço VCS (GitHub/GitBucket) com Fernet + Build Gate (validação pré-push)
 ├── api/                         # API REST (FastAPI)
 │   ├── main.py                  # App principal
 │   ├── security.py              # JWT + bcrypt
@@ -320,7 +320,8 @@ SyneriumFactory-notes/
 │   ├── Autonomous-Squads.md
 │   ├── Self-Evolving-Factory.md
 │   ├── Command-Center.md
-│   └── LLM-Fallback.md
+│   ├── LLM-Fallback.md
+│   └── Build-Gate.md
 ├── 09-Squads/
 │   ├── Mapa-Squads.md
 │   └── Squad-CEO-Thiago.md
@@ -446,6 +447,8 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **Vision-to-Product testado e aprovado em produção** (30/03/2026) — 4 fases BMAD completas, gates soft/hard, review com 3 sugestões reais via Groq, fila automática de workflows em sequência
 - **Self-Evolving Factory** gerando 3 sugestões reais de melhoria após cada workflow concluído
 - **v0.51.0** — **Minimax como LLM Principal** — MiniMax-Text-01 como provider principal ($0.0004/1K input), nova cadeia Minimax→Groq→Anthropic→OpenAI, Smart Router com Provider.MINIMAX, config/settings.py e config/llm_providers.py atualizados
+- **v0.52.0** — **Smart Router Dinâmico por Mensagem** — Classificação por complexidade (SIMPLES→Minimax, MEDIO→Groq, COMPLEXO→Sonnet, TOOLS→GPT-4o-mini), classificador regex em `core/classificador_mensagem.py`, adaptador system→user para Minimax
+- **v0.52.2** — **Build Gate** — Validação obrigatória de build antes de push (`core/vcs_service.py`), revert automático se build falhar, prevenção de código quebrado em produção (motivado pelo Bug #43)
 
 ---
 
