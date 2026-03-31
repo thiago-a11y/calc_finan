@@ -415,7 +415,7 @@ def _gerar_relatorio_diario(company_id: int = 1):
             UsageTrackingDB.company_id == company_id,
         ).all()
 
-        custo_total = sum(u.custo_estimado for u in uso_hoje)
+        custo_total = sum(u.custo_usd for u in uso_hoje)
         tokens_in = sum(u.tokens_input or 0 for u in uso_hoje)
         tokens_out = sum(u.tokens_output or 0 for u in uso_hoje)
 
@@ -778,7 +778,7 @@ def _atualizar_metricas_dia(config: ContinuousFactoryDB, db: Session, company_id
         UsageTrackingDB.criado_em >= inicio_dia,
         UsageTrackingDB.company_id == company_id,
     ).all()
-    config.custo_hoje_usd = sum(u.custo_estimado for u in uso)
+    config.custo_hoje_usd = sum(u.custo_usd for u in uso)
 
 
 # =====================================================================
