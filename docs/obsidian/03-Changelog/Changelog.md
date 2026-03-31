@@ -4,6 +4,18 @@
 
 ---
 
+## v0.51.0 — Minimax como LLM Principal (31/03/2026)
+
+### Funcionalidades
+- **Minimax MiniMax-Text-01** como LLM principal do sistema (mais barato: $0.0004/1K input)
+- **Nova ordem de prioridade:** Minimax → Groq → Anthropic → OpenAI
+- **core/llm_fallback.py** atualizado com MiniMaxChat via langchain_community
+- **Smart Router Global** com Provider.MINIMAX + PROVIDER_CONFIG
+- **config/settings.py** com minimax_api_key e minimax_group_id
+- **config/llm_providers.py** com ProviderID.MINIMAX
+
+---
+
 ## v0.50.0 — Vision-to-Product + Correções Críticas (2026-03-30)
 
 ### Funcionalidades

@@ -1,7 +1,7 @@
 # LLM Fallback — Arquitetura
 
 > Sistema centralizado de fallback de LLM para garantir disponibilidade total.
-> Criado em v0.49.0, consolidado em v0.50.0.
+> Criado em v0.49.0, consolidado em v0.50.0. Minimax como principal em v0.51.0.
 
 ---
 
@@ -16,19 +16,24 @@ O sistema anterior dependia de cada modulo implementar seu proprio fallback, ger
 ## Cadeia de Fallback
 
 ```
-Anthropic (Claude) → Groq (Llama) → OpenAI (GPT-4o)
+Minimax (MiniMax-Text-01) → Groq (Llama) → Anthropic (Claude) → OpenAI (GPT-4o)
 ```
 
-1. **Anthropic** (provider principal) — Claude Sonnet/Opus
-   - Melhor qualidade para tarefas complexas
+1. **Minimax** (provider principal) — MiniMax-Text-01
+   - Mais barato: $0.0004/1K input, $0.0016/1K output
+   - Integrado via MiniMaxChat (langchain_community)
    - Se falhar (rate limit, creditos, timeout): cai para Groq
 
 2. **Groq** (fallback 1) — Llama via Groq Cloud
    - Ultra-rapido, bom custo-beneficio
-   - Se falhar: cai para OpenAI
+   - Se falhar: cai para Anthropic
    - Requer `langchain-groq` instalado
 
-3. **OpenAI** (fallback 2) — GPT-4o
+3. **Anthropic** (fallback 2) — Claude Sonnet/Opus
+   - Alta qualidade para tarefas complexas
+   - Se falhar: cai para OpenAI
+
+4. **OpenAI** (fallback 3) — GPT-4o
    - Ultima linha de defesa
    - Se falhar: levanta excecao (todos indisponiveis)
 
@@ -65,6 +70,7 @@ Os seguintes modulos foram atualizados para usar `obter_llm_fallback()`:
 
 ## Dependencias
 
+- `langchain-community` — Provider Minimax (MiniMaxChat)
 - `langchain-anthropic` — Provider Anthropic
 - `langchain-groq` — Provider Groq (instalado em v0.50.0)
 - `langchain-openai` — Provider OpenAI
@@ -86,4 +92,4 @@ O `llm_fallback.py` e mais enxuto (3 providers) porque e usado em operacoes auto
 
 ---
 
-> Ultima atualizacao: 2026-03-30
+> Ultima atualizacao: 2026-03-31

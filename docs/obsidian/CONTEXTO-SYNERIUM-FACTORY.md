@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.50.0 (30/Mar/2026)
+**Versão Atual:** v0.51.0 (31/Mar/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -94,13 +94,13 @@ CEO (Thiago)
 - **React Router v6** — Roteamento SPA
 
 ### LLM Providers (Cadeia de Fallback Completa)
-1. 🧠 **Claude Opus** (Anthropic) — Principal, tarefas complexas
-2. 🧠 **Claude Sonnet** (Anthropic) — Dia-a-dia, chat, execução
-3. 🤖 **GPT-4o** (OpenAI) — Fallback 1, visão e análise multimodal
-4. 💎 **Gemini 2.5 Flash** (Google) — Fallback 2, free tier 1.5M tokens/dia
-5. ⚡ **Llama via Groq** — Fallback 3, ultra-rápido
-6. 🔥 **Mixtral/Llama via Fireworks** — Fallback 4, custo baixo
-7. 🤝 **Llama/Mistral via Together.ai** — Fallback 5, última linha
+1. 🏆 **MiniMax-Text-01** (Minimax) — **Principal**, mais barato ($0.0004/1K input, $0.0016/1K output)
+2. ⚡ **Llama via Groq** — Fallback 1, ultra-rápido
+3. 🧠 **Claude Opus/Sonnet** (Anthropic) — Fallback 2, tarefas complexas
+4. 🤖 **GPT-4o** (OpenAI) — Fallback 3, visão e análise multimodal
+5. 💎 **Gemini 2.5 Flash** (Google) — Fallback 4, free tier 1.5M tokens/dia
+6. 🔥 **Mixtral/Llama via Fireworks** — Fallback 5, custo baixo
+7. 🤝 **Llama/Mistral via Together.ai** — Fallback 6, última linha
 
 ### Smart Router — Perfis de Uso
 - `consultora_estrategica` (peso 0.4) — Perfil da Luna: padrão Sonnet, Opus para tarefas complexas
@@ -164,7 +164,7 @@ CEO (Thiago)
 ├── core/                        # Motores e lógica central
 │   ├── luna_engine.py           # Motor da Luna: streaming + fallback (Opus→Sonnet→Groq→Fireworks→Together)
 │   ├── llm_router.py            # Smart Router multi-provider
-│   ├── llm_fallback.py          # LLM Fallback centralizado (Anthropic → Groq → OpenAI)
+│   ├── llm_fallback.py          # LLM Fallback centralizado (Minimax → Groq → Anthropic → OpenAI)
 │   └── vcs_service.py           # Serviço VCS (GitHub/GitBucket) com Fernet
 ├── api/                         # API REST (FastAPI)
 │   ├── main.py                  # App principal
@@ -427,6 +427,7 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.50.0** — **Vision-to-Product + Session Isolada + Fila de Workflows** — PM Central gera roadmap com estimativa de custo/prazo, session SQLite isolada por fase (fix crítico), fila automática de workflows, 16 agentes no catálogo, teste end-to-end aprovado (Fase 2→3→4 sem crash)
 - **Vision-to-Product testado e aprovado em produção** (30/03/2026) — 4 fases BMAD completas, gates soft/hard, review com 3 sugestões reais via Groq, fila automática de workflows em sequência
 - **Self-Evolving Factory** gerando 3 sugestões reais de melhoria após cada workflow concluído
+- **v0.51.0** — **Minimax como LLM Principal** — MiniMax-Text-01 como provider principal ($0.0004/1K input), nova cadeia Minimax→Groq→Anthropic→OpenAI, Smart Router com Provider.MINIMAX, config/settings.py e config/llm_providers.py atualizados
 
 ---
 
@@ -571,10 +572,15 @@ Painel estratégico do CEO:
 - **Fila automática de workflows** — Próximo inicia ao concluir/falhar o anterior
 - **Endpoints**: `GET /command-center` (KPIs, workflows, evoluções), `POST /command-center/estrategia` (PM Central quebra em features)
 
-## LLM Fallback Robusto (novo em v0.49.0, consolidado v0.50.0)
+## LLM Fallback Robusto (novo em v0.49.0, consolidado v0.50.0, Minimax principal em v0.51.0)
 
 Cadeia centralizada em `core/llm_fallback.py`:
-- **Anthropic** (Claude) → **Groq** (Llama) → **OpenAI** (GPT-4o)
+- **Minimax** (MiniMax-Text-01) → **Groq** (Llama) → **Anthropic** (Claude) → **OpenAI** (GPT-4o)
+- Minimax como LLM principal: $0.0004/1K input, $0.0016/1K output
+- Integrado via MiniMaxChat (langchain_community)
+- config/settings.py com minimax_api_key e minimax_group_id
+- config/llm_providers.py com ProviderID.MINIMAX
+- Smart Router Global com Provider.MINIMAX + PROVIDER_CONFIG
 - Qualquer módulo chama `obter_llm_fallback()` e recebe o provider disponível
 - **6 pontos de chamada** atualizados para usar fallback centralizado
 - Detecção automática de erro de crédito/quota/rate limit
@@ -582,4 +588,4 @@ Cadeia centralizada em `core/llm_fallback.py`:
 
 ---
 
-> Ultima atualizacao: 2026-03-30
+> Ultima atualizacao: 2026-03-31
