@@ -124,6 +124,11 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 - [x] Anthropic com creditos novamente (confirmado pelo usuario)
 - [x] Teste end-to-end aprovado: 3 mensagens × 3 providers distintos
 
+### Pendencias novas (Sessao 25)
+- [ ] Implementar Build Gate no core/vcs_service.py (npm run build antes de push)
+- [ ] Melhorar contexto dos agentes para código real (RAG com código-fonte)
+- [ ] Bug #43: Factory destruiu EditProposalModal.tsx — PR #195 auto-merged quebrado
+
 ---
 
 ## Sessao 24 — v0.52.0 Smart Router Dinâmico por Mensagem (31/Mar/2026)

@@ -26,6 +26,143 @@ logger = logging.getLogger("synerium.vcs")
 
 
 # ============================================================
+# Build Gate — Validacao de build antes de push (v0.52.2)
+# ============================================================
+
+@dataclass
+class ResultadoBuild:
+    """Resultado da validacao de build."""
+    sucesso: bool
+    mensagem: str
+    comando: str = ""
+    saida: str = ""
+
+
+def validar_build(caminho_projeto: str) -> ResultadoBuild:
+    """
+    Build Gate: valida o build do projeto ANTES de fazer push.
+
+    Detecta o tipo de projeto e executa o build correspondente:
+    - Node.js (package.json) → npm run build
+    - Python (pyproject.toml/setup.py) → python -m py_compile nos .py alterados
+
+    Retorna ResultadoBuild com sucesso=True se o build passar.
+    Se nao encontrar arquivo de build, retorna sucesso=True (sem validacao).
+    """
+    projeto = Path(caminho_projeto)
+
+    # --- Node.js / React / TypeScript ---
+    package_json = projeto / "package.json"
+    if package_json.exists():
+        import json
+        try:
+            with open(package_json) as f:
+                pkg = json.load(f)
+            scripts = pkg.get("scripts", {})
+
+            # Preferir "build" script, senao tentar "lint"
+            if "build" in scripts:
+                cmd = "build"
+            elif "lint" in scripts:
+                cmd = "lint"
+            else:
+                logger.info(f"[BUILD GATE] package.json sem script 'build' ou 'lint' — skip")
+                return ResultadoBuild(True, "Sem script de build no package.json", "skip")
+
+            # Verificar se node_modules existe
+            node_modules = projeto / "node_modules"
+            if not node_modules.exists():
+                logger.info(f"[BUILD GATE] node_modules nao encontrado — rodando npm install...")
+                install_result = subprocess.run(
+                    ["npm", "install", "--legacy-peer-deps"],
+                    cwd=str(projeto),
+                    capture_output=True,
+                    timeout=120,
+                )
+                if install_result.returncode != 0:
+                    stderr = install_result.stderr.decode("utf-8", errors="replace")[:500]
+                    logger.warning(f"[BUILD GATE] npm install falhou: {stderr}")
+                    # Continuar mesmo assim — pode ser que o build funcione
+
+            logger.info(f"[BUILD GATE] Executando npm run {cmd}...")
+            result = subprocess.run(
+                ["npm", "run", cmd],
+                cwd=str(projeto),
+                capture_output=True,
+                timeout=180,  # 3 minutos max
+                env={**os.environ, "CI": "true", "NODE_ENV": "production"},
+            )
+
+            stdout = result.stdout.decode("utf-8", errors="replace")
+            stderr = result.stderr.decode("utf-8", errors="replace")
+            saida = (stdout + "\n" + stderr).strip()
+
+            if result.returncode == 0:
+                logger.info(f"[BUILD GATE] npm run {cmd} — PASSOU ✅")
+                return ResultadoBuild(True, f"Build passou (npm run {cmd})", f"npm run {cmd}", saida[-500:])
+            else:
+                # Extrair erros relevantes (ultimas linhas com "error")
+                linhas_erro = [l for l in saida.split("\n") if "error" in l.lower() or "Error" in l]
+                resumo_erro = "\n".join(linhas_erro[-10:]) if linhas_erro else saida[-500:]
+                logger.error(f"[BUILD GATE] npm run {cmd} — FALHOU ❌\n{resumo_erro}")
+                return ResultadoBuild(
+                    False,
+                    f"Build falhou (npm run {cmd}). Erros:\n{resumo_erro}",
+                    f"npm run {cmd}",
+                    saida[-1000:],
+                )
+
+        except subprocess.TimeoutExpired:
+            logger.error(f"[BUILD GATE] npm run build — TIMEOUT (3min)")
+            return ResultadoBuild(False, "Build timeout (excedeu 3 minutos)", "npm run build")
+        except Exception as e:
+            logger.error(f"[BUILD GATE] Erro inesperado: {e}")
+            return ResultadoBuild(False, f"Erro no build gate: {str(e)[:200]}", "npm run build")
+
+    # --- Python ---
+    pyproject = projeto / "pyproject.toml"
+    setup_py = projeto / "setup.py"
+    if pyproject.exists() or setup_py.exists():
+        # Para projetos Python, verificar sintaxe dos arquivos alterados
+        try:
+            result = subprocess.run(
+                ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
+                cwd=str(projeto), capture_output=True, timeout=10,
+            )
+            arquivos_py = [
+                f for f in result.stdout.decode().strip().split("\n")
+                if f.endswith(".py") and f.strip()
+            ]
+            if not arquivos_py:
+                return ResultadoBuild(True, "Nenhum arquivo Python alterado", "skip")
+
+            erros = []
+            for arq in arquivos_py:
+                check = subprocess.run(
+                    ["python3", "-m", "py_compile", arq],
+                    cwd=str(projeto), capture_output=True, timeout=10,
+                )
+                if check.returncode != 0:
+                    erros.append(f"{arq}: {check.stderr.decode()[:200]}")
+
+            if erros:
+                resumo = "\n".join(erros)
+                logger.error(f"[BUILD GATE] Python syntax check FALHOU:\n{resumo}")
+                return ResultadoBuild(False, f"Syntax error em {len(erros)} arquivo(s):\n{resumo}", "py_compile")
+            else:
+                logger.info(f"[BUILD GATE] Python syntax check — PASSOU ✅ ({len(arquivos_py)} arquivos)")
+                return ResultadoBuild(True, f"Syntax OK ({len(arquivos_py)} arquivos)", "py_compile")
+
+        except Exception as e:
+            logger.error(f"[BUILD GATE] Erro no check Python: {e}")
+            return ResultadoBuild(False, f"Erro: {str(e)[:200]}", "py_compile")
+
+    # Nenhum tipo de projeto detectado — permitir push
+    logger.info(f"[BUILD GATE] Nenhum arquivo de build detectado — skip")
+    return ResultadoBuild(True, "Nenhum build configurado (projeto sem package.json ou pyproject.toml)", "skip")
+
+
+# ============================================================
 # Criptografia de tokens
 # ============================================================
 
@@ -222,6 +359,21 @@ class VCSService:
             hash_result = self._run_git(["rev-parse", "--short", "HEAD"], cwd)
             commit_hash = hash_result.stdout.decode().strip() if hash_result.returncode == 0 else "?"
 
+            # ========== BUILD GATE (v0.52.2) ==========
+            # Validar build ANTES de fazer push
+            resultado_build = validar_build(cwd)
+            if not resultado_build.sucesso:
+                # Build falhou → reverter commit para nao poluir o historico local
+                logger.error(f"[VCS] BUILD GATE BLOQUEOU push do commit {commit_hash}: {resultado_build.mensagem}")
+                self._run_git(["reset", "HEAD~1"], cwd)  # Desfaz o commit, mantém as mudanças staged
+                return ResultadoCommit(
+                    False,
+                    f"⛔ Build Gate bloqueou o push. {resultado_build.mensagem}",
+                    commit_hash="",
+                    branch=self.branch,
+                )
+            # ==========================================
+
             # Git push
             push_result = self._run_git(["push", "origin", self.branch], cwd)
             if push_result.returncode != 0:
@@ -322,6 +474,17 @@ class VCSService:
             remote_url = self._construir_remote_url()
             if remote_url:
                 self._run_git(["remote", "set-url", "origin", remote_url], cwd)
+
+            # ========== BUILD GATE (v0.52.2) ==========
+            resultado_build = validar_build(cwd)
+            if not resultado_build.sucesso:
+                logger.error(f"[VCS] BUILD GATE BLOQUEOU push da branch {branch_nome}: {resultado_build.mensagem}")
+                return ResultadoCommit(
+                    False,
+                    f"⛔ Build Gate bloqueou o push. {resultado_build.mensagem}",
+                    branch=branch_nome,
+                )
+            # ==========================================
 
             push_result = self._run_git(["push", "-u", "origin", branch_nome], cwd)
             if push_result.returncode != 0:
