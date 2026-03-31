@@ -58,6 +58,7 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 
 | 40 | Groq falha em function calling (`tool_use_failed`) ao usar ferramentas no CrewAI | Groq Llama 3.3 70B não suporta function calling nativo de forma confiável — retorna erro `tool_use_failed` quando o CrewAI tenta usar tools | Smart Router Dinâmico classifica chamadas com ferramentas como `TOOLS` e roteia para GPT-4o-mini, que suporta function calling nativamente | 2026-03-31 |
 | 41 | Minimax retorna erro 2013 ao receber mensagens com role `system` | API do Minimax MiniMax-Text-01 não suporta role `system` — aceita apenas `user` e `assistant` | Adaptador de mensagens em `core/classificador_mensagem.py` converte role `system` para `user` antes de enviar à API da Minimax | 2026-03-31 |
+| 42 | Minimax retornava 404 page not found na Luna e llm_fallback | GroupId como query param na base_url conflitava com /chat/completions que o SDK OpenAI adiciona automaticamente | Fix: usar model_kwargs={"extra_body": {"group_id": group_id}} em vez de ?GroupId= na URL | 2026-03-31 |
 
 ### Lições Aprendidas
 
@@ -88,6 +89,7 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 
 - **Bug #40**: Nem todos os providers suportam function calling. Groq Llama 3.3 70B falha silenciosamente com `tool_use_failed`. Sempre validar suporte a tools antes de escolher um provider para o CrewAI. GPT-4o-mini é a opção mais barata com suporte completo a function calling.
 - **Bug #41**: APIs de LLM têm restrições de roles diferentes. Minimax não aceita `system`, apenas `user` e `assistant`. Sempre verificar quais roles são suportados por cada provider. Adaptadores de mensagem resolvem sem mudar o código dos chamadores.
+- **Bug #42**: SDKs OpenAI-compatible adicionam `/chat/completions` automaticamente à base_url. Nunca colocar query params (?GroupId=) na base_url — usar `extra_body` para passar parâmetros extras ao provider. URL malformada causa 404 silencioso.
 
 ---
 

@@ -157,10 +157,11 @@ def _criar_provider_minimax(max_tokens: int = MAX_TOKENS_RESPOSTA):
     return ChatOpenAI(
         model="MiniMax-Text-01",
         api_key=api_key,
-        base_url=f"https://api.minimaxi.chat/v1?GroupId={group_id}",
+        base_url="https://api.minimaxi.chat/v1",
         max_tokens=max_tokens,
         temperature=TEMPERATURA,
         streaming=True,
+        model_kwargs={"extra_body": {"group_id": group_id}},
     )
 
 
@@ -168,24 +169,24 @@ def _obter_cadeia_fallback(forcar: str | None = None) -> list[tuple]:
     """
     Retorna lista ordenada de (provider_id, modelo_nome, factory_fn) para fallback.
 
-    Ordem (v0.51.0 — mesma do llm_fallback.py):
-    1. Minimax MiniMax-Text-01 (mais barato)
-    2. Groq Llama
-    3. Fireworks Llama
-    4. Together.ai Llama
-    5. Claude Opus (se forçado) ou Claude Sonnet (padrão)
-    6. GPT-4o (última linha)
+    v0.52.1 — Smart Router Dinamico reordena a cadeia:
+    - forcar="minimax" → Minimax primeiro (SIMPLES)
+    - forcar="groq"    → Groq primeiro (MEDIO)
+    - forcar="sonnet"  → Anthropic Sonnet primeiro (COMPLEXO)
+    - forcar="opus"    → Anthropic Opus primeiro
+    - forcar=None      → Minimax → Groq → ... (default, mais barato)
     """
-    cadeia = []
+    # Construir todos os providers disponiveis
+    todos = {}
 
-    # 1. Minimax — principal (mais barato: $0.0004/1K)
-    cadeia.append((
+    # Minimax
+    todos["minimax"] = (
         "minimax",
         "MiniMax-Text-01",
         lambda: _criar_provider_minimax(),
-    ))
+    )
 
-    # 2-4. Fallbacks open-source (Groq, Fireworks, Together)
+    # Groq, Fireworks, Together
     for provider in PROVIDERS:
         if provider.id in (ProviderID.ANTHROPIC_OPUS, ProviderID.ANTHROPIC_SONNET, ProviderID.ANTHROPIC):
             continue
@@ -195,30 +196,49 @@ def _obter_cadeia_fallback(forcar: str | None = None) -> list[tuple]:
         p_modelo = provider.modelo
         p_key_env = provider.api_key_env
         p_url = provider.base_url
-        cadeia.append((
+        todos[p_id] = (
             p_id,
             p_modelo,
             lambda key=p_key_env, url=p_url, mod=p_modelo: _criar_provider_openai_compat(mod, key, url),
-        ))
+        )
 
-    # 5. Anthropic (Opus ou Sonnet dependendo do Smart Router)
+    # Anthropic
+    todos["anthropic_opus"] = (
+        "anthropic_opus",
+        MODELOS_CLAUDE[ModeloClaudeTier.OPUS]["modelo"],
+        lambda: _criar_provider_anthropic(MODELOS_CLAUDE[ModeloClaudeTier.OPUS]["modelo"]),
+    )
+    todos["anthropic_sonnet"] = (
+        "anthropic_sonnet",
+        MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"],
+        lambda: _criar_provider_anthropic(MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"]),
+    )
+
+    # Definir ordem baseada no Smart Router
     if forcar == "opus":
-        cadeia.append((
-            "anthropic_opus",
-            MODELOS_CLAUDE[ModeloClaudeTier.OPUS]["modelo"],
-            lambda: _criar_provider_anthropic(MODELOS_CLAUDE[ModeloClaudeTier.OPUS]["modelo"]),
-        ))
-        cadeia.append((
-            "anthropic_sonnet",
-            MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"],
-            lambda: _criar_provider_anthropic(MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"]),
-        ))
+        ordem = ["anthropic_opus", "anthropic_sonnet", "groq", "minimax"]
+    elif forcar == "sonnet":
+        ordem = ["anthropic_sonnet", "groq", "minimax"]
+    elif forcar == "groq":
+        ordem = ["groq", "minimax", "anthropic_sonnet"]
+    elif forcar == "minimax":
+        ordem = ["minimax", "groq", "anthropic_sonnet"]
     else:
-        cadeia.append((
-            "anthropic_sonnet",
-            MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"],
-            lambda: _criar_provider_anthropic(MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"]),
-        ))
+        # Default: mais barato primeiro
+        ordem = ["minimax", "groq", "anthropic_sonnet"]
+
+    # Montar cadeia na ordem definida + providers restantes
+    cadeia = []
+    adicionados = set()
+    for pid in ordem:
+        if pid in todos and pid not in adicionados:
+            cadeia.append(todos[pid])
+            adicionados.add(pid)
+    # Adicionar restantes (Fireworks, Together, etc.)
+    for pid, entry in todos.items():
+        if pid not in adicionados:
+            cadeia.append(entry)
+            adicionados.add(pid)
 
     # 6. OpenAI GPT-4o — última linha
     cadeia.append((
@@ -417,9 +437,10 @@ class LunaEngine:
     def _decidir_modelo(self, mensagem: str, modelo_preferido: str = "auto") -> str | None:
         """
         Usa o Smart Router Dinamico para classificar a mensagem.
-        Retorna "opus", "sonnet" ou None (auto).
+        Retorna "opus", "sonnet", "groq", "minimax" ou None (auto).
 
         v0.52.0: Tambem armazena a classificacao completa para uso no streaming.
+        v0.52.1: Retorna provider recomendado pelo Smart Router (não apenas Anthropic).
         """
         if modelo_preferido in ("opus", "sonnet"):
             return modelo_preferido
@@ -432,13 +453,22 @@ class LunaEngine:
             precisa_streaming=True,
         )
 
-        # Mapear para o formato legado (opus/sonnet/None)
-        if self._ultima_classificacao.provider in ("anthropic_opus",):
-            logger.info(f"[Luna] Smart Router Dinamico → Opus ({self._ultima_classificacao.motivo})")
+        provider = self._ultima_classificacao.provider
+        motivo = self._ultima_classificacao.motivo
+        complexidade = self._ultima_classificacao.complexidade.value
+
+        logger.info(f"[Luna] Smart Router → {provider} ({motivo}, complexidade={complexidade})")
+
+        # Mapear para o formato que _obter_cadeia_fallback entende
+        if provider in ("anthropic_opus",):
             return "opus"
-        elif self._ultima_classificacao.provider in ("anthropic_sonnet",):
+        elif provider in ("anthropic_sonnet",):
             return "sonnet"
-        return None  # Cadeia de fallback sera usada
+        elif provider in ("groq",):
+            return "groq"
+        elif provider in ("minimax",):
+            return "minimax"
+        return None  # Cadeia de fallback default
 
     async def stream_resposta(
         self,

@@ -4,6 +4,20 @@
 
 ---
 
+## v0.52.1 — Correção Minimax + Smart Router Luna (31/Mar/2026)
+
+### Corrigido
+- **Bug #42**: Minimax retornava 404 — GroupId como query param na base_url conflitava com SDK OpenAI — Fix: extra_body
+- **Luna Engine** não respeitava classificação do Smart Router — sempre começava com Minimax independente da complexidade
+- **_obter_cadeia_fallback()** reordenada: SIMPLES→minimax primeiro, MEDIO→groq primeiro, COMPLEXO→anthropic_sonnet primeiro
+
+### Verificado
+- Teste end-to-end: SIMPLES→minimax (2s), MEDIO→groq (2s), COMPLEXO→anthropic_sonnet (49s)
+- CrewAI Escritório Virtual: GPT-4o-mini funcional para todas as tarefas
+- Anthropic com créditos restabelecidos
+
+---
+
 ## v0.52.0 — Smart Router Dinâmico por Mensagem (31/03/2026)
 
 ### Funcionalidades

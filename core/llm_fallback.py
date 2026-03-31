@@ -117,9 +117,10 @@ def _criar_llm(provider: dict, max_tokens: int = 2000, temperature: float = 0.3)
             return ChatOpenAI(
                 model=modelo,
                 openai_api_key=api_key,
-                openai_api_base=f"https://api.minimaxi.chat/v1?GroupId={group_id}",
+                openai_api_base="https://api.minimaxi.chat/v1",
                 max_tokens=max_tokens,
                 temperature=temperature,
+                model_kwargs={"extra_body": {"group_id": group_id}},
             )
         elif tipo == "anthropic":
             from langchain_anthropic import ChatAnthropic

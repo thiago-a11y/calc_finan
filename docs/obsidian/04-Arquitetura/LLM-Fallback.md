@@ -127,6 +127,7 @@ Groq falha com `tool_use_failed` (Bug #40) e Minimax falha com erro 2013 (Bug #4
 
 - **Bug #40**: Groq falha em function calling (`tool_use_failed`) → roteado para GPT-4o-mini
 - **Bug #41**: Minimax não suporta role `system` (erro 2013) → adaptador system → user
+- **Bug #42**: Minimax 404 — GroupId como query param na base_url — SDK OpenAI adiciona /chat/completions, causando URL malformada. Fix: usar extra_body para passar group_id
 
 ---
 
@@ -141,4 +142,4 @@ O `llm_fallback.py` agora tem 6 providers (Minimax, Groq, Fireworks, Together, A
 
 ---
 
-> Ultima atualizacao: 2026-03-31 (v0.52.0)
+> Ultima atualizacao: 2026-03-31 (v0.52.1)

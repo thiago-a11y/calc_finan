@@ -1,7 +1,7 @@
 # Pendencias do Ultimo Chat — 31/Mar/2026
 
-> Atualizado em 31/Mar/2026 (sessao 24 — v0.52.0)
-> Sessao anterior: Minimax como LLM principal (v0.51.0). Sessao 24: Smart Router Dinâmico por Mensagem.
+> Atualizado em 31/Mar/2026 (sessao 25 — v0.52.1)
+> Sessao anterior: Smart Router Dinâmico por Mensagem (v0.52.0). Sessao 25: Correcao Minimax + Smart Router Luna.
 
 ## Resumo da sessao
 
@@ -115,6 +115,17 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 4. **LLM Fallback** — core/llm_fallback.py, cadeia Anthropic → Groq → OpenAI, 6 pontos atualizados
 5. **Dynamic Team Assembly** — Deteccao automatica de tipo de tarefa + selecao de agentes por LLM
 
+## Sessao 25 — v0.52.1 Correcao Minimax + Smart Router Luna (31/Mar/2026)
+
+### O que foi feito
+- [x] Bug #42 resolvido: Minimax 404 — GroupId via extra_body em vez de query param
+- [x] Luna Engine agora respeita classificacao do Smart Router (SIMPLES→minimax, MEDIO→groq, COMPLEXO→sonnet)
+- [x] _obter_cadeia_fallback() reordenada baseada na classificacao
+- [x] Anthropic com creditos novamente (confirmado pelo usuario)
+- [x] Teste end-to-end aprovado: 3 mensagens × 3 providers distintos
+
+---
+
 ## Sessao 24 — v0.52.0 Smart Router Dinâmico por Mensagem (31/Mar/2026)
 
 ### O que foi feito
@@ -156,7 +167,7 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 ## Status atual
 
 - Tudo em producao (AWS)
-- Versao atual: v0.52.0
+- Versao atual: v0.52.1
 - 16 agentes no catalogo (9 CEO + 3 Jonatas + 3 Elite + Factory Optimizer)
 - LLM Principal: **Minimax MiniMax-Text-01** (funcionando em producao)
 - Cadeia de fallback: Minimax → Groq → Fireworks → Together → Anthropic → OpenAI
