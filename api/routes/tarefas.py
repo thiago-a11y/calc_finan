@@ -947,9 +947,11 @@ async def _selecionar_agentes_llm(mensagem: str, agentes_catalogo: list[dict]) -
         )
 
         from core.llm_fallback import chamar_llm_com_fallback_async
+        from core.classificador_mensagem import classificar_mensagem
+        _cls = classificar_mensagem(prompt)
         resp, _, _ = await chamar_llm_com_fallback_async(
             [SystemMessage(content=system), HumanMessage(content=prompt)],
-            max_tokens=500, temperature=0,
+            max_tokens=500, temperature=0, classificacao=_cls,
         )
 
         import json
@@ -1787,7 +1789,9 @@ def comando_estrategico(
             )),
             HumanMessage(content=f"Comando do CEO: {req.visao}"),
         ]
-        resposta, _, _ = chamar_llm_com_fallback(msgs, max_tokens=2000, temperature=0.3)
+        from core.classificador_mensagem import classificar_mensagem
+        _cls_visao = classificar_mensagem(req.visao)
+        resposta, _, _ = chamar_llm_com_fallback(msgs, max_tokens=2000, temperature=0.3, classificacao=_cls_visao)
         texto = resposta.content
 
         # Extrair JSON
@@ -1956,7 +1960,9 @@ def _executar_review_session(workflow_id: str):
             )
 
             msgs_review = [SystemMessage(content=system), HumanMessage(content=prompt)]
-            resposta, provider_usado, modelo_usado = chamar_llm_com_fallback(msgs_review, max_tokens=2000)
+            from core.classificador_mensagem import classificar_mensagem
+            _cls_review = classificar_mensagem(prompt)
+            resposta, provider_usado, modelo_usado = chamar_llm_com_fallback(msgs_review, max_tokens=2000, classificacao=_cls_review)
             texto = resposta.content
             logger.info(f"[EVOLUCAO] Review gerada via {provider_usado}/{modelo_usado}")
 

@@ -312,52 +312,41 @@ class SmartRouter:
         )
 
         # Criar instância LLM COM tracking automático
-        # v0.51.0: GPT-4o-mini como padrão para CrewAI (suporta tools + system role, barato)
-        # Minimax não suporta role "system" (erro 2013)
-        # Groq Llama não suporta function calling do CrewAI (erro tool_use_failed)
-        # GPT-4o-mini: $0.15/1M input, $0.60/1M output — suporta tudo
-        openai_key = os.environ.get("OPENAI_API_KEY", "")
-        groq_key = os.environ.get("GROQ_API_KEY", "")
+        # v0.52.0: Smart Router Dinâmico decide o provider por tarefa
+        # CrewAI precisa de function_calling → classificador filtra automaticamente
+        from core.classificador_mensagem import classificar_mensagem
 
-        if openai_key:
-            # GPT-4o-mini — barato, suporta system role + function calling
-            llm = criar_llm_tracked(
-                modelo="openai/gpt-4o-mini",
-                api_key=openai_key,
-                max_tokens=config["max_tokens"],
-                agente_nome=agente_nome,
-                squad_nome=squad_nome,
-                perfil_agente=perfil_agente or "",
-                tipo=tipo,
-                usuario_id=usuario_id,
-                usuario_nome=usuario_nome,
-            )
-        elif groq_key:
-            # Groq Llama — rápido mas sem function calling confiável
-            llm = criar_llm_tracked(
-                modelo="groq/llama-3.3-70b-versatile",
-                api_key=groq_key,
-                max_tokens=config["max_tokens"],
-                agente_nome=agente_nome,
-                squad_nome=squad_nome,
-                perfil_agente=perfil_agente or "",
-                tipo=tipo,
-                usuario_id=usuario_id,
-                usuario_nome=usuario_nome,
-            )
-        else:
-            # Anthropic como último recurso
-            llm = criar_llm_tracked(
-                modelo=f"anthropic/{config['modelo']}",
-                api_key=api_key,
-                max_tokens=config["max_tokens"],
-                agente_nome=agente_nome,
-                squad_nome=squad_nome,
-                perfil_agente=perfil_agente or "",
-                tipo=tipo,
-                usuario_id=usuario_id,
-                usuario_nome=usuario_nome,
-            )
+        classificacao = classificar_mensagem(
+            mensagem=prompt,
+            tem_tools=True,  # CrewAI sempre usa tools
+        )
+
+        # Mapear provider do classificador para modelo CrewAI
+        _MAPA_CREWAI = {
+            "gpt4o_mini": ("openai/gpt-4o-mini", "OPENAI_API_KEY"),
+            "gpt4o": ("openai/gpt-4o", "OPENAI_API_KEY"),
+            "anthropic_sonnet": (f"anthropic/{config['modelo']}", "ANTHROPIC_API_KEY"),
+            "anthropic_opus": ("anthropic/claude-opus-4-20250514", "ANTHROPIC_API_KEY"),
+            "groq": ("groq/llama-3.3-70b-versatile", "GROQ_API_KEY"),
+        }
+
+        modelo_crewai, env_key = _MAPA_CREWAI.get(
+            classificacao.provider,
+            ("openai/gpt-4o-mini", "OPENAI_API_KEY"),  # fallback seguro
+        )
+        provider_key = os.environ.get(env_key, "")
+
+        llm = criar_llm_tracked(
+            modelo=modelo_crewai,
+            api_key=provider_key,
+            max_tokens=config["max_tokens"],
+            agente_nome=agente_nome,
+            squad_nome=squad_nome,
+            perfil_agente=perfil_agente or "",
+            tipo=tipo,
+            usuario_id=usuario_id,
+            usuario_nome=usuario_nome,
+        )
 
         return llm
 

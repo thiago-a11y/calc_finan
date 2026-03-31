@@ -416,21 +416,29 @@ class LunaEngine:
 
     def _decidir_modelo(self, mensagem: str, modelo_preferido: str = "auto") -> str | None:
         """
-        Usa o Smart Router para decidir se deve forçar Opus.
+        Usa o Smart Router Dinamico para classificar a mensagem.
         Retorna "opus", "sonnet" ou None (auto).
+
+        v0.52.0: Tambem armazena a classificacao completa para uso no streaming.
         """
         if modelo_preferido in ("opus", "sonnet"):
             return modelo_preferido
 
-        # Usar Smart Router para decidir
-        tier, motivo = smart_router.decidir(
-            prompt=mensagem,
-            perfil_agente="consultora_estrategica",
+        # v0.52.0: Usar classificador dinamico
+        from core.classificador_mensagem import classificar_mensagem
+        self._ultima_classificacao = classificar_mensagem(
+            mensagem=mensagem,
+            tem_tools=False,
+            precisa_streaming=True,
         )
-        if tier == ModeloClaudeTier.OPUS:
-            logger.info(f"[Luna] Smart Router → Opus ({motivo})")
+
+        # Mapear para o formato legado (opus/sonnet/None)
+        if self._ultima_classificacao.provider in ("anthropic_opus",):
+            logger.info(f"[Luna] Smart Router Dinamico → Opus ({self._ultima_classificacao.motivo})")
             return "opus"
-        return None  # Padrão (Sonnet)
+        elif self._ultima_classificacao.provider in ("anthropic_sonnet",):
+            return "sonnet"
+        return None  # Cadeia de fallback sera usada
 
     async def stream_resposta(
         self,
