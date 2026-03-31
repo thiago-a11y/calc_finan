@@ -15,7 +15,7 @@ import subprocess
 import logging
 from pathlib import Path
 from crewai.tools import BaseTool
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger("synerium.tools.syneriumx")
 
@@ -119,6 +119,44 @@ def _validar_comando(comando: str) -> bool:
 
 
 # =====================================================================
+# Schemas Pydantic para args_schema — compatibilidade GPT-4o-mini (v0.53.1)
+# Sem schemas explicitos, CrewAI infere schema do _run() que pode
+# gerar JSON invalido para function calling no GPT-4o-mini.
+# =====================================================================
+
+class LerArquivoInput(BaseModel):
+    """Schema para ferramenta ler_arquivo_syneriumx."""
+    caminho: str = Field(description="Caminho relativo do arquivo no projeto SyneriumX. Exemplo: 'api/config.php', 'src/App.tsx'")
+
+
+class ListarDiretorioInput(BaseModel):
+    """Schema para ferramenta listar_diretorio_syneriumx."""
+    caminho: str = Field(default="", description="Caminho relativo do diretorio. Deixe vazio para raiz do projeto. Exemplo: 'api/', 'src/components/'")
+
+
+class ProporEdicaoInput(BaseModel):
+    """Schema para ferramenta propor_edicao_syneriumx."""
+    dados: str = Field(description="Dados da edicao no formato: caminho|||conteudo_novo|||descricao. Exemplo: 'api/teste.php|||<?php echo 1;|||Criar arquivo de teste'")
+
+
+class BuscarInput(BaseModel):
+    """Schema para ferramenta buscar_no_syneriumx."""
+    termo: str = Field(description="Termo de busca (texto ou regex)")
+    diretorio: str = Field(default="", description="Diretorio para buscar (relativo). Vazio = projeto inteiro")
+    extensao: str = Field(default="", description="Extensao de arquivo para filtrar. Exemplo: 'php', 'tsx', 'py'")
+
+
+class GitInput(BaseModel):
+    """Schema para ferramenta git_syneriumx."""
+    comando: str = Field(description="Comando git a executar (sem 'git' na frente). Exemplo: 'status', 'diff src/App.tsx', 'log --oneline -10'")
+
+
+class TerminalInput(BaseModel):
+    """Schema para ferramenta terminal_syneriumx."""
+    comando: str = Field(description="Comando de terminal a executar no diretorio do SyneriumX. Exemplo: 'find . -name \"*.php\" | wc -l', 'cat api/config.php | head -20'")
+
+
+# =====================================================================
 # Ferramenta: Ler Arquivo do SyneriumX
 # =====================================================================
 class LerArquivoSyneriumX(BaseTool):
@@ -128,6 +166,7 @@ class LerArquivoSyneriumX(BaseTool):
         "Informe o caminho relativo ao projeto. "
         "Exemplo: 'api/config.php', 'src/App.tsx', 'README.md'"
     )
+    args_schema: type[BaseModel] = LerArquivoInput
 
     def _run(self, caminho: str) -> str:
         """Lê um arquivo do SyneriumX."""
@@ -171,6 +210,7 @@ class ListarDiretorioSyneriumX(BaseTool):
         "Informe o caminho relativo ou deixe vazio para a raiz. "
         "Exemplo: 'api/', 'src/components/', ''"
     )
+    args_schema: type[BaseModel] = ListarDiretorioInput
 
     def _run(self, caminho: str = "") -> str:
         """Lista conteúdo de um diretório do SyneriumX."""
@@ -213,6 +253,7 @@ class ProporEdicaoSyneriumX(BaseTool):
         "Use o separador ||| entre os campos. "
         "Exemplo: 'api/teste.php|||<?php echo 1;|||Criar arquivo de teste'"
     )
+    args_schema: type[BaseModel] = ProporEdicaoInput
 
     def _run(self, dados: str) -> str:
         """Propõe edição que precisa de aprovação do proprietário."""
@@ -296,6 +337,7 @@ class BuscarNoSyneriumX(BaseTool):
         "o diretório e extensão de arquivo. "
         "Exemplo: termo='company_id', diretorio='api/', extensao='php'"
     )
+    args_schema: type[BaseModel] = BuscarInput
 
     def _run(self, termo: str, diretorio: str = "", extensao: str = "") -> str:
         """Busca texto nos arquivos do SyneriumX."""
@@ -345,6 +387,7 @@ class GitSyneriumX(BaseTool):
         "Comandos push/merge/reset requerem aprovação. "
         "Exemplo: comando='status', comando='diff src/App.tsx'"
     )
+    args_schema: type[BaseModel] = GitInput
 
     # Comandos git que precisam de aprovação
     GIT_REQUER_APROVACAO: list[str] = ["push", "merge", "reset", "rebase", "force"]
@@ -393,6 +436,7 @@ class TerminalSyneriumX(BaseTool):
         "Útil para: cat, head, tail, wc, find, du, ls -la, php -l, etc. "
         "Exemplo: comando='find . -name \"*.php\" | wc -l'"
     )
+    args_schema: type[BaseModel] = TerminalInput
 
     def _run(self, comando: str) -> str:
         """Executa um comando de terminal no SyneriumX."""

@@ -4,6 +4,22 @@
 
 ---
 
+## v0.53.1 — Correções Finais Vision-to-Product (31/Mar/2026)
+
+### Correções
+- **Rate Limit Retry** — Backoff exponencial (2s→4s→8s) para erros 429/rate_limit em `llm_fallback.py`. Até 3 tentativas por provider antes de fazer fallback. Versões sync e async.
+- **Self-Evolving Factory** — `_executar_review_session()` agora SEMPRE salva no `EvolucaoFactoryDB`, mesmo se LLM falhar. Registro criado antes da chamada LLM. Se ocorrer erro fatal, cria registro com status "erro".
+- **Tool Schemas GPT-4o-mini** — Adicionado `args_schema` Pydantic explícito em todas as 10 tools CrewAI (syneriumx, zip, email). Cada campo tem `description` e `type` corretos para function calling confiável no GPT-4o-mini.
+
+### Arquivos alterados
+- `core/llm_fallback.py` — retry com `_eh_rate_limit()`, `MAX_RETRIES=3`, `BACKOFF_BASE=2s`
+- `api/routes/tarefas.py` — `_executar_review_session()` reescrita com 3 passos: criar registro → LLM → commit
+- `tools/syneriumx_tools.py` — 6 schemas: `LerArquivoInput`, `ListarDiretorioInput`, `ProporEdicaoInput`, `BuscarInput`, `GitInput`, `TerminalInput`
+- `tools/zip_tool.py` — 2 schemas: `CriarZipInput`, `CriarProjetoInput`
+- `tools/email_tool.py` — 2 schemas: `EnviarEmailInput`, `EnviarEmailComAnexoInput`
+
+---
+
 ## v0.53.0 — Pipeline Completo: Agente → Proposta → Build → Deploy (31/Mar/2026)
 
 ### Funcionalidades

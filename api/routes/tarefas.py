@@ -1919,8 +1919,12 @@ def _executar_review_session(workflow_id: str):
 
     Chamada automaticamente quando um workflow autonomo conclui.
     Resultado salvo em EvolucaoFactoryDB para aprovacao do CEO.
+
+    v0.53.1: Robustez — SEMPRE salva registro no banco, mesmo se LLM falhar.
+    Garante que EvolucaoFactoryDB e criado em QUALQUER cenario.
     """
     db = SessionLocal()
+    evolucao = None  # Referencia fora do try para garantir commit no finally
     try:
         wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
         if not wf:
@@ -1938,7 +1942,10 @@ def _executar_review_session(workflow_id: str):
         gates = wf.gates or {}
         total_fases_executadas = len([k for k in outputs if k.startswith("fase_")])
 
-        # Criar registro de evolucao
+        # ============================================================
+        # PASSO 1: Criar registro IMEDIATAMENTE no banco (antes de LLM)
+        # Garante que sempre existe um registro, mesmo se LLM falhar
+        # ============================================================
         evolucao = EvolucaoFactoryDB(
             workflow_id=workflow_id,
             workflow_titulo=wf.titulo,
@@ -1957,15 +1964,17 @@ def _executar_review_session(workflow_id: str):
         db.add(evolucao)
         db.commit()
         db.refresh(evolucao)
+        logger.info(f"[EVOLUCAO] Registro #{evolucao.id} criado no banco para workflow {workflow_id}")
 
-        # Compilar contexto para o Factory Optimizer
+        # ============================================================
+        # PASSO 2: Chamar LLM para review (pode falhar — nao perde registro)
+        # ============================================================
         resumo_outputs = ""
         for fase_key in sorted(outputs.keys()):
             if fase_key.startswith("fase_"):
                 conteudo = outputs[fase_key]
                 resumo_outputs += f"\n{fase_key}: {conteudo[:500]}...\n"
 
-        # Chamar LLM com fallback (Sonnet → Groq → OpenAI) como Factory Optimizer
         try:
             from core.llm_fallback import chamar_llm_com_fallback
             from langchain_core.messages import HumanMessage, SystemMessage
@@ -1994,7 +2003,9 @@ def _executar_review_session(workflow_id: str):
             msgs_review = [SystemMessage(content=system), HumanMessage(content=prompt)]
             from core.classificador_mensagem import classificar_mensagem
             _cls_review = classificar_mensagem(prompt)
-            resposta, provider_usado, modelo_usado = chamar_llm_com_fallback(msgs_review, max_tokens=2000, classificacao=_cls_review)
+            resposta, provider_usado, modelo_usado = chamar_llm_com_fallback(
+                msgs_review, max_tokens=2000, classificacao=_cls_review
+            )
             texto = resposta.content
             logger.info(f"[EVOLUCAO] Review gerada via {provider_usado}/{modelo_usado}")
 
@@ -2002,26 +2013,68 @@ def _executar_review_session(workflow_id: str):
             import re as re_mod
             json_match = re_mod.search(r'\{[\s\S]*\}', texto)
             if json_match:
-                dados = json_mod.loads(json_match.group())
-                evolucao.analise = dados.get("analise", texto)
-                evolucao.sugestoes = dados.get("sugestoes", [])
-                evolucao.erros_encontrados = dados.get("erros_encontrados", 0)
-                evolucao.metricas["nota_geral"] = dados.get("nota_geral", 0)
+                try:
+                    dados = json_mod.loads(json_match.group())
+                    evolucao.analise = dados.get("analise", texto)
+                    evolucao.sugestoes = dados.get("sugestoes", [])
+                    evolucao.erros_encontrados = dados.get("erros_encontrados", 0)
+                    metricas = evolucao.metricas or {}
+                    metricas["nota_geral"] = dados.get("nota_geral", 0)
+                    metricas["provider"] = provider_usado
+                    metricas["modelo"] = modelo_usado
+                    evolucao.metricas = metricas
+                except json_mod.JSONDecodeError:
+                    evolucao.analise = texto
+                    evolucao.sugestoes = []
             else:
                 evolucao.analise = texto
                 evolucao.sugestoes = []
+
+            evolucao.status = "aguardando_aprovacao"
 
         except Exception as llm_err:
             logger.warning(f"[EVOLUCAO] LLM review falhou: {llm_err}")
             evolucao.analise = f"Review automatica falhou: {str(llm_err)[:200]}"
             evolucao.sugestoes = []
+            # AINDA salva como aguardando_aprovacao — CEO ve que LLM falhou mas registro existe
+            evolucao.status = "aguardando_aprovacao"
 
-        evolucao.status = "aguardando_aprovacao"
+        # ============================================================
+        # PASSO 3: Commit final — SEMPRE executa (registro ja existe no banco)
+        # ============================================================
         db.commit()
-        logger.info(f"[EVOLUCAO] Review concluida para workflow {workflow_id} — {len(evolucao.sugestoes or [])} sugestoes")
+        logger.info(
+            f"[EVOLUCAO] Review concluida para workflow {workflow_id} — "
+            f"{len(evolucao.sugestoes or [])} sugestoes — status: {evolucao.status}"
+        )
 
     except Exception as e:
-        logger.error(f"[EVOLUCAO] Erro na review session: {e}")
+        logger.error(f"[EVOLUCAO] Erro na review session: {e}", exc_info=True)
+        # Tentar salvar registro parcial se evolucao foi criada
+        if evolucao and evolucao.id:
+            try:
+                evolucao.status = "erro"
+                evolucao.analise = f"Erro na review session: {str(e)[:300]}"
+                db.commit()
+                logger.info(f"[EVOLUCAO] Registro #{evolucao.id} salvo com status 'erro'")
+            except Exception:
+                db.rollback()
+        else:
+            # Evolucao nem foi criada — criar registro minimo de erro
+            try:
+                evolucao_erro = EvolucaoFactoryDB(
+                    workflow_id=workflow_id,
+                    workflow_titulo=f"[ERRO] Review falhou",
+                    status="erro",
+                    analise=f"Erro fatal na review session: {str(e)[:300]}",
+                    sugestoes=[],
+                    metricas={"erro": str(e)[:200]},
+                )
+                db.add(evolucao_erro)
+                db.commit()
+                logger.info(f"[EVOLUCAO] Registro de erro criado para workflow {workflow_id}")
+            except Exception:
+                db.rollback()
     finally:
         db.close()
 

@@ -7,19 +7,31 @@ Ordem de prioridade (v0.51.0):
 3. Anthropic Sonnet (fallback premium)
 4. OpenAI GPT-4o (fallback final)
 
+v0.53.1: Retry com backoff exponencial para rate limit (429).
+  - Ate 3 tentativas por provider antes de fazer fallback
+  - Backoff: 2s, 4s, 8s (base=2, fator=2)
+  - Apenas para erros 429/rate_limit (nao para credito/auth)
+
 Uso:
     from core.llm_fallback import chamar_llm_com_fallback
     resposta = chamar_llm_com_fallback(mensagens, max_tokens=2000)
     resposta = await chamar_llm_com_fallback_async(mensagens, max_tokens=2000)
 """
 
+import asyncio
 import logging
 import os
+import time
 
 from dotenv import load_dotenv
 load_dotenv()
 
 logger = logging.getLogger("synerium.llm_fallback")
+
+# Configuracao de retry para rate limit
+MAX_RETRIES = 3          # Tentativas por provider antes de fallback
+BACKOFF_BASE = 2.0       # Segundos base (2s, 4s, 8s)
+BACKOFF_MULTIPLIER = 2.0
 
 # Erros que indicam problema de credito/quota (trigger fallback)
 ERROS_CREDITO = [
@@ -98,6 +110,18 @@ def _eh_erro_credito(erro: Exception) -> bool:
     return any(termo in msg for termo in ERROS_CREDITO)
 
 
+def _eh_rate_limit(erro: Exception) -> bool:
+    """
+    Verifica se o erro e especificamente rate limit (429).
+    Rate limit = pode dar retry com backoff. Credito/auth = fallback direto.
+    """
+    msg = str(erro).lower()
+    return any(termo in msg for termo in [
+        "429", "rate_limit_exceeded", "too many requests",
+        "rate limit", "ratelimit", "tokens per min",
+    ])
+
+
 def _criar_llm(provider: dict, max_tokens: int = 2000, temperature: float = 0.3):
     """Cria instancia de LLM baseado no provider config."""
     nome = provider["nome"]
@@ -158,6 +182,11 @@ def chamar_llm_com_fallback(
     """
     Chama LLM com fallback automatico. Retorna (resposta, provider_usado, modelo_usado).
 
+    v0.53.1: Retry com backoff exponencial para rate limit (429).
+    - Rate limit → retry ate MAX_RETRIES vezes com backoff (2s, 4s, 8s)
+    - Erro de credito/auth → fallback direto para proximo provider
+    - Outro erro → fallback direto
+
     Se classificacao (ProviderRecomendado) for fornecida, reordena a cadeia
     conforme recomendacao do Smart Router Dinamico.
     """
@@ -168,25 +197,41 @@ def chamar_llm_com_fallback(
 
     erros = []
     for provider in cadeia:
-        # Adaptar mensagens para limitacoes do provider (ex: Minimax sem system role)
         msgs = adaptar_mensagens_para_provider(mensagens, provider["nome"])
 
         llm = _criar_llm(provider, max_tokens, temperature)
         if not llm:
             continue
 
-        try:
-            resposta = llm.invoke(msgs)
-            if provider["nome"] != primeiro:
-                logger.info(f"[FALLBACK] Usando {provider['nome']} ({provider['modelo']})")
-            return (resposta, provider["nome"], provider["modelo"])
-        except Exception as e:
-            erros.append(f"{provider['nome']}: {str(e)[:100]}")
-            if _eh_erro_credito(e):
-                logger.warning(f"[FALLBACK] {provider['nome']} sem credito/quota → tentando proximo")
-            else:
-                logger.warning(f"[FALLBACK] {provider['nome']} erro: {str(e)[:80]} → tentando proximo")
-            continue
+        # Retry loop para rate limit (429)
+        for tentativa in range(MAX_RETRIES):
+            try:
+                resposta = llm.invoke(msgs)
+                if provider["nome"] != primeiro:
+                    logger.info(f"[FALLBACK] Usando {provider['nome']} ({provider['modelo']})")
+                if tentativa > 0:
+                    logger.info(f"[RETRY] {provider['nome']} sucesso na tentativa {tentativa + 1}")
+                return (resposta, provider["nome"], provider["modelo"])
+            except Exception as e:
+                if _eh_rate_limit(e) and tentativa < MAX_RETRIES - 1:
+                    # Rate limit — retry com backoff exponencial
+                    delay = BACKOFF_BASE * (BACKOFF_MULTIPLIER ** tentativa)
+                    logger.warning(
+                        f"[RETRY] {provider['nome']} rate limit (429) — "
+                        f"tentativa {tentativa + 1}/{MAX_RETRIES}, aguardando {delay:.0f}s"
+                    )
+                    time.sleep(delay)
+                    continue
+                else:
+                    # Erro de credito, auth, ou rate limit esgotou retries → fallback
+                    erros.append(f"{provider['nome']}: {str(e)[:100]}")
+                    if _eh_erro_credito(e):
+                        logger.warning(f"[FALLBACK] {provider['nome']} sem credito/quota → proximo")
+                    elif _eh_rate_limit(e):
+                        logger.warning(f"[FALLBACK] {provider['nome']} rate limit persistente ({MAX_RETRIES}x) → proximo")
+                    else:
+                        logger.warning(f"[FALLBACK] {provider['nome']} erro: {str(e)[:80]} → proximo")
+                    break  # Sai do retry loop, vai pro proximo provider
 
     raise RuntimeError(f"Todos os providers falharam: {'; '.join(erros)}")
 
@@ -199,6 +244,8 @@ async def chamar_llm_com_fallback_async(
 ) -> tuple:
     """
     Versao async do fallback. Retorna (resposta, provider_usado, modelo_usado).
+
+    v0.53.1: Retry com backoff exponencial para rate limit (429).
     Se classificacao fornecida, reordena cadeia conforme Smart Router Dinamico.
     """
     from core.classificador_mensagem import adaptar_mensagens_para_provider
@@ -214,18 +261,33 @@ async def chamar_llm_com_fallback_async(
         if not llm:
             continue
 
-        try:
-            resposta = await llm.ainvoke(msgs)
-            if provider["nome"] != primeiro:
-                logger.info(f"[FALLBACK] Usando {provider['nome']} ({provider['modelo']})")
-            return (resposta, provider["nome"], provider["modelo"])
-        except Exception as e:
-            erros.append(f"{provider['nome']}: {str(e)[:100]}")
-            if _eh_erro_credito(e):
-                logger.warning(f"[FALLBACK] {provider['nome']} sem credito/quota → tentando proximo")
-            else:
-                logger.warning(f"[FALLBACK] {provider['nome']} erro: {str(e)[:80]} → tentando proximo")
-            continue
+        # Retry loop para rate limit (429)
+        for tentativa in range(MAX_RETRIES):
+            try:
+                resposta = await llm.ainvoke(msgs)
+                if provider["nome"] != primeiro:
+                    logger.info(f"[FALLBACK] Usando {provider['nome']} ({provider['modelo']})")
+                if tentativa > 0:
+                    logger.info(f"[RETRY] {provider['nome']} sucesso na tentativa {tentativa + 1}")
+                return (resposta, provider["nome"], provider["modelo"])
+            except Exception as e:
+                if _eh_rate_limit(e) and tentativa < MAX_RETRIES - 1:
+                    delay = BACKOFF_BASE * (BACKOFF_MULTIPLIER ** tentativa)
+                    logger.warning(
+                        f"[RETRY] {provider['nome']} rate limit (429) — "
+                        f"tentativa {tentativa + 1}/{MAX_RETRIES}, aguardando {delay:.0f}s"
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    erros.append(f"{provider['nome']}: {str(e)[:100]}")
+                    if _eh_erro_credito(e):
+                        logger.warning(f"[FALLBACK] {provider['nome']} sem credito/quota → proximo")
+                    elif _eh_rate_limit(e):
+                        logger.warning(f"[FALLBACK] {provider['nome']} rate limit persistente ({MAX_RETRIES}x) → proximo")
+                    else:
+                        logger.warning(f"[FALLBACK] {provider['nome']} erro: {str(e)[:80]} → proximo")
+                    break
 
     raise RuntimeError(f"Todos os providers falharam: {'; '.join(erros)}")
 
