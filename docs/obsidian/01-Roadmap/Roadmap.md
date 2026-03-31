@@ -184,6 +184,8 @@
 
 ## Concluídos Recentes
 
+- [x] Continuous Factory — Modo Contínuo 24/7 com auto-gates e relatório diário (v0.54.0)
+- [x] Pipeline completo: Agente → Proposta → Build → Deploy com auto-deploy opcional (v0.53.0)
 - [x] Build Gate no core/vcs_service.py — validação de build antes de push (v0.52.2)
 - [x] Smart Router Dinâmico por Mensagem — classificação por complexidade (v0.52.0)
 
@@ -200,7 +202,7 @@
 | 5 | 🟡 WhatsApp Business API | Médio — notificações | Médio | Planejado |
 | 6 | 🟢 2FA | Médio — segurança | Baixo | Planejado |
 | 7 | 🟢 RAG separado por produto | Médio — multi-produto | Médio | Planejado |
-| 8 | 🟢 Manual completo do Synerium Factory | Médio — documentação | Médio | Planejado |
+| 8 | 🔴 Manual do Synerium Factory — 12 capítulos, formato Obsidian, público: toda a Objetiva (45 funcionários) | Alto — documentação | Médio | Planejado |
 
 ---
 

@@ -128,14 +128,24 @@ def _executar_tarefa_bg(tarefa_id: str, squad_nome: str, agente_idx: int,
         tarefa.agente_atual = agente.role
         db.commit()
 
-        # Enriquecer descricao com regras de comportamento
+        # Enriquecer descricao com regras de comportamento (v0.53.0)
         descricao_enriquecida = (
             f"{descricao}\n\n"
             "REGRAS OBRIGATORIAS:\n"
             "- NUNCA envie emails sem o usuario pedir explicitamente\n"
-            "- Se nao conseguir acessar arquivos do projeto, informe ao usuario e sugira usar o Code Studio\n"
+            "- Voce TEM ferramentas disponiveis — USE-AS para ler arquivos, buscar codigo, consultar a base de conhecimento\n"
             "- Responda de forma direta e objetiva em portugues brasileiro\n"
-            "- NAO invente informacoes — use suas ferramentas para consultar dados reais"
+            "- NAO invente informacoes — use suas ferramentas para consultar dados reais\n"
+            "- NUNCA diga que nao tem ferramenta — voce tem\n\n"
+            "FLUXO OBRIGATORIO PARA IMPLEMENTACAO/CORRECAO DE CODIGO:\n"
+            "Quando o usuario pedir para implementar, corrigir ou alterar codigo, siga ESTE fluxo:\n"
+            "1. Use a ferramenta de leitura (read_a_files_content) para VER o codigo atual do arquivo\n"
+            "2. Analise o problema e escreva o codigo corrigido/novo\n"
+            "3. Use a ferramenta propor_edicao_syneriumx para PROPOR a edicao formalmente\n"
+            "   Formato: caminho_do_arquivo|||conteudo_novo_completo|||descricao_da_mudanca\n"
+            "4. NUNCA cole codigo diretamente no chat — SEMPRE use propor_edicao_syneriumx\n"
+            "5. A proposta sera enviada ao dashboard de aprovacoes para o CEO/lider aprovar\n"
+            "6. Apos aprovacao, o sistema faz build, commit e deploy automaticamente"
         )
 
         crewai_tarefa = Task(
@@ -248,8 +258,19 @@ def _executar_reuniao_paralela_bg(tarefa_id: str, squad_nome: str,
                 f"REUNIÃO DE EQUIPE — Rodada {rodada_num} (modo paralelo)\n"
                 f"Pauta: {pauta}\n"
                 f"{contexto_anterior}\n\n"
-                f"Você é {agente.role}. Contribua com sua perspectiva especializada. "
-                f"Seja objetivo e prático. Responda em português brasileiro."
+                f"Você é {agente.role}. Contribua com sua perspectiva especializada.\n\n"
+                f"REGRAS OBRIGATORIAS:\n"
+                f"- Voce TEM ferramentas disponiveis — USE-AS para ler arquivos, buscar codigo, consultar a base de conhecimento\n"
+                f"- NAO invente informacoes — use suas ferramentas para consultar dados reais\n"
+                f"- NUNCA diga que nao tem ferramenta — voce tem\n"
+                f"- NUNCA envie emails sem o usuario pedir explicitamente\n"
+                f"- Responda em portugues brasileiro, de forma direta e pratica\n\n"
+                f"FLUXO OBRIGATORIO PARA IMPLEMENTACAO/CORRECAO DE CODIGO:\n"
+                f"1. Use read_a_files_content para VER o codigo atual\n"
+                f"2. Analise e escreva o codigo corrigido\n"
+                f"3. Use propor_edicao_syneriumx para PROPOR a edicao (caminho|||conteudo|||descricao)\n"
+                f"4. NUNCA cole codigo no chat — SEMPRE use propor_edicao_syneriumx\n"
+                f"5. A proposta vai para o dashboard de aprovacoes automaticamente"
             )
             prompts.append((agente, prompt))
 
@@ -408,8 +429,19 @@ def _executar_reuniao_bg(tarefa_id: str, squad_nome: str,
                 f"REUNIÃO DE EQUIPE — Rodada {rodada_num}\n"
                 f"Pauta: {pauta}\n"
                 f"{contexto_anterior}\n\n"
-                f"Você é {agente.role}. Contribua com sua perspectiva especializada. "
-                f"Seja objetivo e prático. Responda em português brasileiro."
+                f"Você é {agente.role}. Contribua com sua perspectiva especializada.\n\n"
+                f"REGRAS OBRIGATORIAS:\n"
+                f"- Voce TEM ferramentas disponiveis — USE-AS para ler arquivos, buscar codigo, consultar a base de conhecimento\n"
+                f"- NAO invente informacoes — use suas ferramentas para consultar dados reais\n"
+                f"- NUNCA diga que nao tem ferramenta — voce tem\n"
+                f"- NUNCA envie emails sem o usuario pedir explicitamente\n"
+                f"- Responda em portugues brasileiro, de forma direta e pratica\n\n"
+                f"FLUXO OBRIGATORIO PARA IMPLEMENTACAO/CORRECAO DE CODIGO:\n"
+                f"1. Use read_a_files_content para VER o codigo atual\n"
+                f"2. Analise e escreva o codigo corrigido\n"
+                f"3. Use propor_edicao_syneriumx para PROPOR a edicao (caminho|||conteudo|||descricao)\n"
+                f"4. NUNCA cole codigo no chat — SEMPRE use propor_edicao_syneriumx\n"
+                f"5. A proposta vai para o dashboard de aprovacoes automaticamente"
             )
 
             try:
@@ -1049,16 +1081,44 @@ FASES_BMAD = {
 }
 
 # Prompts por fase (o que cada fase deve produzir)
+# =====================================================================
+# INSTRUCAO UNIVERSAL DE TOOLS (v0.53.2)
+# Injetada em TODAS as fases que podem precisar ler/editar codigo.
+# Garante que os agentes USEM as ferramentas em vez de dizer
+# "nao tenho ferramenta" ou colar codigo no chat.
+# =====================================================================
+_INSTRUCAO_TOOLS = (
+    "\n\n"
+    "IMPORTANTE — FERRAMENTAS DISPONIVEIS:\n"
+    "Voce TEM ferramentas — USE-AS. Lista completa:\n"
+    "- ler_arquivo_syneriumx: le conteudo de qualquer arquivo do projeto\n"
+    "- listar_diretorio_syneriumx: lista arquivos e pastas\n"
+    "- buscar_no_syneriumx: busca texto com grep recursivo\n"
+    "- propor_edicao_syneriumx: propoe edicao (caminho|||conteudo|||descricao)\n"
+    "- git_syneriumx: executa comandos git (status, diff, log)\n"
+    "- terminal_syneriumx: executa comandos de terminal seguros\n"
+    "- consultar_base_conhecimento: consulta documentacao RAG\n\n"
+    "FLUXO OBRIGATORIO PARA IMPLEMENTACAO/CORRECAO DE CODIGO:\n"
+    "1. Use ler_arquivo_syneriumx para VER o codigo atual\n"
+    "2. Analise e escreva o codigo corrigido/novo\n"
+    "3. Use propor_edicao_syneriumx para PROPOR a edicao (caminho|||conteudo_novo|||descricao)\n"
+    "4. NUNCA cole codigo no chat — SEMPRE use propor_edicao_syneriumx\n"
+    "5. A proposta vai para o dashboard de aprovacoes automaticamente\n\n"
+    "Se precisar entender o projeto, use consultar_base_conhecimento.\n"
+    "NUNCA diga 'nao tenho ferramenta' — voce TEM. Use-as.\n"
+)
+
 PROMPTS_FASE = {
     1: (
         "FASE 1 — ANALISE\n"
         "Tarefa: {titulo}\nDescricao: {descricao}\n\n"
         "Voce deve:\n"
         "1. Analisar o problema/feature solicitado\n"
-        "2. Pesquisar viabilidade tecnica\n"
+        "2. Pesquisar viabilidade tecnica (use ler_arquivo_syneriumx e buscar_no_syneriumx para ver o codigo atual)\n"
         "3. Identificar riscos e dependencias\n"
         "4. Produzir um Product Brief com escopo, objetivo e criterios de sucesso\n"
         "Responda de forma estruturada em portugues brasileiro."
+        + _INSTRUCAO_TOOLS
     ),
     2: (
         "FASE 2 — PLANEJAMENTO\n"
@@ -1070,6 +1130,7 @@ PROMPTS_FASE = {
         "3. Criar epicos e stories com criterios de aceitacao BDD (Given/When/Then)\n"
         "4. Priorizar e estimar complexidade\n"
         "Responda de forma estruturada em portugues brasileiro."
+        + _INSTRUCAO_TOOLS
     ),
     3: (
         "FASE 3 — SOLUCAO (Arquitetura)\n"
@@ -1079,20 +1140,26 @@ PROMPTS_FASE = {
         "1. Definir arquitetura tecnica (componentes, patterns, stack)\n"
         "2. Criar ADRs (Architecture Decision Records) para decisoes criticas\n"
         "3. Fazer Implementation Readiness Check\n"
-        "4. Listar arquivos que serao criados/modificados\n"
+        "4. Listar arquivos que serao criados/modificados (use listar_diretorio_syneriumx para ver a estrutura atual)\n"
         "Responda de forma estruturada em portugues brasileiro."
+        + _INSTRUCAO_TOOLS
     ),
     4: (
         "FASE 4 — IMPLEMENTACAO\n"
         "Tarefa: {titulo}\nDescricao: {descricao}\n\n"
         "Arquitetura definida:\n{output_anterior}\n\n"
         "Voce deve:\n"
-        "1. Implementar a solucao seguindo a arquitetura\n"
-        "2. Escrever testes para cada componente\n"
-        "3. Fazer code review cruzado\n"
-        "4. Validar que todos os criterios de aceitacao passam\n"
-        "5. Preparar para deploy\n"
-        "Responda com codigo completo quando aplicavel. Portugues brasileiro."
+        "1. Use ler_arquivo_syneriumx para ler os arquivos que serao modificados\n"
+        "2. Implementar a solucao seguindo a arquitetura definida\n"
+        "3. Use propor_edicao_syneriumx para CADA arquivo criado/modificado\n"
+        "4. Escrever testes para cada componente\n"
+        "5. Fazer code review cruzado dos arquivos propostos\n"
+        "6. Validar que todos os criterios de aceitacao passam\n\n"
+        "REGRA CRITICA: Todo codigo DEVE ser enviado via propor_edicao_syneriumx.\n"
+        "NAO cole codigo no chat. CADA arquivo = uma proposta separada.\n"
+        "Formato: caminho_do_arquivo|||conteudo_completo|||descricao_da_mudanca\n"
+        "Responda em portugues brasileiro."
+        + _INSTRUCAO_TOOLS
     ),
 }
 
@@ -1478,8 +1545,10 @@ def _executar_workflow_autonomo_bg(
         finally:
             db_tarefa.close()
 
-        # === Executar agentes em paralelo (cada agente usa sua propria session) ===
+        # === Executar agentes (v0.53.3: retry com backoff para rate limit 429) ===
         resultados_fase = []
+        MAX_RETRIES_CREW = 3
+        BACKOFF_BASE_CREW = 5.0  # 5s, 10s, 20s — mais conservador que llm_fallback
 
         def executar_agente(agente, idx):
             # Session isolada por agente
@@ -1494,20 +1563,43 @@ def _executar_workflow_autonomo_bg(
             finally:
                 db_ag.close()
 
-            try:
-                crewai_tarefa = Task(
-                    description=prompt,
-                    expected_output=f"Resultado da {FASES_BMAD[fase]} — completo e estruturado.",
-                    agent=agente,
-                )
-                crew = Crew(agents=[agente], tasks=[crewai_tarefa],
-                             process=Process.sequential, verbose=True)
-                resultado = crew.kickoff()
-                return {"agente": agente.role, "resposta": str(resultado), "sucesso": True}
-            except Exception as e:
-                return {"agente": agente.role, "resposta": f"Erro: {str(e)[:200]}", "sucesso": False}
+            # Retry com backoff para rate limit 429 no CrewAI
+            for tentativa in range(MAX_RETRIES_CREW):
+                try:
+                    crewai_tarefa = Task(
+                        description=prompt,
+                        expected_output=f"Resultado da {FASES_BMAD[fase]} — completo e estruturado.",
+                        agent=agente,
+                    )
+                    crew = Crew(agents=[agente], tasks=[crewai_tarefa],
+                                 process=Process.sequential, verbose=True)
+                    resultado = crew.kickoff()
+                    if tentativa > 0:
+                        logger.info(f"[RETRY-CREW] {agente.role} sucesso na tentativa {tentativa + 1}")
+                    return {"agente": agente.role, "resposta": str(resultado), "sucesso": True}
+                except Exception as e:
+                    erro_str = str(e).lower()
+                    eh_rate_limit = any(t in erro_str for t in ["429", "rate_limit", "rate limit", "too many requests", "tokens per min"])
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
+                    if eh_rate_limit and tentativa < MAX_RETRIES_CREW - 1:
+                        delay = BACKOFF_BASE_CREW * (2 ** tentativa)
+                        logger.warning(
+                            f"[RETRY-CREW] {agente.role} rate limit 429 — "
+                            f"tentativa {tentativa + 1}/{MAX_RETRIES_CREW}, aguardando {delay:.0f}s"
+                        )
+                        import time as time_mod
+                        time_mod.sleep(delay)
+                        continue
+                    else:
+                        if eh_rate_limit:
+                            logger.warning(f"[RETRY-CREW] {agente.role} rate limit persistente ({MAX_RETRIES_CREW}x)")
+                        return {"agente": agente.role, "resposta": f"Erro: {str(e)[:200]}", "sucesso": False}
+
+            return {"agente": agente.role, "resposta": "Erro: max retries excedido", "sucesso": False}
+
+        # v0.53.3: Fase 4 usa max_workers=2 para reduzir pico de tokens (rate limit)
+        workers = 2 if fase == 4 else 3
+        with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {executor.submit(executar_agente, ag, i): ag for i, ag in enumerate(agentes_fase)}
             for future in as_completed(futures):
                 result = future.result()
@@ -1574,7 +1666,27 @@ def _executar_workflow_autonomo_bg(
             fase += 1
             continue
 
-        # Gate hard — pausar
+        # Gate hard — verificar Modo Continuo antes de pausar (v0.54.0)
+        try:
+            from api.routes.continuous_factory import verificar_auto_aprovacao_gate
+            if verificar_auto_aprovacao_gate(workflow_id, fase, company_id):
+                # Modo Continuo auto-aprovou o gate hard
+                db_gate = SessionLocal()
+                try:
+                    wf = db_gate.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+                    if wf:
+                        gates = wf.gates or {}
+                        gates[f"fase_{fase}"] = {"status": "aprovado", "por": "Modo Contínuo 24/7"}
+                        wf.gates = gates
+                        db_gate.commit()
+                finally:
+                    db_gate.close()
+                fase += 1
+                continue
+        except Exception as cf_err:
+            logger.warning(f"[AUTONOMO] Erro ao verificar modo continuo: {cf_err}")
+
+        # Modo Continuo nao ativo ou nao auto-aprova hard — pausar
         db_gate = SessionLocal()
         try:
             wf = db_gate.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
@@ -1887,8 +1999,12 @@ def _executar_review_session(workflow_id: str):
 
     Chamada automaticamente quando um workflow autonomo conclui.
     Resultado salvo em EvolucaoFactoryDB para aprovacao do CEO.
+
+    v0.53.1: Robustez — SEMPRE salva registro no banco, mesmo se LLM falhar.
+    Garante que EvolucaoFactoryDB e criado em QUALQUER cenario.
     """
     db = SessionLocal()
+    evolucao = None  # Referencia fora do try para garantir commit no finally
     try:
         wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
         if not wf:
@@ -1906,7 +2022,10 @@ def _executar_review_session(workflow_id: str):
         gates = wf.gates or {}
         total_fases_executadas = len([k for k in outputs if k.startswith("fase_")])
 
-        # Criar registro de evolucao
+        # ============================================================
+        # PASSO 1: Criar registro IMEDIATAMENTE no banco (antes de LLM)
+        # Garante que sempre existe um registro, mesmo se LLM falhar
+        # ============================================================
         evolucao = EvolucaoFactoryDB(
             workflow_id=workflow_id,
             workflow_titulo=wf.titulo,
@@ -1925,15 +2044,17 @@ def _executar_review_session(workflow_id: str):
         db.add(evolucao)
         db.commit()
         db.refresh(evolucao)
+        logger.info(f"[EVOLUCAO] Registro #{evolucao.id} criado no banco para workflow {workflow_id}")
 
-        # Compilar contexto para o Factory Optimizer
+        # ============================================================
+        # PASSO 2: Chamar LLM para review (pode falhar — nao perde registro)
+        # ============================================================
         resumo_outputs = ""
         for fase_key in sorted(outputs.keys()):
             if fase_key.startswith("fase_"):
                 conteudo = outputs[fase_key]
                 resumo_outputs += f"\n{fase_key}: {conteudo[:500]}...\n"
 
-        # Chamar LLM com fallback (Sonnet → Groq → OpenAI) como Factory Optimizer
         try:
             from core.llm_fallback import chamar_llm_com_fallback
             from langchain_core.messages import HumanMessage, SystemMessage
@@ -1962,7 +2083,9 @@ def _executar_review_session(workflow_id: str):
             msgs_review = [SystemMessage(content=system), HumanMessage(content=prompt)]
             from core.classificador_mensagem import classificar_mensagem
             _cls_review = classificar_mensagem(prompt)
-            resposta, provider_usado, modelo_usado = chamar_llm_com_fallback(msgs_review, max_tokens=2000, classificacao=_cls_review)
+            resposta, provider_usado, modelo_usado = chamar_llm_com_fallback(
+                msgs_review, max_tokens=2000, classificacao=_cls_review
+            )
             texto = resposta.content
             logger.info(f"[EVOLUCAO] Review gerada via {provider_usado}/{modelo_usado}")
 
@@ -1970,26 +2093,68 @@ def _executar_review_session(workflow_id: str):
             import re as re_mod
             json_match = re_mod.search(r'\{[\s\S]*\}', texto)
             if json_match:
-                dados = json_mod.loads(json_match.group())
-                evolucao.analise = dados.get("analise", texto)
-                evolucao.sugestoes = dados.get("sugestoes", [])
-                evolucao.erros_encontrados = dados.get("erros_encontrados", 0)
-                evolucao.metricas["nota_geral"] = dados.get("nota_geral", 0)
+                try:
+                    dados = json_mod.loads(json_match.group())
+                    evolucao.analise = dados.get("analise", texto)
+                    evolucao.sugestoes = dados.get("sugestoes", [])
+                    evolucao.erros_encontrados = dados.get("erros_encontrados", 0)
+                    metricas = evolucao.metricas or {}
+                    metricas["nota_geral"] = dados.get("nota_geral", 0)
+                    metricas["provider"] = provider_usado
+                    metricas["modelo"] = modelo_usado
+                    evolucao.metricas = metricas
+                except json_mod.JSONDecodeError:
+                    evolucao.analise = texto
+                    evolucao.sugestoes = []
             else:
                 evolucao.analise = texto
                 evolucao.sugestoes = []
+
+            evolucao.status = "aguardando_aprovacao"
 
         except Exception as llm_err:
             logger.warning(f"[EVOLUCAO] LLM review falhou: {llm_err}")
             evolucao.analise = f"Review automatica falhou: {str(llm_err)[:200]}"
             evolucao.sugestoes = []
+            # AINDA salva como aguardando_aprovacao — CEO ve que LLM falhou mas registro existe
+            evolucao.status = "aguardando_aprovacao"
 
-        evolucao.status = "aguardando_aprovacao"
+        # ============================================================
+        # PASSO 3: Commit final — SEMPRE executa (registro ja existe no banco)
+        # ============================================================
         db.commit()
-        logger.info(f"[EVOLUCAO] Review concluida para workflow {workflow_id} — {len(evolucao.sugestoes or [])} sugestoes")
+        logger.info(
+            f"[EVOLUCAO] Review concluida para workflow {workflow_id} — "
+            f"{len(evolucao.sugestoes or [])} sugestoes — status: {evolucao.status}"
+        )
 
     except Exception as e:
-        logger.error(f"[EVOLUCAO] Erro na review session: {e}")
+        logger.error(f"[EVOLUCAO] Erro na review session: {e}", exc_info=True)
+        # Tentar salvar registro parcial se evolucao foi criada
+        if evolucao and evolucao.id:
+            try:
+                evolucao.status = "erro"
+                evolucao.analise = f"Erro na review session: {str(e)[:300]}"
+                db.commit()
+                logger.info(f"[EVOLUCAO] Registro #{evolucao.id} salvo com status 'erro'")
+            except Exception:
+                db.rollback()
+        else:
+            # Evolucao nem foi criada — criar registro minimo de erro
+            try:
+                evolucao_erro = EvolucaoFactoryDB(
+                    workflow_id=workflow_id,
+                    workflow_titulo=f"[ERRO] Review falhou",
+                    status="erro",
+                    analise=f"Erro fatal na review session: {str(e)[:300]}",
+                    sugestoes=[],
+                    metricas={"erro": str(e)[:200]},
+                )
+                db.add(evolucao_erro)
+                db.commit()
+                logger.info(f"[EVOLUCAO] Registro de erro criado para workflow {workflow_id}")
+            except Exception:
+                db.rollback()
     finally:
         db.close()
 

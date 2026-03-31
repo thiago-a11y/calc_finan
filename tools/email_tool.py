@@ -23,12 +23,23 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from botocore.exceptions import ClientError
 from crewai.tools import BaseTool
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger("synerium.tools.email")
 
 # Diretório de output dos agentes
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
+
+
+# Schemas Pydantic para compatibilidade GPT-4o-mini (v0.53.1)
+class EnviarEmailInput(BaseModel):
+    """Schema para ferramenta enviar_email."""
+    parametros: str = Field(description="Formato: destinatario|assunto|corpo. Exemplo: thiago@objetivasolucao.com.br|Relatorio|Segue o relatorio...")
+
+
+class EnviarEmailComAnexoInput(BaseModel):
+    """Schema para ferramenta enviar_email_com_anexo."""
+    parametros: str = Field(description="Formato: destinatario|assunto|corpo|caminho_anexo. Exemplo: thiago@objetivasolucao.com.br|Relatorio|Segue|output/relatorio.zip")
 
 
 class EnviarEmailTool(BaseTool):
@@ -41,6 +52,7 @@ class EnviarEmailTool(BaseTool):
         "Formato: destinatario|assunto|corpo "
         "Exemplo: thiago@objetivasolucao.com.br|Relatório Diário|Segue o relatório..."
     )
+    args_schema: type[BaseModel] = EnviarEmailInput
 
     aws_region: str = Field(default="us-east-1")
     aws_access_key: str = Field(default="")
@@ -117,6 +129,7 @@ class EnviarEmailComAnexoTool(BaseTool):
         "Exemplo: thiago@objetivasolucao.com.br|Landing Page|Segue o projeto|meu_projeto.zip "
         "Limite: 10 MB por anexo (restrição do Amazon SES)."
     )
+    args_schema: type[BaseModel] = EnviarEmailComAnexoInput
 
     aws_region: str = Field(default="us-east-1")
     aws_access_key: str = Field(default="")

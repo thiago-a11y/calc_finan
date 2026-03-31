@@ -4,6 +4,84 @@
 
 ---
 
+## v0.54.0 — Continuous Factory — Modo Contínuo 24/7 (31/Mar/2026)
+
+### Feature Principal
+A fábrica agora opera autonomamente 24/7 mesmo quando o CEO está offline.
+
+### Funcionalidades
+- **Toggle Modo Contínuo** — CEO ativa/desativa via API ou Command Center
+- **Auto-aprovação de gates** — Gates soft: sempre automáticos. Gates hard: configurável (auto ou email)
+- **Notificação por email** — Gates hard pendentes enviam email ao CEO via Amazon SES
+- **Relatório Diário Automático** — Gerado às 23:00 com métricas, resumo LLM e próximos passos
+- **Worker Background** — Loop a cada 30s: auto-aprovação, relatório, métricas
+- **Recovery automático** — Ao reiniciar o servidor, o modo contínuo retoma automaticamente
+
+### Endpoints
+- `GET /api/continuous-factory` — Status e configuração
+- `POST /api/continuous-factory/ativar` — Ativa modo contínuo
+- `POST /api/continuous-factory/desativar` — Desativa
+- `POST /api/continuous-factory/config` — Atualiza configurações
+- `GET /api/continuous-factory/relatorios` — Lista relatórios diários
+- `POST /api/continuous-factory/relatorio-agora` — Gera relatório manualmente
+
+### Models
+- `ContinuousFactoryDB` — Configuração singleton por empresa
+- `RelatorioDiarioDB` — Relatórios diários com métricas e resumo LLM
+
+### Arquivos
+- `api/routes/continuous_factory.py` (NOVO) — 600+ linhas
+- `database/models.py` — 2 novos models
+- `api/main.py` — Registro de rota + recovery no lifespan
+- `api/routes/tarefas.py` — Integração com auto-aprovação de gates
+
+---
+
+## v0.53.3 — Retry no CrewAI + Throttling Fase 4 (31/Mar/2026)
+
+### Correções
+- **Retry com backoff no CrewAI** — `executar_agente()` agora faz até 3 tentativas com backoff (5s→10s→20s) quando `crew.kickoff()` dá 429. Antes, o erro era retornado direto sem retry.
+- **Fase 4 throttled** — `max_workers=2` na Fase 4 (Implementação) para reduzir pico de tokens. Fases 1-3 continuam com 3 workers paralelos.
+- **Root cause:** O GPT-4o-mini tem limite de 200K TPM. Com 3 agentes paralelos na Fase 4 (contexto ~40K tokens cada), ultrapassava o limite instantaneamente.
+
+---
+
+## v0.53.2 — Instrução de Tools no Workflow Autônomo BMAD (31/Mar/2026)
+
+### Correções
+- **PROMPTS_FASE com instrução de tools** — Todas as 4 fases BMAD agora incluem `_INSTRUCAO_TOOLS` com lista completa de ferramentas e fluxo obrigatório para implementação. Fase 4 tem instrução CRÍTICA reforçada: cada arquivo = uma proposta via `propor_edicao_syneriumx`.
+- **Root cause:** O prompt do workflow autônomo era independente dos prompts de tarefas/reuniões. As correções v0.52.3/v0.53.0 só cobriam esses dois — o autônomo ficou sem instrução de tools.
+
+---
+
+## v0.53.1 — Correções Finais Vision-to-Product (31/Mar/2026)
+
+### Correções
+- **Rate Limit Retry** — Backoff exponencial (2s→4s→8s) para erros 429/rate_limit em `llm_fallback.py`. Até 3 tentativas por provider antes de fazer fallback. Versões sync e async.
+- **Self-Evolving Factory** — `_executar_review_session()` agora SEMPRE salva no `EvolucaoFactoryDB`, mesmo se LLM falhar. Registro criado antes da chamada LLM. Se ocorrer erro fatal, cria registro com status "erro".
+- **Tool Schemas GPT-4o-mini** — Adicionado `args_schema` Pydantic explícito em todas as 10 tools CrewAI (syneriumx, zip, email). Cada campo tem `description` e `type` corretos para function calling confiável no GPT-4o-mini.
+
+### Arquivos alterados
+- `core/llm_fallback.py` — retry com `_eh_rate_limit()`, `MAX_RETRIES=3`, `BACKOFF_BASE=2s`
+- `api/routes/tarefas.py` — `_executar_review_session()` reescrita com 3 passos: criar registro → LLM → commit
+- `tools/syneriumx_tools.py` — 6 schemas: `LerArquivoInput`, `ListarDiretorioInput`, `ProporEdicaoInput`, `BuscarInput`, `GitInput`, `TerminalInput`
+- `tools/zip_tool.py` — 2 schemas: `CriarZipInput`, `CriarProjetoInput`
+- `tools/email_tool.py` — 2 schemas: `EnviarEmailInput`, `EnviarEmailComAnexoInput`
+
+---
+
+## v0.53.0 — Pipeline Completo: Agente → Proposta → Build → Deploy (31/Mar/2026)
+
+### Funcionalidades
+- **Pipeline de código completo** — Agentes usam `propor_edicao_syneriumx` para criar propostas formais de edição
+- **Prompt v0.53.0** — Instrução explícita em tarefas + reuniões paralelas + reuniões sequenciais para usar tools de proposta
+- **Endpoint pendentes** — `GET /api/propostas/pendentes/count` para badge no dashboard
+- **Build Gate na aprovação** — Após aprovar edição, valida build antes de confirmar. Se falha, reverte com `git checkout`
+- **Auto-deploy opcional** — Flag `auto_deploy=true` na aprovação pula segunda aprovação e faz push+PR+merge automático
+- **Fluxo completo:** agente lê código → propõe edição → CEO aprova → build gate → commit → deploy
+
+---
+
 ## v0.52.2 — Build Gate + Deploy (31/Mar/2026)
 
 ### Funcionalidades

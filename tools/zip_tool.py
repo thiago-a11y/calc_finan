@@ -10,12 +10,23 @@ import zipfile
 import logging
 from pathlib import Path
 from crewai.tools import BaseTool
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger("synerium.tools.zip")
 
 # Diretório seguro para outputs dos agentes
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
+
+
+# Schemas Pydantic para compatibilidade GPT-4o-mini (v0.53.1)
+class CriarZipInput(BaseModel):
+    """Schema para ferramenta criar_zip."""
+    parametros: str = Field(description="Formato: caminho_diretorio|nome_do_zip. Exemplo: output/meu_projeto|meu_projeto.zip")
+
+
+class CriarProjetoInput(BaseModel):
+    """Schema para ferramenta criar_projeto."""
+    parametros: str = Field(description="Formato: nome_projeto|||arquivo1.html:::conteudo1|||arquivo2.css:::conteudo2")
 
 
 class CriarZipTool(BaseTool):
@@ -29,6 +40,7 @@ class CriarZipTool(BaseTool):
         "Exemplo: output/meu_projeto|meu_projeto.zip "
         "O .zip será salvo em output/"
     )
+    args_schema: type[BaseModel] = CriarZipInput
 
     def _run(self, parametros: str) -> str:
         """
@@ -109,6 +121,7 @@ class CriarProjetoTool(BaseTool):
         "Subpastas são suportadas: css/style.css:::conteudo "
         "Os arquivos são salvos em output/nome_projeto/"
     )
+    args_schema: type[BaseModel] = CriarProjetoInput
 
     def _run(self, parametros: str) -> str:
         """
