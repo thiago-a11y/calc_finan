@@ -9,12 +9,12 @@ Integra com LangSmith para tracing de cada consulta.
 
 import logging
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage, SystemMessage
 from langsmith import traceable
 
 from config.settings import settings
+from core.llm_fallback import chamar_llm_com_fallback
 from rag.store import RAGStore
 
 logger = logging.getLogger("synerium.rag.assistant")
@@ -53,13 +53,7 @@ class RAGAssistant:
         """
         self.store = store
         self.company_id = company_id
-        self.llm = ChatAnthropic(
-            model="claude-sonnet-4-20250514",
-            anthropic_api_key=settings.anthropic_api_key,
-            max_tokens=2048,
-            temperature=0.1,
-        )
-        logger.info("[RAG ASSISTANT] Inicializado com Claude claude-sonnet-4-20250514.")
+        logger.info("[RAG ASSISTANT] Inicializado com LLM fallback centralizado.")
 
     @traceable(name="rag_assistant_consultar")
     def consultar(
@@ -122,7 +116,7 @@ class RAGAssistant:
 
     @traceable(name="rag_assistant_gerar_resposta")
     def _gerar_resposta(self, pergunta: str, contexto: str) -> str:
-        """Gera resposta sintetizada usando Claude com o contexto recuperado."""
+        """Gera resposta sintetizada usando LLM com fallback centralizado."""
         mensagens = [
             SystemMessage(content=SYSTEM_PROMPT),
             HumanMessage(content=(
@@ -135,8 +129,9 @@ class RAGAssistant:
         ]
 
         try:
-            resposta = self.llm.invoke(mensagens)
-            return resposta.content
+            resposta, provider, modelo = chamar_llm_com_fallback(mensagens)
+            logger.info(f"[RAG ASSISTANT] Resposta via {provider} ({modelo})")
+            return resposta
         except Exception as e:
             logger.error(f"[RAG ASSISTANT] Erro ao gerar resposta: {e}")
             return (

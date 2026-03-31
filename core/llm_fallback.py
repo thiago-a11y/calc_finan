@@ -111,12 +111,13 @@ def _criar_llm(provider: dict, max_tokens: int = 2000, temperature: float = 0.3)
 
     try:
         if tipo == "minimax":
-            from langchain_community.chat_models import MiniMaxChat
+            # Usar API OpenAI-compatible com endpoint GLOBAL (api.minimaxi.chat com i)
+            from langchain_openai import ChatOpenAI
             group_id = os.getenv(provider.get("env_group", "MINIMAX_GROUP_ID"), "")
-            return MiniMaxChat(
+            return ChatOpenAI(
                 model=modelo,
-                minimax_api_key=api_key,
-                minimax_group_id=group_id,
+                openai_api_key=api_key,
+                openai_api_base=f"https://api.minimaxi.chat/v1?GroupId={group_id}",
                 max_tokens=max_tokens,
                 temperature=temperature,
             )
