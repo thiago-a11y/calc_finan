@@ -191,7 +191,7 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 ## Status atual
 
 - Tudo em producao (AWS)
-- Versao atual: v0.53.1
+- Versao atual: v0.54.0
 - Build Gate ativo — validação de build obrigatória antes de push
 - PR #2 mergeado na main (Smart Router + Minimax fix + Build Gate)
 - 16 agentes no catalogo (9 CEO + 3 Jonatas + 3 Elite + Factory Optimizer)
