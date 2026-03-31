@@ -1,7 +1,7 @@
 # Pendencias do Ultimo Chat — 31/Mar/2026
 
-> Atualizado em 31/Mar/2026 (sessao 26 — v0.53.1)
-> Sessao anterior: Correcao Minimax + Smart Router Luna (v0.52.1). Sessao 26: Pipeline Completo + Correcoes Vision-to-Product.
+> Atualizado em 31/Mar/2026 (sessao 26 — v0.54.0)
+> Sessao anterior: Correcao Minimax + Smart Router Luna (v0.52.1). Sessao 26: Pipeline + Correções + Continuous Factory 24/7.
 
 ## Resumo da sessao
 

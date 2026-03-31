@@ -4,6 +4,39 @@
 
 ---
 
+## v0.54.0 — Continuous Factory — Modo Contínuo 24/7 (31/Mar/2026)
+
+### Feature Principal
+A fábrica agora opera autonomamente 24/7 mesmo quando o CEO está offline.
+
+### Funcionalidades
+- **Toggle Modo Contínuo** — CEO ativa/desativa via API ou Command Center
+- **Auto-aprovação de gates** — Gates soft: sempre automáticos. Gates hard: configurável (auto ou email)
+- **Notificação por email** — Gates hard pendentes enviam email ao CEO via Amazon SES
+- **Relatório Diário Automático** — Gerado às 23:00 com métricas, resumo LLM e próximos passos
+- **Worker Background** — Loop a cada 30s: auto-aprovação, relatório, métricas
+- **Recovery automático** — Ao reiniciar o servidor, o modo contínuo retoma automaticamente
+
+### Endpoints
+- `GET /api/continuous-factory` — Status e configuração
+- `POST /api/continuous-factory/ativar` — Ativa modo contínuo
+- `POST /api/continuous-factory/desativar` — Desativa
+- `POST /api/continuous-factory/config` — Atualiza configurações
+- `GET /api/continuous-factory/relatorios` — Lista relatórios diários
+- `POST /api/continuous-factory/relatorio-agora` — Gera relatório manualmente
+
+### Models
+- `ContinuousFactoryDB` — Configuração singleton por empresa
+- `RelatorioDiarioDB` — Relatórios diários com métricas e resumo LLM
+
+### Arquivos
+- `api/routes/continuous_factory.py` (NOVO) — 600+ linhas
+- `database/models.py` — 2 novos models
+- `api/main.py` — Registro de rota + recovery no lifespan
+- `api/routes/tarefas.py` — Integração com auto-aprovação de gates
+
+---
+
 ## v0.53.3 — Retry no CrewAI + Throttling Fase 4 (31/Mar/2026)
 
 ### Correções
