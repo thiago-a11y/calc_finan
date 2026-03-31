@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.dependencias import inicializar_fabrica, inicializar_banco
-from api.routes import status, squads, aprovacoes, rag, standup, usuarios, auth, convites, tarefas, skills, projetos, propostas, uploads, consumo, llm, deploy, videocall, catalogo, luna, code_studio
+from api.routes import status, squads, aprovacoes, rag, standup, usuarios, auth, convites, tarefas, skills, projetos, propostas, uploads, consumo, llm, deploy, videocall, catalogo, luna, code_studio, continuous_factory
 
 # Configuração de logging
 logging.basicConfig(
@@ -50,6 +50,13 @@ async def lifespan(app: FastAPI):
             recuperar_workflows_travados()
         except Exception as re:
             logger.warning(f"[API] Recovery de workflows falhou: {re}")
+
+        # Recovery: reiniciar Modo Continuo se estava ativo
+        try:
+            from api.routes.continuous_factory import recuperar_modo_continuo
+            recuperar_modo_continuo()
+        except Exception as ce:
+            logger.warning(f"[API] Recovery do Modo Contínuo falhou: {ce}")
 
         logger.info("[API] API pronta para receber requisições.")
     except Exception as e:
@@ -108,6 +115,7 @@ app.include_router(videocall.router)
 app.include_router(catalogo.router)
 app.include_router(luna.router)
 app.include_router(code_studio.router)
+app.include_router(continuous_factory.router)
 
 
 @app.get("/", tags=["Root"])

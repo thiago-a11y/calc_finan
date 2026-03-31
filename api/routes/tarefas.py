@@ -1666,7 +1666,27 @@ def _executar_workflow_autonomo_bg(
             fase += 1
             continue
 
-        # Gate hard — pausar
+        # Gate hard — verificar Modo Continuo antes de pausar (v0.54.0)
+        try:
+            from api.routes.continuous_factory import verificar_auto_aprovacao_gate
+            if verificar_auto_aprovacao_gate(workflow_id, fase, company_id):
+                # Modo Continuo auto-aprovou o gate hard
+                db_gate = SessionLocal()
+                try:
+                    wf = db_gate.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+                    if wf:
+                        gates = wf.gates or {}
+                        gates[f"fase_{fase}"] = {"status": "aprovado", "por": "Modo Contínuo 24/7"}
+                        wf.gates = gates
+                        db_gate.commit()
+                finally:
+                    db_gate.close()
+                fase += 1
+                continue
+        except Exception as cf_err:
+            logger.warning(f"[AUTONOMO] Erro ao verificar modo continuo: {cf_err}")
+
+        # Modo Continuo nao ativo ou nao auto-aprova hard — pausar
         db_gate = SessionLocal()
         try:
             wf = db_gate.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()

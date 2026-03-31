@@ -605,3 +605,100 @@ class EvolucaoFactoryDB(Base):
 
     def __repr__(self):
         return f"<Evolucao {self.id}: workflow={self.workflow_id} [{self.status}]>"
+
+
+class ContinuousFactoryDB(Base):
+    """
+    Configuracao do Modo Continuo 24/7 (v0.54.0).
+
+    Quando ativado, a fabrica continua executando workflows autonomamente
+    mesmo quando o CEO esta offline. Gates soft sao auto-aprovados,
+    gates hard geram notificacao por email.
+
+    Singleton por company_id (1 config por empresa).
+    """
+    __tablename__ = "continuous_factory"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Estado do modo continuo
+    ativo = Column(Boolean, default=False)
+    ativado_por = Column(String(100), nullable=True)
+    ativado_em = Column(DateTime, nullable=True)
+    desativado_em = Column(DateTime, nullable=True)
+
+    # Configuracao de gates
+    auto_aprovar_soft = Column(Boolean, default=True)   # Gates soft: auto-approve
+    auto_aprovar_hard = Column(Boolean, default=False)  # Gates hard: requer humano (default)
+    notificar_email = Column(Boolean, default=True)     # Enviar email quando gate hard pendente
+    email_notificacao = Column(String(255), default="")  # Email para notificacoes
+
+    # Relatorio diario
+    relatorio_diario_ativo = Column(Boolean, default=True)
+    horario_relatorio = Column(String(5), default="23:00")  # HH:MM
+    ultimo_relatorio_em = Column(DateTime, nullable=True)
+
+    # Fila de trabalho
+    max_workflows_paralelos = Column(Integer, default=2)
+    intervalo_entre_workflows_seg = Column(Integer, default=60)  # Pausa entre workflows
+
+    # Metricas acumuladas (resetadas diariamente no relatorio)
+    workflows_hoje = Column(Integer, default=0)
+    custo_hoje_usd = Column(Float, default=0.0)
+    fases_completadas_hoje = Column(Integer, default=0)
+    erros_hoje = Column(Integer, default=0)
+
+    # Metadata
+    company_id = Column(Integer, default=1)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<ContinuousFactory ativo={self.ativo} company={self.company_id}>"
+
+
+class RelatorioDiarioDB(Base):
+    """
+    Relatorio diario gerado automaticamente pelo Modo Continuo (v0.54.0).
+
+    Contem resumo do que foi construido, custos, evolucoes e proximos passos.
+    Gerado as 23:00 (configuravel) e enviado por email ao CEO.
+    """
+    __tablename__ = "relatorios_diarios"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    data = Column(String(10), nullable=False)  # YYYY-MM-DD
+
+    # Metricas do dia
+    workflows_executados = Column(Integer, default=0)
+    workflows_concluidos = Column(Integer, default=0)
+    workflows_erro = Column(Integer, default=0)
+    fases_completadas = Column(Integer, default=0)
+    gates_aprovados = Column(Integer, default=0)
+    gates_pendentes = Column(Integer, default=0)
+
+    # Custos
+    custo_total_usd = Column(Float, default=0.0)
+    tokens_input_total = Column(Integer, default=0)
+    tokens_output_total = Column(Integer, default=0)
+    provider_mais_usado = Column(String(50), default="")
+
+    # Evolucoes
+    evolucoes_geradas = Column(Integer, default=0)
+    sugestoes_total = Column(Integer, default=0)
+
+    # Conteudo
+    resumo = Column(Text, nullable=True)            # Resumo gerado por LLM
+    detalhes = Column(JSON, default=dict)            # JSON com detalhes completos
+    proximos_passos = Column(JSON, default=list)     # Lista de proximos passos
+
+    # Status
+    enviado_por_email = Column(Boolean, default=False)
+    email_destino = Column(String(255), default="")
+
+    # Metadata
+    company_id = Column(Integer, default=1)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Relatorio {self.data}: {self.workflows_concluidos} workflows, ${self.custo_total_usd:.2f}>"
