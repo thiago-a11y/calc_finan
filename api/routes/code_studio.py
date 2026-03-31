@@ -582,11 +582,13 @@ Regras obrigatorias:
         from langchain_core.messages import HumanMessage, SystemMessage
         mensagens = [SystemMessage(content=system), HumanMessage(content=prompt)]
 
-        # Cadeia de fallback robusta: Anthropic → Groq → OpenAI
+        # Cadeia de fallback robusta com Smart Router Dinamico
         try:
             from core.llm_fallback import chamar_llm_com_fallback_async
+            from core.classificador_mensagem import classificar_mensagem
+            _cls_code = classificar_mensagem(prompt_usuario)
             resposta, prov_usado, modelo_usado = await chamar_llm_com_fallback_async(
-                mensagens, max_tokens=4000, temperature=0.3,
+                mensagens, max_tokens=4000, temperature=0.3, classificacao=_cls_code,
             )
             return {
                 "resposta": resposta.content,
@@ -1496,10 +1498,12 @@ async def _analisar_como_agente(
     """Chama o LLM uma vez como um agente especifico."""
     try:
         from core.llm_fallback import chamar_llm_com_fallback_async
+        from core.classificador_mensagem import classificar_mensagem
         from langchain_core.messages import HumanMessage, SystemMessage
 
+        _cls_agente = classificar_mensagem(prompt)
         msgs = [SystemMessage(content=system), HumanMessage(content=prompt)]
-        resposta, prov, modelo = await chamar_llm_com_fallback_async(msgs, max_tokens=3000)
+        resposta, prov, modelo = await chamar_llm_com_fallback_async(msgs, max_tokens=3000, classificacao=_cls_agente)
 
         return {
             "agente": agente_nome,
@@ -1554,8 +1558,10 @@ Instrucao original: {instrucao}
 Gere o parecer sintetizado."""
 
     from core.llm_fallback import chamar_llm_com_fallback_async
+    from core.classificador_mensagem import classificar_mensagem
+    _cls_sintese = classificar_mensagem(prompt)
     msgs = [SystemMessage(content=system), HumanMessage(content=prompt)]
-    resposta, _, _ = await chamar_llm_com_fallback_async(msgs, max_tokens=3000)
+    resposta, _, _ = await chamar_llm_com_fallback_async(msgs, max_tokens=3000, classificacao=_cls_sintese)
     return resposta.content
 
 

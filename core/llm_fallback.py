@@ -117,9 +117,10 @@ def _criar_llm(provider: dict, max_tokens: int = 2000, temperature: float = 0.3)
             return ChatOpenAI(
                 model=modelo,
                 openai_api_key=api_key,
-                openai_api_base=f"https://api.minimaxi.chat/v1?GroupId={group_id}",
+                openai_api_base="https://api.minimaxi.chat/v1",
                 max_tokens=max_tokens,
                 temperature=temperature,
+                model_kwargs={"extra_body": {"group_id": group_id}},
             )
         elif tipo == "anthropic":
             from langchain_anthropic import ChatAnthropic
@@ -152,23 +153,30 @@ def chamar_llm_com_fallback(
     mensagens,
     max_tokens: int = 2000,
     temperature: float = 0.3,
+    classificacao=None,
 ) -> tuple:
     """
     Chama LLM com fallback automatico. Retorna (resposta, provider_usado, modelo_usado).
 
-    Prioridade: Minimax → Groq → Anthropic → OpenAI
+    Se classificacao (ProviderRecomendado) for fornecida, reordena a cadeia
+    conforme recomendacao do Smart Router Dinamico.
     """
-    cadeia = list(CADEIA_FALLBACK)
+    from core.classificador_mensagem import adaptar_mensagens_para_provider
+
+    cadeia = _reordenar_cadeia(classificacao) if classificacao else list(CADEIA_FALLBACK)
     primeiro = cadeia[0]["nome"]
 
     erros = []
     for provider in cadeia:
+        # Adaptar mensagens para limitacoes do provider (ex: Minimax sem system role)
+        msgs = adaptar_mensagens_para_provider(mensagens, provider["nome"])
+
         llm = _criar_llm(provider, max_tokens, temperature)
         if not llm:
             continue
 
         try:
-            resposta = llm.invoke(mensagens)
+            resposta = llm.invoke(msgs)
             if provider["nome"] != primeiro:
                 logger.info(f"[FALLBACK] Usando {provider['nome']} ({provider['modelo']})")
             return (resposta, provider["nome"], provider["modelo"])
@@ -187,22 +195,27 @@ async def chamar_llm_com_fallback_async(
     mensagens,
     max_tokens: int = 2000,
     temperature: float = 0.3,
+    classificacao=None,
 ) -> tuple:
     """
     Versao async do fallback. Retorna (resposta, provider_usado, modelo_usado).
-    Prioridade: Minimax → Groq → Anthropic → OpenAI
+    Se classificacao fornecida, reordena cadeia conforme Smart Router Dinamico.
     """
-    cadeia = list(CADEIA_FALLBACK)
+    from core.classificador_mensagem import adaptar_mensagens_para_provider
+
+    cadeia = _reordenar_cadeia(classificacao) if classificacao else list(CADEIA_FALLBACK)
     primeiro = cadeia[0]["nome"]
 
     erros = []
     for provider in cadeia:
+        msgs = adaptar_mensagens_para_provider(mensagens, provider["nome"])
+
         llm = _criar_llm(provider, max_tokens, temperature)
         if not llm:
             continue
 
         try:
-            resposta = await llm.ainvoke(mensagens)
+            resposta = await llm.ainvoke(msgs)
             if provider["nome"] != primeiro:
                 logger.info(f"[FALLBACK] Usando {provider['nome']} ({provider['modelo']})")
             return (resposta, provider["nome"], provider["modelo"])
@@ -215,3 +228,46 @@ async def chamar_llm_com_fallback_async(
             continue
 
     raise RuntimeError(f"Todos os providers falharam: {'; '.join(erros)}")
+
+
+def _reordenar_cadeia(classificacao) -> list[dict]:
+    """
+    Reordena CADEIA_FALLBACK conforme recomendacao do classificador.
+    O provider recomendado fica primeiro, depois os demais na ordem da cadeia de fallback.
+    """
+    # Mapear nomes da cadeia_fallback do classificador para configs do CADEIA_FALLBACK
+    cadeia_por_nome = {p["nome"]: p for p in CADEIA_FALLBACK}
+
+    # Mapeamento de nomes do classificador para nomes do fallback
+    MAPA_NOMES = {
+        "minimax": "minimax",
+        "groq": "groq_llama",
+        "gpt4o_mini": "openai_gpt4",  # usa mesma config, modelo diferente
+        "gpt4o": "openai_gpt4",
+        "fireworks": "fireworks_llama",
+        "together": "together_llama",
+        "anthropic_sonnet": "anthropic_sonnet",
+        "anthropic_opus": "anthropic_sonnet",  # fallback usa sonnet
+    }
+
+    resultado = []
+    adicionados = set()
+
+    # 1. Provider principal recomendado
+    for nome_class in classificacao.cadeia_fallback:
+        nome_fb = MAPA_NOMES.get(nome_class, nome_class)
+        if nome_fb in cadeia_por_nome and nome_fb not in adicionados:
+            config = dict(cadeia_por_nome[nome_fb])
+            # Para gpt4o_mini, sobrescrever modelo
+            if nome_class == "gpt4o_mini":
+                config = dict(config)
+                config["modelo"] = "gpt-4o-mini"
+            resultado.append(config)
+            adicionados.add(nome_fb)
+
+    # 2. Adicionar os que sobraram (safety net)
+    for p in CADEIA_FALLBACK:
+        if p["nome"] not in adicionados:
+            resultado.append(p)
+
+    return resultado

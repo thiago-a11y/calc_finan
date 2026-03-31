@@ -170,11 +170,9 @@ def executar_deploy_completo(
         if r["ok"]:
             return {"ok": True, "detalhes": "Build React concluído com sucesso"}
         else:
-            # Build falhou mas não é bloqueante para alterações PHP-only
-            erro = r["stderr"][:300]
-            if "error" in erro.lower():
-                return {"ok": False, "detalhes": f"Build falhou: {erro}"}
-            return {"ok": True, "detalhes": f"Build com warnings: {erro[:150]}"}
+            # v0.52.2: Build Gate — SEMPRE bloqueante para evitar código quebrado em produção
+            erro = r["stderr"][:500]
+            return {"ok": False, "detalhes": f"⛔ Build Gate: build falhou — push bloqueado.\n{erro}"}
 
     if not _etapa("Build do frontend (npm run build)", 45, step_build):
         return estado

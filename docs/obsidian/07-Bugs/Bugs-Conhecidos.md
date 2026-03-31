@@ -56,6 +56,11 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 
 | 39 | Minimax API retornava `invalid api key` (código 2049) para TODAS as keys geradas | Endpoint padrão `api.minimax.chat` é o host da China. Contas globais (interface em inglês) devem usar `api.minimaxi.chat` (com **i** no final) | Corrigido endpoint para `api.minimaxi.chat` no `core/llm_fallback.py`. Também descoberto: Token Plan Key (`sk-cp-`) não funciona na API REST — usar apenas key pay-as-you-go (`sk-api-`) | 2026-03-30 |
 
+| 40 | Groq falha em function calling (`tool_use_failed`) ao usar ferramentas no CrewAI | Groq Llama 3.3 70B não suporta function calling nativo de forma confiável — retorna erro `tool_use_failed` quando o CrewAI tenta usar tools | Smart Router Dinâmico classifica chamadas com ferramentas como `TOOLS` e roteia para GPT-4o-mini, que suporta function calling nativamente | 2026-03-31 |
+| 41 | Minimax retorna erro 2013 ao receber mensagens com role `system` | API do Minimax MiniMax-Text-01 não suporta role `system` — aceita apenas `user` e `assistant` | Adaptador de mensagens em `core/classificador_mensagem.py` converte role `system` para `user` antes de enviar à API da Minimax | 2026-03-31 |
+| 42 | Minimax retornava 404 page not found na Luna e llm_fallback | GroupId como query param na base_url conflitava com /chat/completions que o SDK OpenAI adiciona automaticamente | Fix: usar model_kwargs={"extra_body": {"group_id": group_id}} em vez de ?GroupId= na URL | 2026-03-31 |
+| 43 | Factory destruiu EditProposalModal.tsx (PR #195 SyneriumX) — agente substituiu código React por descrição textual | O agente (GPT-4o-mini via CrewAI) não tem contexto do código-fonte real do SyneriumX. Quando tenta implementar, gera texto descritivo em vez de código TypeScript válido. Sem Build Gate, o código quebrado foi pushed e auto-merged | PENDENTE — Implementar Build Gate no core/vcs_service.py + melhorar contexto do agente | 2026-03-31 |
+
 ### Lições Aprendidas
 
 - **Bug #3 e #9**: `create_all()` do SQLAlchemy só cria tabelas novas, nunca altera esquema de tabelas existentes. Para próximos deploys com novos campos, incluir migration manual no bootstrap ou adotar Alembic. Problema reincidente — priorizar solução definitiva.
@@ -83,4 +88,10 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 
 ---
 
-> Última atualização: 2026-03-30
+- **Bug #40**: Nem todos os providers suportam function calling. Groq Llama 3.3 70B falha silenciosamente com `tool_use_failed`. Sempre validar suporte a tools antes de escolher um provider para o CrewAI. GPT-4o-mini é a opção mais barata com suporte completo a function calling.
+- **Bug #41**: APIs de LLM têm restrições de roles diferentes. Minimax não aceita `system`, apenas `user` e `assistant`. Sempre verificar quais roles são suportados por cada provider. Adaptadores de mensagem resolvem sem mudar o código dos chamadores.
+- **Bug #42**: SDKs OpenAI-compatible adicionam `/chat/completions` automaticamente à base_url. Nunca colocar query params (?GroupId=) na base_url — usar `extra_body` para passar parâmetros extras ao provider. URL malformada causa 404 silencioso.
+
+---
+
+> Última atualização: 2026-03-31

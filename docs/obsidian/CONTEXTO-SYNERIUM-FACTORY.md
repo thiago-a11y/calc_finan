@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.51.0 (31/Mar/2026)
+**Versão Atual:** v0.52.0 (31/Mar/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -93,7 +93,17 @@ CEO (Thiago)
 - **Recharts** — Gráficos (consumo de APIs)
 - **React Router v6** — Roteamento SPA
 
-### LLM Providers — Cadeia Definitiva (v0.51.0)
+### Smart Router Dinâmico por Mensagem (v0.52.0)
+
+O sistema classifica cada mensagem individualmente e roteia para o provider mais adequado:
+- **SIMPLES** → Minimax MiniMax-Text-01 (mais barato)
+- **MEDIO** → Groq Llama 3.3 70B (rápido)
+- **COMPLEXO** → Claude Sonnet (qualidade premium)
+- **TOOLS** → GPT-4o-mini (function calling + system role)
+
+Arquivo: `core/classificador_mensagem.py`
+
+### LLM Providers — Cadeia Definitiva (v0.52.0)
 
 **Cadeia do `core/llm_fallback.py` (operações automatizadas):**
 1. 🏆 **MiniMax-Text-01** (Minimax) — **Principal**, mais barato ($0.0004/1K input) — endpoint: `api.minimaxi.chat` (global, com **i**)
@@ -171,6 +181,7 @@ Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 ├── core/                        # Motores e lógica central
 │   ├── luna_engine.py           # Motor da Luna: streaming + fallback (Opus→Sonnet→Groq→Fireworks→Together)
 │   ├── llm_router.py            # Smart Router multi-provider
+│   ├── classificador_mensagem.py # Smart Router Dinâmico — classifica por complexidade (SIMPLES/MEDIO/COMPLEXO/TOOLS)
 │   ├── llm_fallback.py          # LLM Fallback centralizado (Minimax → Groq → Anthropic → OpenAI)
 │   └── vcs_service.py           # Serviço VCS (GitHub/GitBucket) com Fernet
 ├── api/                         # API REST (FastAPI)

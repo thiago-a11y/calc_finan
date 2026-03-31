@@ -361,4 +361,29 @@ Com 6 providers, a probabilidade de todos falharem simultaneamente é praticamen
 
 ---
 
-> Última atualização: 2026-03-30
+## Por que classificador regex e não ML para roteamento dinâmico?
+
+O Smart Router Dinâmico (v0.52.0) classifica cada mensagem individual em 4 níveis de complexidade (SIMPLES, MEDIO, COMPLEXO, TOOLS). A classificação usa regex com padrões de palavras-chave em vez de um modelo de ML. Motivos:
+1. **Latência** — Regex executa em < 1ms; ML adicionaria 50-200ms por classificação
+2. **Zero dependência** — Sem modelo treinado, sem dataset, sem inferência
+3. **Manutenção trivial** — Adicionar/remover padrões é editar uma lista de strings
+4. **Determinístico** — Mesmo input sempre gera mesmo output (sem probabilidade)
+5. **Suficiente para 4 classes** — SIMPLES/MEDIO/COMPLEXO/TOOLS é granularidade baixa; regex resolve bem
+
+Se no futuro a acurácia for insuficiente, migrar para fasttext ou embeddings é possível sem mudar a interface (`classificar_mensagem()` continua retornando o mesmo enum).
+
+## Por que GPT-4o-mini como LLM principal no CrewAI (não Minimax ou Groq)?
+
+O CrewAI usa function calling (ferramentas/tools) extensivamente para que os agentes executem ações. Nem Minimax nem Groq suportam function calling de forma confiável:
+- **Groq** — Retorna `tool_use_failed` ao tentar usar ferramentas (Bug #40)
+- **Minimax** — Não suporta role `system` (erro 2013), essencial para o system prompt do CrewAI
+
+GPT-4o-mini ($0.00015/1K input, $0.0006/1K output) é o provider mais barato que suporta TANTO function calling QUANTO system role. Custo aceitável para o volume de chamadas do CrewAI. O roteamento dinâmico direciona automaticamente chamadas com ferramentas para GPT-4o-mini via classificação `TOOLS`.
+
+## Por que adaptador de mensagens para Minimax (system → user)?
+
+Minimax MiniMax-Text-01 retorna erro 2013 quando recebe mensagens com role `system`. A API aceita apenas roles `user` e `assistant`. A solução foi criar um adaptador em `core/classificador_mensagem.py` que converte mensagens com role `system` para role `user` antes de enviar à API da Minimax. O conteúdo da mensagem é preservado integralmente — apenas o campo `role` é alterado. Isso permite usar Minimax para mensagens simples sem modificar o código dos módulos que enviam system prompts.
+
+---
+
+> Última atualização: 2026-03-31

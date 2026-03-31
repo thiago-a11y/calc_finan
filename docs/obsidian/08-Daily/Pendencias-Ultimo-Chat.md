@@ -1,7 +1,7 @@
-# Pendencias do Ultimo Chat — 30/Mar/2026
+# Pendencias do Ultimo Chat — 31/Mar/2026
 
-> Atualizado em 30/Mar/2026 (sessao 23 — v0.51.0)
-> Sessao anterior: 13 versoes entregues (v0.38 a v0.50). Sessao 23: Minimax como LLM principal.
+> Atualizado em 31/Mar/2026 (sessao 25 — v0.52.1)
+> Sessao anterior: Smart Router Dinâmico por Mensagem (v0.52.0). Sessao 25: Correcao Minimax + Smart Router Luna.
 
 ## Resumo da sessao
 
@@ -115,6 +115,41 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 4. **LLM Fallback** — core/llm_fallback.py, cadeia Anthropic → Groq → OpenAI, 6 pontos atualizados
 5. **Dynamic Team Assembly** — Deteccao automatica de tipo de tarefa + selecao de agentes por LLM
 
+## Sessao 25 — v0.52.1 Correcao Minimax + Smart Router Luna (31/Mar/2026)
+
+### O que foi feito
+- [x] Bug #42 resolvido: Minimax 404 — GroupId via extra_body em vez de query param
+- [x] Luna Engine agora respeita classificacao do Smart Router (SIMPLES→minimax, MEDIO→groq, COMPLEXO→sonnet)
+- [x] _obter_cadeia_fallback() reordenada baseada na classificacao
+- [x] Anthropic com creditos novamente (confirmado pelo usuario)
+- [x] Teste end-to-end aprovado: 3 mensagens × 3 providers distintos
+
+### Pendencias novas (Sessao 25)
+- [ ] Implementar Build Gate no core/vcs_service.py (npm run build antes de push)
+- [ ] Melhorar contexto dos agentes para código real (RAG com código-fonte)
+- [ ] Bug #43: Factory destruiu EditProposalModal.tsx — PR #195 auto-merged quebrado
+
+---
+
+## Sessao 24 — v0.52.0 Smart Router Dinâmico por Mensagem (31/Mar/2026)
+
+### O que foi feito
+- [x] Classificador de mensagem por complexidade (`core/classificador_mensagem.py`) — regex com 4 níveis: SIMPLES, MEDIO, COMPLEXO, TOOLS
+- [x] Matriz de decisão dinâmica: SIMPLES→Minimax, MEDIO→Groq, COMPLEXO→Sonnet, TOOLS→GPT-4o-mini
+- [x] 6 pontos de chamada integrados com classificação por mensagem individual
+- [x] Adaptador de mensagens para Minimax (converte role system → user, pois Minimax não suporta system)
+- [x] GPT-4o-mini definido como LLM principal no CrewAI (suporta function calling + system role)
+- [x] Bug #40 resolvido: Groq não suporta function calling (tool_use_failed) — roteado para GPT-4o-mini
+- [x] Bug #41 resolvido: Minimax não suporta role system (erro 2013) — adaptador de mensagens
+
+### Descobertas importantes
+- Groq NÃO suporta function calling de forma confiável — erro `tool_use_failed` ao usar ferramentas
+- Minimax NÃO suporta role `system` — retorna erro 2013. Solução: adaptar mensagens system → user
+- GPT-4o-mini é o único provider barato que suporta TANTO function calling QUANTO system role
+- Classificador regex é suficiente para roteamento (< 1ms, sem dependência de ML)
+
+---
+
 ## Sessao 23 — v0.51.0 Minimax como LLM Principal (30/Mar/2026)
 
 ### O que foi feito
@@ -137,7 +172,7 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 ## Status atual
 
 - Tudo em producao (AWS)
-- Versao atual: v0.51.0
+- Versao atual: v0.52.1
 - 16 agentes no catalogo (9 CEO + 3 Jonatas + 3 Elite + Factory Optimizer)
 - LLM Principal: **Minimax MiniMax-Text-01** (funcionando em producao)
 - Cadeia de fallback: Minimax → Groq → Fireworks → Together → Anthropic → OpenAI
