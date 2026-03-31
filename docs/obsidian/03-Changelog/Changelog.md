@@ -4,6 +4,14 @@
 
 ---
 
+## v0.53.2 — Instrução de Tools no Workflow Autônomo BMAD (31/Mar/2026)
+
+### Correções
+- **PROMPTS_FASE com instrução de tools** — Todas as 4 fases BMAD agora incluem `_INSTRUCAO_TOOLS` com lista completa de ferramentas e fluxo obrigatório para implementação. Fase 4 tem instrução CRÍTICA reforçada: cada arquivo = uma proposta via `propor_edicao_syneriumx`.
+- **Root cause:** O prompt do workflow autônomo era independente dos prompts de tarefas/reuniões. As correções v0.52.3/v0.53.0 só cobriam esses dois — o autônomo ficou sem instrução de tools.
+
+---
+
 ## v0.53.1 — Correções Finais Vision-to-Product (31/Mar/2026)
 
 ### Correções
