@@ -184,6 +184,7 @@
 
 ## Concluídos Recentes
 
+- [x] Pipeline completo: Agente → Proposta → Build → Deploy com auto-deploy opcional (v0.53.0)
 - [x] Build Gate no core/vcs_service.py — validação de build antes de push (v0.52.2)
 - [x] Smart Router Dinâmico por Mensagem — classificação por complexidade (v0.52.0)
 

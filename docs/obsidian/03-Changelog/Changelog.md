@@ -4,6 +4,18 @@
 
 ---
 
+## v0.53.0 — Pipeline Completo: Agente → Proposta → Build → Deploy (31/Mar/2026)
+
+### Funcionalidades
+- **Pipeline de código completo** — Agentes usam `propor_edicao_syneriumx` para criar propostas formais de edição
+- **Prompt v0.53.0** — Instrução explícita em tarefas + reuniões paralelas + reuniões sequenciais para usar tools de proposta
+- **Endpoint pendentes** — `GET /api/propostas/pendentes/count` para badge no dashboard
+- **Build Gate na aprovação** — Após aprovar edição, valida build antes de confirmar. Se falha, reverte com `git checkout`
+- **Auto-deploy opcional** — Flag `auto_deploy=true` na aprovação pula segunda aprovação e faz push+PR+merge automático
+- **Fluxo completo:** agente lê código → propõe edição → CEO aprova → build gate → commit → deploy
+
+---
+
 ## v0.52.2 — Build Gate + Deploy (31/Mar/2026)
 
 ### Funcionalidades
