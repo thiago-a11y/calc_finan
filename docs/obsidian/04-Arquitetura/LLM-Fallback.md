@@ -1,7 +1,7 @@
 # LLM Fallback — Arquitetura
 
 > Sistema centralizado de fallback de LLM para garantir disponibilidade total.
-> Criado em v0.49.0, consolidado em v0.50.0. Minimax como principal em v0.51.0.
+> Criado em v0.49.0, consolidado em v0.50.0. Minimax como principal em v0.51.0. Smart Router Dinâmico em v0.52.0.
 
 ---
 
@@ -94,6 +94,42 @@ Os seguintes modulos foram atualizados para usar `obter_llm_fallback()`:
 - **Bug #37**: `load_dotenv()` faltando no llm_fallback.py → chaves nao carregavam do .env
 - **Bug #39**: Endpoint China (`api.minimax.chat`) vs Global (`api.minimaxi.chat`) — contas internacionais devem usar host com **i**
 
+## Smart Router Dinâmico por Mensagem (v0.52.0)
+
+A partir da v0.52.0, o sistema classifica CADA MENSAGEM individualmente antes de rotear para o provider correto. O classificador (`core/classificador_mensagem.py`) usa regex para determinar a complexidade e selecionar o LLM mais adequado.
+
+### Matriz de Decisão
+
+| Classificação | Provider | Modelo | Motivo |
+|--------------|----------|--------|--------|
+| **SIMPLES** | Minimax | MiniMax-Text-01 | Mais barato ($0.0004/1K) — perguntas diretas, saudações |
+| **MEDIO** | Groq | Llama 3.3 70B | Rápido e bom custo ($0.00059/1K) — análise, resumo |
+| **COMPLEXO** | Anthropic | Claude Sonnet | Qualidade premium ($0.003/1K) — arquitetura, refatoração |
+| **TOOLS** | OpenAI | GPT-4o-mini | Suporta function calling + system role ($0.00015/1K) |
+
+### Arquivo do Classificador
+
+**Localizacao:** `core/classificador_mensagem.py`
+
+### Adaptador de Mensagens para Minimax
+
+Minimax não suporta role `system` (erro 2013). O adaptador converte automaticamente mensagens com role `system` para role `user` antes de enviar à API. O conteúdo é preservado integralmente.
+
+### CrewAI — GPT-4o-mini
+
+O CrewAI usa GPT-4o-mini como LLM principal porque é o único provider barato que suporta:
+- **Function calling** — Essencial para que agentes usem ferramentas
+- **Role system** — Essencial para system prompts do CrewAI
+
+Groq falha com `tool_use_failed` (Bug #40) e Minimax falha com erro 2013 (Bug #41).
+
+### Bugs Relacionados (Smart Router Dinâmico)
+
+- **Bug #40**: Groq falha em function calling (`tool_use_failed`) → roteado para GPT-4o-mini
+- **Bug #41**: Minimax não suporta role `system` (erro 2013) → adaptador system → user
+
+---
+
 ## Diferenca do Luna Engine
 
 A Luna (assistente IA) tem sua propria cadeia de fallback mais extensa:
@@ -105,4 +141,4 @@ O `llm_fallback.py` agora tem 6 providers (Minimax, Groq, Fireworks, Together, A
 
 ---
 
-> Ultima atualizacao: 2026-03-31
+> Ultima atualizacao: 2026-03-31 (v0.52.0)

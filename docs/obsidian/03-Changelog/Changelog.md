@@ -4,6 +4,26 @@
 
 ---
 
+## v0.52.0 — Smart Router Dinâmico por Mensagem (31/03/2026)
+
+### Funcionalidades
+- **Smart Router Dinâmico** — Classificação por mensagem individual (não mais por módulo)
+- **core/classificador_mensagem.py** (novo) — Classificador regex de complexidade com 4 níveis
+- **Matriz de decisão dinâmica:**
+  - `SIMPLES` → Minimax MiniMax-Text-01 (mais barato)
+  - `MEDIO` → Groq Llama 3.3 70B (rápido e bom custo)
+  - `COMPLEXO` → Claude Sonnet (qualidade premium)
+  - `TOOLS` → GPT-4o-mini (suporta function calling + system role)
+- **6 pontos de chamada integrados** com classificação dinâmica por mensagem
+- **Adaptador de mensagens para Minimax** — Converte role `system` para `user` (Minimax não suporta system role)
+- **GPT-4o-mini como LLM principal no CrewAI** — Único que suporta tools (function calling) e system role simultaneamente
+
+### Bugs corrigidos
+- **Bug #40**: Groq falha em function calling — `tool_use_failed` ao usar ferramentas no CrewAI. Groq não suporta function calling nativo de forma confiável
+- **Bug #41**: Minimax não suporta role `system` — erro 2013 ao enviar mensagens com role system. Resolvido com adaptador que converte system → user
+
+---
+
 ## v0.51.0 — Minimax como LLM Principal (31/03/2026)
 
 ### Funcionalidades
