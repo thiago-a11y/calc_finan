@@ -35,7 +35,7 @@ ERROS_CREDITO = [
     "too many requests",
 ]
 
-# Cadeia de fallback: Minimax → Groq → Anthropic → OpenAI
+# Cadeia definitiva: Minimax → Groq → Fireworks → Together → Anthropic → OpenAI
 CADEIA_FALLBACK = [
     {
         "nome": "minimax",
@@ -43,8 +43,9 @@ CADEIA_FALLBACK = [
         "modelo": "MiniMax-Text-01",
         "env_key": "MINIMAX_API_KEY",
         "env_group": "MINIMAX_GROUP_ID",
-        "custo_input": 0.0004,   # $0.0004 / 1K tokens
-        "custo_output": 0.0016,  # $0.0016 / 1K tokens
+        "custo_input": 0.0004,
+        "custo_output": 0.0016,
+        "plano": "Plano Maximo $50/mes",
     },
     {
         "nome": "groq_llama",
@@ -53,6 +54,24 @@ CADEIA_FALLBACK = [
         "env_key": "GROQ_API_KEY",
         "custo_input": 0.00059,
         "custo_output": 0.00079,
+    },
+    {
+        "nome": "fireworks_llama",
+        "tipo": "openai_compat",
+        "modelo": "accounts/fireworks/models/llama-v3p3-70b-instruct",
+        "env_key": "FIREWORKS_API_KEY",
+        "base_url": "https://api.fireworks.ai/inference/v1",
+        "custo_input": 0.0009,
+        "custo_output": 0.0009,
+    },
+    {
+        "nome": "together_llama",
+        "tipo": "openai_compat",
+        "modelo": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "env_key": "TOGETHER_API_KEY",
+        "base_url": "https://api.together.xyz/v1",
+        "custo_input": 0.00088,
+        "custo_output": 0.00088,
     },
     {
         "nome": "anthropic_sonnet",
@@ -110,6 +129,14 @@ def _criar_llm(provider: dict, max_tokens: int = 2000, temperature: float = 0.3)
         elif tipo == "openai":
             from langchain_openai import ChatOpenAI
             return ChatOpenAI(model=modelo, max_tokens=max_tokens, temperature=temperature)
+        elif tipo == "openai_compat":
+            # Fireworks, Together e outros compatíveis com API OpenAI
+            from langchain_openai import ChatOpenAI
+            base_url = provider.get("base_url", "")
+            return ChatOpenAI(
+                model=modelo, max_tokens=max_tokens, temperature=temperature,
+                openai_api_key=api_key, openai_api_base=base_url,
+            )
         else:
             return None
     except ImportError:
