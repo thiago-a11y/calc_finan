@@ -148,44 +148,44 @@ def _criar_provider_openai_compat(
     )
 
 
+def _criar_provider_minimax(max_tokens: int = MAX_TOKENS_RESPOSTA):
+    """Cria instância Minimax via API OpenAI-compatible (endpoint global)."""
+    api_key = os.environ.get("MINIMAX_API_KEY", "")
+    group_id = os.environ.get("MINIMAX_GROUP_ID", "")
+    if not api_key or len(api_key) < 5:
+        raise ValueError("MINIMAX_API_KEY não configurada")
+    return ChatOpenAI(
+        model="MiniMax-Text-01",
+        api_key=api_key,
+        base_url=f"https://api.minimaxi.chat/v1?GroupId={group_id}",
+        max_tokens=max_tokens,
+        temperature=TEMPERATURA,
+        streaming=True,
+    )
+
+
 def _obter_cadeia_fallback(forcar: str | None = None) -> list[tuple]:
     """
     Retorna lista ordenada de (provider_id, modelo_nome, factory_fn) para fallback.
 
-    Ordem:
-    1. Claude Opus (se forçado ou Smart Router decidir)
-    2. Claude Sonnet (padrão)
-    3. Groq Llama
-    4. Fireworks Llama
-    5. Together.ai Llama
+    Ordem (v0.51.0 — mesma do llm_fallback.py):
+    1. Minimax MiniMax-Text-01 (mais barato)
+    2. Groq Llama
+    3. Fireworks Llama
+    4. Together.ai Llama
+    5. Claude Opus (se forçado) ou Claude Sonnet (padrão)
+    6. GPT-4o (última linha)
     """
     cadeia = []
 
-    if forcar == "opus":
-        cadeia.append((
-            "anthropic_opus",
-            MODELOS_CLAUDE[ModeloClaudeTier.OPUS]["modelo"],
-            lambda: _criar_provider_anthropic(MODELOS_CLAUDE[ModeloClaudeTier.OPUS]["modelo"]),
-        ))
-        cadeia.append((
-            "anthropic_sonnet",
-            MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"],
-            lambda: _criar_provider_anthropic(MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"]),
-        ))
-    else:
-        # Padrão: Sonnet primeiro
-        cadeia.append((
-            "anthropic_sonnet",
-            MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"],
-            lambda: _criar_provider_anthropic(MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"]),
-        ))
-        cadeia.append((
-            "anthropic_opus",
-            MODELOS_CLAUDE[ModeloClaudeTier.OPUS]["modelo"],
-            lambda: _criar_provider_anthropic(MODELOS_CLAUDE[ModeloClaudeTier.OPUS]["modelo"]),
-        ))
+    # 1. Minimax — principal (mais barato: $0.0004/1K)
+    cadeia.append((
+        "minimax",
+        "MiniMax-Text-01",
+        lambda: _criar_provider_minimax(),
+    ))
 
-    # Fallbacks OpenAI-compatible
+    # 2-4. Fallbacks open-source (Groq, Fireworks, Together)
     for provider in PROVIDERS:
         if provider.id in (ProviderID.ANTHROPIC_OPUS, ProviderID.ANTHROPIC_SONNET, ProviderID.ANTHROPIC):
             continue
@@ -200,6 +200,32 @@ def _obter_cadeia_fallback(forcar: str | None = None) -> list[tuple]:
             p_modelo,
             lambda key=p_key_env, url=p_url, mod=p_modelo: _criar_provider_openai_compat(mod, key, url),
         ))
+
+    # 5. Anthropic (Opus ou Sonnet dependendo do Smart Router)
+    if forcar == "opus":
+        cadeia.append((
+            "anthropic_opus",
+            MODELOS_CLAUDE[ModeloClaudeTier.OPUS]["modelo"],
+            lambda: _criar_provider_anthropic(MODELOS_CLAUDE[ModeloClaudeTier.OPUS]["modelo"]),
+        ))
+        cadeia.append((
+            "anthropic_sonnet",
+            MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"],
+            lambda: _criar_provider_anthropic(MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"]),
+        ))
+    else:
+        cadeia.append((
+            "anthropic_sonnet",
+            MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"],
+            lambda: _criar_provider_anthropic(MODELOS_CLAUDE[ModeloClaudeTier.SONNET]["modelo"]),
+        ))
+
+    # 6. OpenAI GPT-4o — última linha
+    cadeia.append((
+        "openai_gpt4o",
+        "gpt-4o",
+        lambda: _criar_provider_openai_compat("gpt-4o", "OPENAI_API_KEY", "https://api.openai.com/v1"),
+    ))
 
     return cadeia
 

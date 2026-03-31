@@ -93,14 +93,21 @@ CEO (Thiago)
 - **Recharts** — Gráficos (consumo de APIs)
 - **React Router v6** — Roteamento SPA
 
-### LLM Providers (Cadeia de Fallback Completa)
-1. 🏆 **MiniMax-Text-01** (Minimax) — **Principal**, mais barato ($0.0004/1K input, $0.0016/1K output)
-2. ⚡ **Llama via Groq** — Fallback 1, ultra-rápido
-3. 🧠 **Claude Opus/Sonnet** (Anthropic) — Fallback 2, tarefas complexas
-4. 🤖 **GPT-4o** (OpenAI) — Fallback 3, visão e análise multimodal
-5. 💎 **Gemini 2.5 Flash** (Google) — Fallback 4, free tier 1.5M tokens/dia
-6. 🔥 **Mixtral/Llama via Fireworks** — Fallback 5, custo baixo
-7. 🤝 **Llama/Mistral via Together.ai** — Fallback 6, última linha
+### LLM Providers — Cadeia Definitiva (v0.51.0)
+
+**Cadeia do `core/llm_fallback.py` (operações automatizadas):**
+1. 🏆 **MiniMax-Text-01** (Minimax) — **Principal**, mais barato ($0.0004/1K input) — endpoint: `api.minimaxi.chat` (global, com **i**)
+2. ⚡ **Llama 3.3 70B via Groq** — Fallback 1, ultra-rápido ($0.00059/1K)
+3. 🔥 **Llama via Fireworks** — Fallback 2, custo baixo ($0.0009/1K) — API OpenAI-compatible
+4. 🤝 **Llama via Together.ai** — Fallback 3, outra opção open-source ($0.00088/1K) — API OpenAI-compatible
+5. 🧠 **Claude Sonnet** (Anthropic) — Fallback 4, qualidade premium ($0.003/1K)
+6. 🤖 **GPT-4o** (OpenAI) — Fallback 5, última linha de defesa ($0.005/1K)
+
+**Cadeia da Luna (assistente principal):**
+Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
+
+**Outros providers disponíveis (Smart Router):**
+- 💎 **Gemini 2.5 Flash** (Google) — Free tier 1.5M tokens/dia
 
 ### Smart Router — Perfis de Uso
 - `consultora_estrategica` (peso 0.4) — Perfil da Luna: padrão Sonnet, Opus para tarefas complexas

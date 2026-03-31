@@ -13,28 +13,40 @@ O sistema anterior dependia de cada modulo implementar seu proprio fallback, ger
 
 **Localizacao:** `core/llm_fallback.py`
 
-## Cadeia de Fallback
+## Cadeia de Fallback (Definitiva — v0.51.0)
 
 ```
-Minimax (MiniMax-Text-01) → Groq (Llama) → Anthropic (Claude) → OpenAI (GPT-4o)
+Minimax → Groq → Fireworks → Together → Anthropic → OpenAI
 ```
 
 1. **Minimax** (provider principal) — MiniMax-Text-01
    - Mais barato: $0.0004/1K input, $0.0016/1K output
-   - Integrado via MiniMaxChat (langchain_community)
-   - Se falhar (rate limit, creditos, timeout): cai para Groq
+   - **Endpoint global:** `api.minimaxi.chat` (com **i** — NÃO `api.minimax.chat` que é China)
+   - **API key:** pay-as-you-go (`sk-api-`) — Token Plan Key (`sk-cp-`) NÃO funciona na API REST
+   - **Group ID** obrigatorio: passado como parametro na URL
+   - Se falhar: cai para Groq
 
-2. **Groq** (fallback 1) — Llama via Groq Cloud
-   - Ultra-rapido, bom custo-beneficio
-   - Se falhar: cai para Anthropic
+2. **Groq** (fallback 1) — Llama 3.3 70B via Groq Cloud
+   - Ultra-rapido, bom custo-beneficio ($0.00059/1K input)
+   - Se falhar: cai para Fireworks
    - Requer `langchain-groq` instalado
 
-3. **Anthropic** (fallback 2) — Claude Sonnet/Opus
-   - Alta qualidade para tarefas complexas
+3. **Fireworks** (fallback 2) — Llama via API OpenAI-compatible
+   - Custo baixo ($0.0009/1K)
+   - Endpoint: `api.fireworks.ai/inference/v1`
+   - Se falhar: cai para Together
+
+4. **Together** (fallback 3) — Llama via API OpenAI-compatible
+   - Custo baixo ($0.00088/1K)
+   - Endpoint: `api.together.xyz/v1`
+   - Se falhar: cai para Anthropic
+
+5. **Anthropic** (fallback 4) — Claude Sonnet
+   - Alta qualidade para tarefas complexas ($0.003/1K)
    - Se falhar: cai para OpenAI
 
-4. **OpenAI** (fallback 3) — GPT-4o
-   - Ultima linha de defesa
+6. **OpenAI** (fallback 5) — GPT-4o
+   - Ultima linha de defesa ($0.005/1K)
    - Se falhar: levanta excecao (todos indisponiveis)
 
 ## Funcao Principal
@@ -73,13 +85,14 @@ Os seguintes modulos foram atualizados para usar `obter_llm_fallback()`:
 - `langchain-community` — Provider Minimax (MiniMaxChat)
 - `langchain-anthropic` — Provider Anthropic
 - `langchain-groq` — Provider Groq (instalado em v0.50.0)
-- `langchain-openai` — Provider OpenAI
+- `langchain-openai` — Provider OpenAI + Fireworks + Together (via OpenAI-compatible API)
 - `python-dotenv` — Carregamento de chaves do .env (load_dotenv obrigatorio)
 
 ## Bugs Relacionados
 
 - **Bug #36**: `langchain_groq` nao estava instalado no servidor → `pip install langchain-groq`
 - **Bug #37**: `load_dotenv()` faltando no llm_fallback.py → chaves nao carregavam do .env
+- **Bug #39**: Endpoint China (`api.minimax.chat`) vs Global (`api.minimaxi.chat`) — contas internacionais devem usar host com **i**
 
 ## Diferenca do Luna Engine
 
@@ -88,7 +101,7 @@ A Luna (assistente IA) tem sua propria cadeia de fallback mais extensa:
 Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 ```
 
-O `llm_fallback.py` e mais enxuto (3 providers) porque e usado em operacoes automatizadas onde velocidade importa mais que variedade. A Luna precisa de mais opcoes porque e a interface principal do usuario e precisa estar SEMPRE disponivel.
+O `llm_fallback.py` agora tem 6 providers (Minimax, Groq, Fireworks, Together, Anthropic, OpenAI), cobrindo tanto opcoes baratas quanto premium. A Luna tem cadeia propria otimizada para qualidade de resposta ao usuario.
 
 ---
 

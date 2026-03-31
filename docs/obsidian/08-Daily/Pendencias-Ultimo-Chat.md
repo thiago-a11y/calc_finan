@@ -1,7 +1,7 @@
 # Pendencias do Ultimo Chat — 30/Mar/2026
 
-> Sessao FINAL mais produtiva do projeto — 13 versoes entregues (v0.38 a v0.50)
-> Atualizado em 30/Mar/2026 (sessao 22 — v0.50.0)
+> Atualizado em 30/Mar/2026 (sessao 23 — v0.51.0)
+> Sessao anterior: 13 versoes entregues (v0.38 a v0.50). Sessao 23: Minimax como LLM principal.
 
 ## Resumo da sessao
 
@@ -115,14 +115,34 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 4. **LLM Fallback** — core/llm_fallback.py, cadeia Anthropic → Groq → OpenAI, 6 pontos atualizados
 5. **Dynamic Team Assembly** — Deteccao automatica de tipo de tarefa + selecao de agentes por LLM
 
+## Sessao 23 — v0.51.0 Minimax como LLM Principal (30/Mar/2026)
+
+### O que foi feito
+- [x] Minimax MiniMax-Text-01 implementado como LLM principal (mais barato: $0.0004/1K input)
+- [x] Cadeia definitiva de fallback: Minimax → Groq → Fireworks → Together → Anthropic → OpenAI
+- [x] Endpoint correto descoberto: `api.minimaxi.chat` (global, com **i**) — NÃO `api.minimax.chat` (China)
+- [x] API key pay-as-you-go (`sk-api-`) configurada e funcionando no servidor
+- [x] Token Plan Key (`sk-cp-`) NÃO funciona na API REST — é para ferramentas internas da Minimax
+- [x] Group ID configurado: 2038667454804140743
+- [x] Fireworks e Together adicionados na cadeia de fallback (via OpenAI-compatible API)
+- [x] Bug #39 resolvido: endpoint China vs Global da Minimax
+
+### Descobertas importantes
+- Minimax tem DOIS hosts: `api.minimax.chat` (China) e `api.minimaxi.chat` (Global/Internacional)
+- Conta global (interface em ingles) DEVE usar o host com **i**
+- Token Plan ($50/mes) é assinatura para ferramentas internas (OpenCode, OpenClaw), NAO para API REST
+- Para API REST, usar Balance (pay-as-you-go) com key `sk-api-`
+- Minimax desabilita keys automaticamente se detectar exposicao publica
+
 ## Status atual
 
 - Tudo em producao (AWS)
-- Versao atual: v0.50.0
+- Versao atual: v0.51.0
 - 16 agentes no catalogo (9 CEO + 3 Jonatas + 3 Elite + Factory Optimizer)
+- LLM Principal: **Minimax MiniMax-Text-01** (funcionando em producao)
+- Cadeia de fallback: Minimax → Groq → Fireworks → Together → Anthropic → OpenAI
 - Vision-to-Product operacional e testado no Command Center
 - Autonomous Squads com session isolada e fila automatica
-- LLM Fallback centralizado (Anthropic → Groq → OpenAI)
 - Code Studio completo: Company Context, Apply+Deploy, Push/PR/Merge, conversas separadas
 - Live Agents com animacoes de status no Escritorio Virtual
 - Chat resiliente com timeout de 30min e botoes de retomar conversa
@@ -131,8 +151,9 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 ## Pendencias / Proximos passos
 
 - [ ] CrewAI com fallback (integrar llm_fallback.py no CrewAI para agentes)
-- [x] ~~Fila pos-gate~~ — Resolvido: fila agora avanca via bg function e via endpoint aprovar_gate
-- [x] ~~Review pos-gate~~ — Resolvido: _executar_review_session() adicionado no bloco proxima_fase > 4 do aprovar_gate
+- [x] ~~Fila pos-gate~~ — Resolvido
+- [x] ~~Review pos-gate~~ — Resolvido
+- [x] ~~Minimax como LLM principal~~ — Resolvido (v0.51.0)
 - [ ] Testar integracao VCS com repositorio GitBucket real
 - [ ] Testar exclusao permanente de usuarios em producao
 - [ ] Atribuir agentes ao Marcos e Rhammon via dashboard
