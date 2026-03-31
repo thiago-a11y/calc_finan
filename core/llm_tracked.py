@@ -75,6 +75,7 @@ def criar_llm_tracked(
     tipo: str = "chat",
     usuario_id: int | None = None,
     usuario_nome: str = "",
+    base_url: str = "",
 ):
     """
     Cria uma instancia de LLM com tracking automatico via monkey-patch.
@@ -102,6 +103,8 @@ def criar_llm_tracked(
     kwargs = {"model": modelo, "max_tokens": max_tokens}
     if api_key:
         kwargs["api_key"] = api_key
+    if base_url:
+        kwargs["base_url"] = base_url
     llm = LLM(**kwargs)
 
     # Guardar metadados de tracking na instancia

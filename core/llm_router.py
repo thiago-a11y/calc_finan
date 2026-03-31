@@ -312,17 +312,50 @@ class SmartRouter:
         )
 
         # Criar instância LLM COM tracking automático
-        llm = criar_llm_tracked(
-            modelo=f"anthropic/{config['modelo']}",
-            api_key=api_key,
-            max_tokens=config["max_tokens"],
-            agente_nome=agente_nome,
-            squad_nome=squad_nome,
-            perfil_agente=perfil_agente or "",
-            tipo=tipo,
-            usuario_id=usuario_id,
-            usuario_nome=usuario_nome,
-        )
+        # v0.51.0: Minimax como padrão (mais barato), Anthropic como fallback premium
+        minimax_key = os.environ.get("MINIMAX_API_KEY", "")
+        groq_key = os.environ.get("GROQ_API_KEY", "")
+
+        if minimax_key:
+            # Minimax via OpenAI-compatible (requer litellm instalado)
+            llm = criar_llm_tracked(
+                modelo="openai/MiniMax-Text-01",
+                api_key=minimax_key,
+                base_url="https://api.minimaxi.chat/v1",
+                max_tokens=config["max_tokens"],
+                agente_nome=agente_nome,
+                squad_nome=squad_nome,
+                perfil_agente=perfil_agente or "",
+                tipo=tipo,
+                usuario_id=usuario_id,
+                usuario_nome=usuario_nome,
+            )
+        elif groq_key:
+            # Groq Llama como fallback rápido
+            llm = criar_llm_tracked(
+                modelo="groq/llama-3.3-70b-versatile",
+                api_key=groq_key,
+                max_tokens=config["max_tokens"],
+                agente_nome=agente_nome,
+                squad_nome=squad_nome,
+                perfil_agente=perfil_agente or "",
+                tipo=tipo,
+                usuario_id=usuario_id,
+                usuario_nome=usuario_nome,
+            )
+        else:
+            # Anthropic como último recurso
+            llm = criar_llm_tracked(
+                modelo=f"anthropic/{config['modelo']}",
+                api_key=api_key,
+                max_tokens=config["max_tokens"],
+                agente_nome=agente_nome,
+                squad_nome=squad_nome,
+                perfil_agente=perfil_agente or "",
+                tipo=tipo,
+                usuario_id=usuario_id,
+                usuario_nome=usuario_nome,
+            )
 
         return llm
 
