@@ -200,7 +200,7 @@
 | 5 | 🟡 WhatsApp Business API | Médio — notificações | Médio | Planejado |
 | 6 | 🟢 2FA | Médio — segurança | Baixo | Planejado |
 | 7 | 🟢 RAG separado por produto | Médio — multi-produto | Médio | Planejado |
-| 8 | 🟢 Manual completo do Synerium Factory | Médio — documentação | Médio | Planejado |
+| 8 | 🔴 Manual do Synerium Factory — 12 capítulos, formato Obsidian, público: toda a Objetiva (45 funcionários) | Alto — documentação | Médio | Planejado |
 
 ---
 

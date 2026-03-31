@@ -198,7 +198,7 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 - [ ] Ajustar permissoes granulares para a pagina de Atribuicoes (so admin ve)
 - [ ] Mapear os 45 funcionarios da Objetiva e criar squads
 - [ ] Corrigir testes de integracao (mock do lifespan para CI)
-- [ ] Manual completo do Synerium Factory (documentação para usuários)
+- [ ] Manual completo do Synerium Factory (docs/obsidian/10-Manual/) — 12 capítulos planejados, prioridade alta
 - [ ] Melhorar escritorio: interacao com sala de reuniao (vidro transparente vendo agentes dentro)
 - [ ] Adicionar historico de conversas Luna ao RAG para contexto cruzado
 - [ ] Implementar sistema de migrations automaticas no bootstrap (Alembic ou ALTER TABLE strategy)
