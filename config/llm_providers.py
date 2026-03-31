@@ -1,12 +1,12 @@
 """
 Sistema Multi-Provider de LLM com Fallback Inteligente + Smart Router.
 
-Ordem de prioridade (do mais inteligente para o mais rápido/barato):
-1. Claude Opus (Anthropic) — Tarefas complexas (via Smart Router)
-2. Claude Sonnet (Anthropic) — Padrão, rápido e eficiente
-3. Groq Llama — Fallback 1, mais rápido
-4. Fireworks Llama — Fallback 2
-5. Together.ai Llama — Fallback 3
+Ordem de prioridade (v0.51.0):
+1. Minimax (principal — mais barato e rapido)
+2. Groq Llama 3.3 — Fallback rapido
+3. Claude Sonnet (Anthropic) — Fallback premium
+4. OpenAI GPT-4o — Fallback final
+5. Claude Opus (Anthropic) — Tarefas complexas (via Smart Router)
 
 Funcionalidades:
 - Smart Router Sonnet/Opus (decide automaticamente por complexidade)
@@ -30,6 +30,7 @@ logger = logging.getLogger("synerium.llm")
 
 class ProviderID(str, Enum):
     """Identificadores dos providers de LLM."""
+    MINIMAX = "minimax"
     ANTHROPIC_OPUS = "anthropic_opus"
     ANTHROPIC_SONNET = "anthropic_sonnet"
     ANTHROPIC = "anthropic"  # Alias legado → redireciona para Sonnet
@@ -77,6 +78,17 @@ class ProviderStatus(BaseModel):
 # =====================================================================
 
 PROVIDERS: list[ProviderConfig] = [
+    ProviderConfig(
+        id=ProviderID.MINIMAX,
+        nome="MiniMax Text 01",
+        icone="🔮",
+        modelo="MiniMax-Text-01",
+        api_key_env="MINIMAX_API_KEY",
+        custo_por_1k_input=0.0004,
+        custo_por_1k_output=0.0016,
+        max_tokens=8192,
+        prioridade=0,  # Principal — mais barato e rapido
+    ),
     ProviderConfig(
         id=ProviderID.ANTHROPIC_OPUS,
         nome="Claude Opus 4 (Anthropic)",

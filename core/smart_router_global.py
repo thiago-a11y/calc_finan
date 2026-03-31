@@ -54,6 +54,8 @@ logger = logging.getLogger("synerium.router_global")
 
 class Provider(str, Enum):
     """Todos os providers de LLM disponíveis no sistema."""
+    # Minimax (principal — mais barato)
+    MINIMAX = "minimax"
     # Anthropic
     OPUS = "anthropic_opus"
     SONNET = "anthropic_sonnet"
@@ -84,6 +86,18 @@ class Ferramenta(str, Enum):
 # =====================================================================
 
 PROVIDER_CONFIG = {
+    Provider.MINIMAX: {
+        "modelo": "MiniMax-Text-01",
+        "nome": "MiniMax Text 01",
+        "api_key_env": "MINIMAX_API_KEY",
+        "custo_input": 0.0004,
+        "custo_output": 0.0016,
+        "max_tokens": 8192,
+        "pontos_fortes": ["coding", "escrita", "uso_diario", "analise_dados",
+                          "resumo", "traducao", "documentacao", "velocidade"],
+        "velocidade": 5,
+        "qualidade": 4,
+    },
     Provider.OPUS: {
         "modelo": "claude-opus-4-20250514",
         "nome": "Claude Opus 4",

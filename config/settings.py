@@ -31,6 +31,10 @@ class SyneriumSettings(BaseSettings):
     langsmith_api_key: str = ""
     langsmith_project: str = "synerium-factory"
 
+    # Minimax (principal)
+    minimax_api_key: str = ""
+    minimax_group_id: str = ""
+
     # Anthropic
     anthropic_api_key: str = ""
 

@@ -1,8 +1,11 @@
 """
 LLM Fallback — Chamada robusta com cadeia de fallback automatica.
 
-Quando Anthropic falha (sem creditos, rate limit, 402, 429),
-automaticamente tenta Groq → Fireworks → Together → OpenAI.
+Ordem de prioridade (v0.51.0):
+1. Minimax (principal — mais barato e rapido)
+2. Groq Llama 3.3 (fallback rapido)
+3. Anthropic Sonnet (fallback premium)
+4. OpenAI GPT-4o (fallback final)
 
 Uso:
     from core.llm_fallback import chamar_llm_com_fallback
@@ -27,27 +30,45 @@ ERROS_CREDITO = [
     "quota",
     "overloaded",
     "529",
+    "402",
+    "429",
+    "too many requests",
 ]
 
-# Cadeia de fallback: Anthropic → Groq → Fireworks → Together → OpenAI
+# Cadeia de fallback: Minimax → Groq → Anthropic → OpenAI
 CADEIA_FALLBACK = [
     {
-        "nome": "anthropic_sonnet",
-        "classe": "langchain_anthropic.ChatAnthropic",
-        "modelo": "claude-sonnet-4-20250514",
-        "env_key": "ANTHROPIC_API_KEY",
+        "nome": "minimax",
+        "tipo": "minimax",
+        "modelo": "MiniMax-Text-01",
+        "env_key": "MINIMAX_API_KEY",
+        "env_group": "MINIMAX_GROUP_ID",
+        "custo_input": 0.0004,   # $0.0004 / 1K tokens
+        "custo_output": 0.0016,  # $0.0016 / 1K tokens
     },
     {
         "nome": "groq_llama",
-        "classe": "langchain_groq.ChatGroq",
+        "tipo": "groq",
         "modelo": "llama-3.3-70b-versatile",
         "env_key": "GROQ_API_KEY",
+        "custo_input": 0.00059,
+        "custo_output": 0.00079,
+    },
+    {
+        "nome": "anthropic_sonnet",
+        "tipo": "anthropic",
+        "modelo": "claude-sonnet-4-20250514",
+        "env_key": "ANTHROPIC_API_KEY",
+        "custo_input": 0.003,
+        "custo_output": 0.015,
     },
     {
         "nome": "openai_gpt4",
-        "classe": "langchain_openai.ChatOpenAI",
+        "tipo": "openai",
         "modelo": "gpt-4o",
         "env_key": "OPENAI_API_KEY",
+        "custo_input": 0.005,
+        "custo_output": 0.015,
     },
 ]
 
@@ -61,22 +82,32 @@ def _eh_erro_credito(erro: Exception) -> bool:
 def _criar_llm(provider: dict, max_tokens: int = 2000, temperature: float = 0.3):
     """Cria instancia de LLM baseado no provider config."""
     nome = provider["nome"]
+    tipo = provider.get("tipo", nome)
     modelo = provider["modelo"]
     env_key = provider["env_key"]
 
-    # Verificar se API key esta configurada
     api_key = os.getenv(env_key, "")
     if not api_key:
         return None
 
     try:
-        if "anthropic" in nome:
+        if tipo == "minimax":
+            from langchain_community.chat_models import MiniMaxChat
+            group_id = os.getenv(provider.get("env_group", "MINIMAX_GROUP_ID"), "")
+            return MiniMaxChat(
+                model=modelo,
+                minimax_api_key=api_key,
+                minimax_group_id=group_id,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+        elif tipo == "anthropic":
             from langchain_anthropic import ChatAnthropic
             return ChatAnthropic(model=modelo, max_tokens=max_tokens, temperature=temperature)
-        elif "groq" in nome:
+        elif tipo == "groq":
             from langchain_groq import ChatGroq
             return ChatGroq(model=modelo, max_tokens=max_tokens, temperature=temperature)
-        elif "openai" in nome:
+        elif tipo == "openai":
             from langchain_openai import ChatOpenAI
             return ChatOpenAI(model=modelo, max_tokens=max_tokens, temperature=temperature)
         else:
@@ -93,15 +124,14 @@ def chamar_llm_com_fallback(
     mensagens,
     max_tokens: int = 2000,
     temperature: float = 0.3,
-    modelo_preferido: str = "claude-sonnet-4-20250514",
 ) -> tuple:
     """
     Chama LLM com fallback automatico. Retorna (resposta, provider_usado, modelo_usado).
 
-    Se Anthropic falhar por credito/quota, tenta Groq → OpenAI automaticamente.
+    Prioridade: Minimax → Groq → Anthropic → OpenAI
     """
-    # Montar cadeia com modelo preferido primeiro
     cadeia = list(CADEIA_FALLBACK)
+    primeiro = cadeia[0]["nome"]
 
     erros = []
     for provider in cadeia:
@@ -111,17 +141,16 @@ def chamar_llm_com_fallback(
 
         try:
             resposta = llm.invoke(mensagens)
-            if provider["nome"] != "anthropic_sonnet":
-                logger.info(f"[FALLBACK] Usando {provider['nome']} ({provider['modelo']}) — Anthropic indisponivel")
+            if provider["nome"] != primeiro:
+                logger.info(f"[FALLBACK] Usando {provider['nome']} ({provider['modelo']})")
             return (resposta, provider["nome"], provider["modelo"])
         except Exception as e:
             erros.append(f"{provider['nome']}: {str(e)[:100]}")
             if _eh_erro_credito(e):
                 logger.warning(f"[FALLBACK] {provider['nome']} sem credito/quota → tentando proximo")
-                continue
             else:
-                logger.warning(f"[FALLBACK] {provider['nome']} erro: {str(e)[:100]} → tentando proximo")
-                continue
+                logger.warning(f"[FALLBACK] {provider['nome']} erro: {str(e)[:80]} → tentando proximo")
+            continue
 
     raise RuntimeError(f"Todos os providers falharam: {'; '.join(erros)}")
 
@@ -133,8 +162,10 @@ async def chamar_llm_com_fallback_async(
 ) -> tuple:
     """
     Versao async do fallback. Retorna (resposta, provider_usado, modelo_usado).
+    Prioridade: Minimax → Groq → Anthropic → OpenAI
     """
     cadeia = list(CADEIA_FALLBACK)
+    primeiro = cadeia[0]["nome"]
 
     erros = []
     for provider in cadeia:
@@ -144,16 +175,15 @@ async def chamar_llm_com_fallback_async(
 
         try:
             resposta = await llm.ainvoke(mensagens)
-            if provider["nome"] != "anthropic_sonnet":
-                logger.info(f"[FALLBACK] Usando {provider['nome']} ({provider['modelo']}) — Anthropic indisponivel")
+            if provider["nome"] != primeiro:
+                logger.info(f"[FALLBACK] Usando {provider['nome']} ({provider['modelo']})")
             return (resposta, provider["nome"], provider["modelo"])
         except Exception as e:
             erros.append(f"{provider['nome']}: {str(e)[:100]}")
             if _eh_erro_credito(e):
                 logger.warning(f"[FALLBACK] {provider['nome']} sem credito/quota → tentando proximo")
-                continue
             else:
-                logger.warning(f"[FALLBACK] {provider['nome']} erro: {str(e)[:100]} → tentando proximo")
-                continue
+                logger.warning(f"[FALLBACK] {provider['nome']} erro: {str(e)[:80]} → tentando proximo")
+            continue
 
     raise RuntimeError(f"Todos os providers falharam: {'; '.join(erros)}")
