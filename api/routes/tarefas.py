@@ -128,16 +128,24 @@ def _executar_tarefa_bg(tarefa_id: str, squad_nome: str, agente_idx: int,
         tarefa.agente_atual = agente.role
         db.commit()
 
-        # Enriquecer descricao com regras de comportamento (v0.52.3)
+        # Enriquecer descricao com regras de comportamento (v0.53.0)
         descricao_enriquecida = (
             f"{descricao}\n\n"
             "REGRAS OBRIGATORIAS:\n"
             "- NUNCA envie emails sem o usuario pedir explicitamente\n"
             "- Voce TEM ferramentas disponiveis — USE-AS para ler arquivos, buscar codigo, consultar a base de conhecimento\n"
-            "- Quando o usuario pedir implementacao, USE suas ferramentas para ler o codigo existente e propor edicoes concretas\n"
             "- Responda de forma direta e objetiva em portugues brasileiro\n"
             "- NAO invente informacoes — use suas ferramentas para consultar dados reais\n"
-            "- NUNCA diga que nao tem ferramenta — voce tem. Liste-as se necessario"
+            "- NUNCA diga que nao tem ferramenta — voce tem\n\n"
+            "FLUXO OBRIGATORIO PARA IMPLEMENTACAO/CORRECAO DE CODIGO:\n"
+            "Quando o usuario pedir para implementar, corrigir ou alterar codigo, siga ESTE fluxo:\n"
+            "1. Use a ferramenta de leitura (read_a_files_content) para VER o codigo atual do arquivo\n"
+            "2. Analise o problema e escreva o codigo corrigido/novo\n"
+            "3. Use a ferramenta propor_edicao_syneriumx para PROPOR a edicao formalmente\n"
+            "   Formato: caminho_do_arquivo|||conteudo_novo_completo|||descricao_da_mudanca\n"
+            "4. NUNCA cole codigo diretamente no chat — SEMPRE use propor_edicao_syneriumx\n"
+            "5. A proposta sera enviada ao dashboard de aprovacoes para o CEO/lider aprovar\n"
+            "6. Apos aprovacao, o sistema faz build, commit e deploy automaticamente"
         )
 
         crewai_tarefa = Task(
@@ -253,11 +261,16 @@ def _executar_reuniao_paralela_bg(tarefa_id: str, squad_nome: str,
                 f"Você é {agente.role}. Contribua com sua perspectiva especializada.\n\n"
                 f"REGRAS OBRIGATORIAS:\n"
                 f"- Voce TEM ferramentas disponiveis — USE-AS para ler arquivos, buscar codigo, consultar a base de conhecimento\n"
-                f"- Quando pedirem implementacao ou analise de codigo, USE suas ferramentas para ler o codigo real antes de responder\n"
                 f"- NAO invente informacoes — use suas ferramentas para consultar dados reais\n"
-                f"- NUNCA diga que nao tem ferramenta — voce tem. Se pedirem para resolver algo, RESOLVA usando suas tools\n"
+                f"- NUNCA diga que nao tem ferramenta — voce tem\n"
                 f"- NUNCA envie emails sem o usuario pedir explicitamente\n"
-                f"- Responda em portugues brasileiro, de forma direta e pratica."
+                f"- Responda em portugues brasileiro, de forma direta e pratica\n\n"
+                f"FLUXO OBRIGATORIO PARA IMPLEMENTACAO/CORRECAO DE CODIGO:\n"
+                f"1. Use read_a_files_content para VER o codigo atual\n"
+                f"2. Analise e escreva o codigo corrigido\n"
+                f"3. Use propor_edicao_syneriumx para PROPOR a edicao (caminho|||conteudo|||descricao)\n"
+                f"4. NUNCA cole codigo no chat — SEMPRE use propor_edicao_syneriumx\n"
+                f"5. A proposta vai para o dashboard de aprovacoes automaticamente"
             )
             prompts.append((agente, prompt))
 
@@ -419,11 +432,16 @@ def _executar_reuniao_bg(tarefa_id: str, squad_nome: str,
                 f"Você é {agente.role}. Contribua com sua perspectiva especializada.\n\n"
                 f"REGRAS OBRIGATORIAS:\n"
                 f"- Voce TEM ferramentas disponiveis — USE-AS para ler arquivos, buscar codigo, consultar a base de conhecimento\n"
-                f"- Quando pedirem implementacao ou analise de codigo, USE suas ferramentas para ler o codigo real antes de responder\n"
                 f"- NAO invente informacoes — use suas ferramentas para consultar dados reais\n"
-                f"- NUNCA diga que nao tem ferramenta — voce tem. Se pedirem para resolver algo, RESOLVA usando suas tools\n"
+                f"- NUNCA diga que nao tem ferramenta — voce tem\n"
                 f"- NUNCA envie emails sem o usuario pedir explicitamente\n"
-                f"- Responda em portugues brasileiro, de forma direta e pratica."
+                f"- Responda em portugues brasileiro, de forma direta e pratica\n\n"
+                f"FLUXO OBRIGATORIO PARA IMPLEMENTACAO/CORRECAO DE CODIGO:\n"
+                f"1. Use read_a_files_content para VER o codigo atual\n"
+                f"2. Analise e escreva o codigo corrigido\n"
+                f"3. Use propor_edicao_syneriumx para PROPOR a edicao (caminho|||conteudo|||descricao)\n"
+                f"4. NUNCA cole codigo no chat — SEMPRE use propor_edicao_syneriumx\n"
+                f"5. A proposta vai para o dashboard de aprovacoes automaticamente"
             )
 
             try:

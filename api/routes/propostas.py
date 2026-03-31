@@ -55,6 +55,23 @@ def listar_propostas(usuario: UsuarioDB = Depends(obter_usuario_atual)):
     return _carregar_propostas()
 
 
+@router.get("/propostas/pendentes/count")
+def contar_pendentes(usuario: UsuarioDB = Depends(obter_usuario_atual)):
+    """
+    Retorna contagem de propostas e deploys pendentes (v0.53.0).
+    Usado pelo dashboard para exibir badge de notificação.
+    """
+    propostas = _carregar_propostas()
+    deploys = _carregar_deploys()
+    prop_pendentes = sum(1 for p in propostas if p.get("status") == "pendente")
+    dep_pendentes = sum(1 for d in deploys if d.get("status") == "pendente")
+    return {
+        "propostas_pendentes": prop_pendentes,
+        "deploys_pendentes": dep_pendentes,
+        "total": prop_pendentes + dep_pendentes,
+    }
+
+
 @router.get("/propostas/{proposta_id}")
 def detalhe_proposta(proposta_id: str, usuario: UsuarioDB = Depends(obter_usuario_atual)):
     """Retorna detalhes de uma proposta específica."""
@@ -69,8 +86,16 @@ class RejeicaoRequest(BaseModel):
     motivo: str = ""
 
 
+class AprovacaoRequest(BaseModel):
+    auto_deploy: bool = False  # v0.53.0: se True, faz push+PR+merge automaticamente
+
+
 @router.post("/propostas/{proposta_id}/aprovar")
-def aprovar_proposta(proposta_id: str, usuario: UsuarioDB = Depends(obter_usuario_atual)):
+def aprovar_proposta(
+    proposta_id: str,
+    req: AprovacaoRequest = AprovacaoRequest(),
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+):
     """
     Aprova a proposta e aplica a edição no arquivo real.
     Apenas proprietários do projeto (CEO/Diretor Técnico) podem aprovar.
@@ -114,7 +139,36 @@ def aprovar_proposta(proposta_id: str, usuario: UsuarioDB = Depends(obter_usuari
         )
 
         # ========================================
-        # PIPELINE: Build + Commit + Deploy request
+        # BUILD GATE: Validar build ANTES de confirmar (v0.53.0)
+        # ========================================
+        from core.vcs_service import validar_build
+        projeto_dir = os.path.dirname(caminho_abs)
+        # Subir até a raiz do projeto (onde está package.json)
+        while projeto_dir and projeto_dir != "/" and not os.path.isfile(os.path.join(projeto_dir, "package.json")):
+            projeto_dir = os.path.dirname(projeto_dir)
+
+        resultado_build = validar_build(projeto_dir)
+        if not resultado_build.sucesso:
+            # Build falhou — reverter arquivo para conteúdo original
+            if proposta.get("conteudo_atual_preview"):
+                # Nota: preview tem max 2000 chars, pode não ser completo
+                # Melhor: usar git checkout para restaurar
+                import subprocess
+                subprocess.run(["git", "checkout", "--", caminho_abs], cwd=projeto_dir, capture_output=True)
+
+            proposta["status"] = "erro_build"
+            proposta["erro"] = resultado_build.mensagem
+            _salvar_proposta(proposta)
+            logger.error(f"[BUILD GATE] Proposta {proposta_id} BLOQUEADA: {resultado_build.mensagem[:200]}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"⛔ Build Gate bloqueou a edição. O código proposto quebra o build:\n{resultado_build.mensagem[:500]}"
+            )
+
+        logger.info(f"[BUILD GATE] Proposta {proposta_id} — build PASSOU ✅")
+
+        # ========================================
+        # PIPELINE: Commit + Deploy request
         # ========================================
         pipeline_resultado = None
         try:
@@ -125,11 +179,26 @@ def aprovar_proposta(proposta_id: str, usuario: UsuarioDB = Depends(obter_usuari
             logger.error(f"[PIPELINE] Erro: {pe}")
             pipeline_resultado = {"erro": str(pe)}
 
+        # ========================================
+        # AUTO-DEPLOY: Push + PR + Merge automático (v0.53.0)
+        # ========================================
+        deploy_resultado = None
+        if req.auto_deploy:
+            try:
+                from tools.deploy_pipeline import executar_git_push
+                deploy_resultado = executar_git_push(proposta)
+                logger.info(f"[AUTO-DEPLOY] Proposta {proposta_id} — deploy automático: {deploy_resultado}")
+            except Exception as de:
+                logger.error(f"[AUTO-DEPLOY] Erro: {de}")
+                deploy_resultado = {"erro": str(de)}
+
         return {
-            "mensagem": f"Proposta aprovada e aplicada com sucesso!",
+            "mensagem": f"Proposta aprovada, build OK, commit feito!" + (" Deploy automático realizado!" if req.auto_deploy else ""),
             "arquivo": proposta["caminho"],
             "aprovado_por": usuario.nome,
+            "build": "✅ Passou",
             "pipeline": pipeline_resultado,
+            "auto_deploy": deploy_resultado,
         }
 
     except Exception as e:
