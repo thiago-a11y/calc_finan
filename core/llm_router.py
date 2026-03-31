@@ -312,16 +312,18 @@ class SmartRouter:
         )
 
         # Criar instância LLM COM tracking automático
-        # v0.51.0: Minimax como padrão (mais barato), Anthropic como fallback premium
-        minimax_key = os.environ.get("MINIMAX_API_KEY", "")
+        # v0.51.0: Groq como padrão para CrewAI (suporta system role, rápido e barato)
+        # Minimax não suporta role "system" nas mensagens (erro 2013), então
+        # Minimax fica como principal no llm_fallback.py (chamadas diretas)
+        # e Groq fica como principal no CrewAI (agentes do escritório)
         groq_key = os.environ.get("GROQ_API_KEY", "")
+        minimax_key = os.environ.get("MINIMAX_API_KEY", "")
 
-        if minimax_key:
-            # Minimax via OpenAI-compatible (requer litellm instalado)
+        if groq_key:
+            # Groq Llama — suporta system role, rápido ($0.00059/1K)
             llm = criar_llm_tracked(
-                modelo="openai/MiniMax-Text-01",
-                api_key=minimax_key,
-                base_url="https://api.minimaxi.chat/v1",
+                modelo="groq/llama-3.3-70b-versatile",
+                api_key=groq_key,
                 max_tokens=config["max_tokens"],
                 agente_nome=agente_nome,
                 squad_nome=squad_nome,
@@ -330,11 +332,12 @@ class SmartRouter:
                 usuario_id=usuario_id,
                 usuario_nome=usuario_nome,
             )
-        elif groq_key:
-            # Groq Llama como fallback rápido
+        elif minimax_key:
+            # Minimax via OpenAI-compatible (não suporta system role — funciona para chamadas simples)
             llm = criar_llm_tracked(
-                modelo="groq/llama-3.3-70b-versatile",
-                api_key=groq_key,
+                modelo="openai/MiniMax-Text-01",
+                api_key=minimax_key,
+                base_url="https://api.minimaxi.chat/v1",
                 max_tokens=config["max_tokens"],
                 agente_nome=agente_nome,
                 squad_nome=squad_nome,
