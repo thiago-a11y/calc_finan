@@ -125,7 +125,7 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 - [x] Teste end-to-end aprovado: 3 mensagens × 3 providers distintos
 
 ### Pendencias novas (Sessao 25)
-- [ ] Implementar Build Gate no core/vcs_service.py (npm run build antes de push)
+- [x] Implementar Build Gate no core/vcs_service.py (npm run build antes de push)
 - [ ] Melhorar contexto dos agentes para código real (RAG com código-fonte)
 - [ ] Bug #43: Factory destruiu EditProposalModal.tsx — PR #195 auto-merged quebrado
 
@@ -172,7 +172,9 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 ## Status atual
 
 - Tudo em producao (AWS)
-- Versao atual: v0.52.1
+- Versao atual: v0.52.2
+- Build Gate ativo — validação de build obrigatória antes de push
+- PR #2 mergeado na main (Smart Router + Minimax fix + Build Gate)
 - 16 agentes no catalogo (9 CEO + 3 Jonatas + 3 Elite + Factory Optimizer)
 - LLM Principal: **Minimax MiniMax-Text-01** (funcionando em producao)
 - Cadeia de fallback: Minimax → Groq → Fireworks → Together → Anthropic → OpenAI
@@ -196,6 +198,7 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 - [ ] Ajustar permissoes granulares para a pagina de Atribuicoes (so admin ve)
 - [ ] Mapear os 45 funcionarios da Objetiva e criar squads
 - [ ] Corrigir testes de integracao (mock do lifespan para CI)
+- [ ] Manual completo do Synerium Factory (documentação para usuários)
 - [ ] Melhorar escritorio: interacao com sala de reuniao (vidro transparente vendo agentes dentro)
 - [ ] Adicionar historico de conversas Luna ao RAG para contexto cruzado
 - [ ] Implementar sistema de migrations automaticas no bootstrap (Alembic ou ALTER TABLE strategy)

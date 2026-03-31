@@ -386,4 +386,19 @@ Minimax MiniMax-Text-01 retorna erro 2013 quando recebe mensagens com role `syst
 
 ---
 
+## Build Gate — Validação Obrigatória Antes de Push (v0.52.2)
+
+**Contexto:** O agente do Factory (GPT-4o-mini via CrewAI) destruiu `EditProposalModal.tsx` do SyneriumX substituindo código React por descrição textual. O PR #195 foi auto-merged sem validação, quebrando a produção.
+
+**Decisão:** Implementar Build Gate no `core/vcs_service.py` que executa `npm run build` (Node.js) ou `py_compile` (Python) antes de qualquer push. Se falhar, commit é revertido e push bloqueado.
+
+**Alternativas consideradas:**
+1. Confiar no CI do GitHub — Rejeitado: PR pode ser auto-merged antes do CI terminar
+2. Pre-commit hook local — Rejeitado: agentes rodam no servidor, não têm hooks locais configurados
+3. Build Gate no VCS Service — **Escolhido**: Integrado no ponto correto do fluxo, impossível de bypassar
+
+**Consequências:** Push fica ~30s mais lento (tempo do build), mas código quebrado nunca chega ao GitHub.
+
+---
+
 > Última atualização: 2026-03-31
