@@ -68,6 +68,13 @@ class AtualizarStatusRequest(BaseModel):
     status: str  # revisado, aprovado, rejeitado
 
 
+class AutoSaveRequest(BaseModel):
+    """Salva estado completo dos paineis da sessao."""
+    painel_editor: dict | None = None
+    painel_terminal: dict | None = None
+    painel_navegador: dict | None = None
+
+
 # =====================================================================
 # Helpers
 # =====================================================================
@@ -202,6 +209,37 @@ def obter_sessao(
         ],
         "criado_em": sessao.criado_em.isoformat() if sessao.criado_em else None,
     }
+
+
+# =====================================================================
+# AUTO-SAVE
+# =====================================================================
+
+@router.patch("/sessao/{sessao_id}/save")
+def auto_save_sessao(
+    sessao_id: str,
+    req: AutoSaveRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Auto-save: salva estado dos paineis da sessao (chamado a cada 10s)."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    if req.painel_editor is not None:
+        sessao.painel_editor = req.painel_editor
+    if req.painel_terminal is not None:
+        sessao.painel_terminal = req.painel_terminal
+    if req.painel_navegador is not None:
+        sessao.painel_navegador = req.painel_navegador
+
+    sessao.atualizado_em = datetime.utcnow()
+    db.commit()
+
+    return {"salvo": True, "sessao_id": sessao_id}
 
 
 # =====================================================================
