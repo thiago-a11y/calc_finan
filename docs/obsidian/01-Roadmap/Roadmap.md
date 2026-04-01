@@ -1,7 +1,7 @@
 # Roadmap — Synerium Factory
 
 > Fases de desenvolvimento da fábrica de SaaS da Objetiva.
-> Atualizado em: 01/04/2026 — v0.57.5
+> Atualizado em: 01/04/2026 — v0.58.0
 
 ---
 
@@ -184,6 +184,7 @@
 
 ## Concluídos Recentes
 
+- [x] Agentes Multimodais (Vision) — roteamento inteligente para imagens, GPT-4o-mini/GPT-4o com vision, fallback filtrado (v0.58.0)
 - [x] Visible Live Execution — typewriter, shimmer, pulso, cursor piscante, streaming 2 linhas/200ms (v0.57.5)
 - [x] Fix crítico streaming ao vivo — session isolada, flag_modified, polling estável (v0.57.4)
 - [x] Modo LIVE no Mission Control — código ao vivo no editor (v0.57.3)

@@ -160,4 +160,33 @@ Nenhum — a interface do frontend (`carregarSessao`, `dispararAgente`) abstrai 
 
 ---
 
+## #006 — Custo aumentado com roteamento de imagens para providers premium (2026-04-01)
+
+### Contexto
+A v0.58.0 introduziu roteamento automático de imagens para providers com vision (GPT-4o-mini e GPT-4o). Antes, todas as mensagens simples iam para Minimax ($0.0004/1K). Com imagem, vão para GPT-4o-mini ($0.00015/1K input mas $0.0006/1K output) ou GPT-4o ($0.0025/1K input, $0.01/1K output).
+
+### Risco identificado
+Se os 45 funcionários passarem a enviar imagens frequentemente (capturas de tela, fotos de documentos, diagramas), o custo de LLM pode aumentar significativamente. GPT-4o para imagens complexas custa 6x mais que Minimax para texto.
+
+### Quantificação
+- **Cenário baixo** (5% das mensagens com imagem): aumento de ~3% no custo mensal total
+- **Cenário médio** (20% com imagem): aumento de ~12% no custo mensal
+- **Cenário alto** (50% com imagem): aumento de ~30% no custo mensal
+
+### Mitigação implementada
+1. GPT-4o-mini (não GPT-4o) como padrão para imagens simples/médias — mais barato com vision
+2. GPT-4o reservado apenas para mensagens classificadas como COMPLEXO + imagem
+3. Fallback chain mantém providers baratos para mensagens sem imagem (Minimax → Groq)
+
+### Mitigação futura (se custo escalar)
+- Implementar cache de descrição de imagem: se a mesma imagem for enviada novamente, usar descrição cacheada em vez de chamar vision novamente
+- Comprimir/redimensionar imagens antes de enviar (reduz tokens de input)
+- Monitorar % de mensagens com imagem no dashboard de consumo de APIs
+- Se Groq ou Fireworks adicionarem suporte a vision, migrar para eles (custo menor)
+
+### Ponto sem retorno
+Nenhum — o roteamento é 100% reversível. Se o custo ficar inaceitável, basta desabilitar a flag `vision` ou forçar redimensionamento agressivo de imagens.
+
+---
+
 > Ultima atualizacao: 2026-04-01

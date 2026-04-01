@@ -1,6 +1,6 @@
 # Code Studio 2.0 — Mission Control
 
-> Versão: v0.57.5 | Data: 01/Abr/2026
+> Versão: v0.58.0 | Data: 01/Abr/2026
 
 ## Visão Geral
 
@@ -143,6 +143,21 @@ class TeamChatDB(Base):
 - Nunca fecha sozinho — apenas via botão X ou clique fora do overlay
 - Tamanho máximo `max-w-4xl` para legibilidade de código
 - "Aplicar no Editor": copia conteúdo diretamente para o `<textarea>` do editor
+
+---
+
+## Roteamento Vision / Multimodal (v0.58.0)
+
+O Smart Router detecta automaticamente quando uma mensagem contém imagem e roteia para providers com suporte a vision. Dois mecanismos independentes garantem roteamento correto:
+
+1. **Classificador** (`core/classificador_mensagem.py`): flag `vision` em cada provider + parâmetro `tem_imagem` filtra a cadeia de fallback
+2. **LLM Fallback** (`core/llm_fallback.py`): detecta `image_url` em `HumanMessage.content_parts` e pula providers sem vision
+
+| Complexidade + Imagem | Provider Escolhido |
+|------------------------|--------------------|
+| SIMPLES/MEDIO + imagem | GPT-4o-mini (vision, mais barato) |
+| COMPLEXO + imagem | GPT-4o (vision, máxima qualidade) |
+| Sem imagem | Roteamento normal (Minimax/Groq/Sonnet) |
 
 ---
 

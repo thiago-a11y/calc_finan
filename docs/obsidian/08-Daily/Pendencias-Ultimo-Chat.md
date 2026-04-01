@@ -1,7 +1,30 @@
 # Pendencias do Ultimo Chat — 01/Abr/2026
 
-> Atualizado em 01/Abr/2026 (sessao 31 — v0.57.5)
-> Sessao 31: Visible Live Execution (v0.57.5). Sessao anterior: Fix Crítico Streaming ao Vivo (v0.57.4).
+> Atualizado em 01/Abr/2026 (sessao 32 — v0.58.0)
+> Sessao 32: Agentes Multimodais Vision (v0.58.0). Sessao anterior: Visible Live Execution (v0.57.5).
+
+## Sessao 32 (01/Abr/2026) — Agentes Multimodais Vision (v0.58.0)
+
+### O que foi feito
+
+#### v0.58.0 — Agentes Multimodais (Vision)
+- [x] `classificador_mensagem.py`: flag `vision` adicionada a todos os 8 providers em PROVIDERS_REGISTRO
+- [x] `classificador_mensagem.py`: novo parâmetro `tem_imagem` — quando True, força provider com vision
+- [x] `classificador_mensagem.py`: SIMPLES/MEDIO com imagem → GPT-4o-mini; COMPLEXO com imagem → GPT-4o
+- [x] `classificador_mensagem.py`: fallback chain filtra providers sem vision quando tem_imagem=True
+- [x] `luna_engine.py`: `_decidir_modelo()` aceita `anexos`, detecta `tipo="imagem"` e passa `tem_imagem=True`
+- [x] `luna_engine.py`: streaming e regeneração atualizados para passar anexos
+- [x] `llm_fallback.py`: helper `_mensagens_tem_imagem()` detecta `image_url` em HumanMessage content_parts
+- [x] `llm_fallback.py`: sync e async pulam Minimax/Groq/Fireworks/Together quando imagem detectada
+- [x] Rede de segurança dupla: classificador + fallback, independentes entre si
+
+### Status atual
+- Versão: **v0.58.0**
+- Imagens enviadas no Escritório Virtual são roteadas para GPT-4o-mini (barato + vision)
+- Mensagens complexas com imagem vão para GPT-4o (máxima qualidade multimodal)
+- Fallback chain seguro: nunca envia imagem para provider sem vision
+
+---
 
 ## Sessao 31 (01/Abr/2026) — Visible Live Execution (v0.57.5)
 
