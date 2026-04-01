@@ -4,6 +4,25 @@
 
 ---
 
+## v0.57.5 — Visible Live Execution: Experiência Visual Completa (01/Abr/2026)
+
+### Frontend (`dashboard/src/pages/MissionControl.tsx`)
+- **Efeito Typewriter**: caracteres aparecem gradualmente no editor (não mais linhas inteiras de uma vez)
+- **Barra de progresso animada com shimmer**: gradiente + texto descritivo da fase atual + porcentagem visível
+- **Ícone do agente pulsante**: indicação visual de atividade do agente em todos os painéis
+- **Badge "Em execução"** nas mensagens do Team Chat: identifica visualmente mensagens geradas durante execução
+- **Cursor piscante no terminal**: efeito de digitação real no painel de terminal
+- **Indicador de atividade do agente em todos os painéis**: feedback visual constante de que o sistema está trabalhando
+
+### Backend (`api/routes/mission_control.py`)
+- **Streaming otimizado**: chunks reduzidos de 4→2 linhas com delay de 200ms (era 350ms) — execução mais fluida e responsiva
+- **Progresso granular dentro das fases**: atualizações de % não apenas nas transições de fase, mas durante cada fase individualmente
+- **Comandos reais no terminal**: `npm run build`, `pytest`, `eslint`, `tsc --noEmit` aparecem no terminal (não mais comandos genéricos)
+- **Editor com conteúdo desde a Fase 1**: scaffold → plan → code (antes só aparecia código na Fase 3)
+- **Mais entradas de terminal**: todas as fases agora geram entradas de terminal, não apenas a fase de execução
+
+---
+
 ## v0.57.4 — Fix Crítico: Streaming ao Vivo Funcionando de Verdade (01/Abr/2026)
 
 ### Bugs Corrigidos (3 root causes identificadas)
