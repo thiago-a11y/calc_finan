@@ -99,6 +99,42 @@ def _comando_seguro(cmd: str) -> bool:
 
 
 # =====================================================================
+# RECOVERY: destrava agentes orfaos no startup (thread morreu no restart)
+# =====================================================================
+
+def _recovery_agentes_orfaos():
+    """Marca agentes 'executando' como erro — threads morreram no restart."""
+    try:
+        db = SessionLocal()
+        sessoes = db.query(MissionControlSessaoDB).filter(
+            MissionControlSessaoDB.status == "ativa"
+        ).all()
+        total = 0
+        for sessao in sessoes:
+            ativos = sessao.agentes_ativos or []
+            mudou = False
+            for a in ativos:
+                if a.get("status") == "executando":
+                    a["status"] = "erro"
+                    a["erro"] = "Thread perdida durante restart do servico"
+                    a["fim"] = datetime.utcnow().isoformat()
+                    mudou = True
+                    total += 1
+            if mudou:
+                sessao.agentes_ativos = ativos
+                sessao.atualizado_em = datetime.utcnow()
+        if total > 0:
+            db.commit()
+            logger.info(f"[MISSION] Recovery: {total} agente(s) orfao(s) destravado(s)")
+        db.close()
+    except Exception as e:
+        logger.warning(f"[MISSION] Recovery falhou: {e}")
+
+# Executa recovery no import (startup do servidor)
+_recovery_agentes_orfaos()
+
+
+# =====================================================================
 # SESSOES
 # =====================================================================
 
