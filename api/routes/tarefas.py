@@ -30,11 +30,19 @@ router = APIRouter(prefix="/api/tarefas", tags=["Tarefas"])
 
 # --- Schemas ---
 
+class AnexoTarefaItem(BaseModel):
+    nome_original: str = ""
+    url: str = ""
+    tipo: str = "documento"
+    tamanho: int = 0
+
+
 class ExecutarTarefaRequest(BaseModel):
     squad_nome: str
     agente_indice: int
     descricao: str
     resultado_esperado: str = "Resposta completa em português brasileiro."
+    anexos: list[AnexoTarefaItem] | None = None  # v0.58.1: anexos com imagens
 
 
 class ReuniaoRequest(BaseModel):
@@ -104,8 +112,95 @@ def _to_response(t: TarefaDB) -> TarefaResponse:
 
 # --- Background: Tarefa simples ---
 
+def _analisar_imagens_com_vision(anexos: list[dict]) -> str:
+    """
+    v0.58.1: Pre-processa imagens usando LLM com vision.
+    Converte cada imagem para base64, envia ao GPT-4o-mini (vision),
+    e retorna descricao textual detalhada para o agente CrewAI.
+    """
+    import base64
+    import os
+    from pathlib import Path
+
+    descricoes = []
+
+    for a in anexos:
+        if a.get("tipo") != "imagem":
+            continue
+
+        url = a.get("url", "")
+        nome = a.get("nome_original", "imagem")
+
+        # Resolver caminho absoluto do upload
+        if url.startswith("/uploads/"):
+            nome_arquivo = url.split("/")[-1]
+            upload_dir = Path(__file__).parent.parent.parent / "data" / "uploads" / "chat"
+            if os.path.exists("/opt/synerium-factory"):
+                upload_dir = Path("/opt/synerium-factory/data/uploads/chat")
+            caminho = upload_dir / nome_arquivo
+        else:
+            caminho = Path(url)
+
+        if not caminho.is_file():
+            logger.warning(f"[VISION] Imagem nao encontrada: {caminho}")
+            descricoes.append(f"[Imagem '{nome}' — arquivo nao encontrado no servidor]")
+            continue
+
+        # Verificar tamanho (max 10MB)
+        tamanho = caminho.stat().st_size
+        if tamanho > 10_485_760:
+            descricoes.append(f"[Imagem '{nome}' — muito grande ({tamanho // 1024}KB), nao processada]")
+            continue
+
+        try:
+            # Converter para base64
+            ext = caminho.suffix.lower()
+            mime_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                        ".gif": "image/gif", ".webp": "image/webp"}
+            mime = mime_map.get(ext, "image/png")
+            dados = caminho.read_bytes()
+            b64 = base64.b64encode(dados).decode("utf-8")
+            data_uri = f"data:{mime};base64,{b64}"
+
+            # Chamar LLM com vision para descrever a imagem
+            from core.llm_fallback import chamar_llm_com_fallback
+            from core.classificador_mensagem import classificar_mensagem
+            from langchain_core.messages import HumanMessage
+
+            cls = classificar_mensagem("analisar imagem", tem_imagem=True)
+            mensagem_vision = HumanMessage(content=[
+                {"type": "text", "text": (
+                    f"O usuario enviou esta imagem chamada '{nome}'. "
+                    "Descreva DETALHADAMENTE tudo que voce ve nesta imagem. "
+                    "Se for uma tela de sistema/software, descreva cada elemento visivel: "
+                    "botoes, textos, listas, tabelas, formularios, mensagens, etc. "
+                    "Se houver texto na imagem, TRANSCREVA ele exatamente. "
+                    "Seja extremamente detalhado — esta descricao sera usada por outro agente "
+                    "que NAO pode ver a imagem."
+                )},
+                {"type": "image_url", "image_url": {"url": data_uri}},
+            ])
+
+            resp, prov, mod = chamar_llm_com_fallback(
+                [mensagem_vision], max_tokens=2000, classificacao=cls,
+            )
+            descricao_img = resp.content
+            logger.info(f"[VISION] Imagem '{nome}' analisada por {prov} ({mod}): {len(descricao_img)} chars")
+            descricoes.append(
+                f"\n📷 ANALISE VISUAL DA IMAGEM '{nome}' (processada por {prov}):\n"
+                f"{'=' * 60}\n{descricao_img}\n{'=' * 60}"
+            )
+
+        except Exception as e:
+            logger.error(f"[VISION] Erro ao analisar imagem '{nome}': {e}")
+            descricoes.append(f"[Imagem '{nome}' — erro ao processar: {str(e)[:100]}]")
+
+    return "\n".join(descricoes) if descricoes else ""
+
+
 def _executar_tarefa_bg(tarefa_id: str, squad_nome: str, agente_idx: int,
-                         descricao: str, resultado_esperado: str, fabrica):
+                         descricao: str, resultado_esperado: str, fabrica,
+                         anexos: list[dict] | None = None):
     from crewai import Task, Crew, Process
 
     db = SessionLocal()
@@ -128,10 +223,23 @@ def _executar_tarefa_bg(tarefa_id: str, squad_nome: str, agente_idx: int,
         tarefa.agente_atual = agente.role
         db.commit()
 
+        # v0.58.1: Pre-processar imagens com vision LLM antes do CrewAI
+        contexto_visual = ""
+        if anexos:
+            imagens = [a for a in anexos if a.get("tipo") == "imagem"]
+            docs = [a for a in anexos if a.get("tipo") != "imagem"]
+            if imagens:
+                logger.info(f"[TAREFA] {len(imagens)} imagem(ns) detectada(s) — analisando com vision LLM...")
+                contexto_visual = _analisar_imagens_com_vision(anexos)
+            if docs:
+                docs_texto = "\n".join(f"[Anexo: {d.get('nome_original', '?')} ({d.get('url', '')})]" for d in docs)
+                contexto_visual += f"\n\nDocumentos anexados:\n{docs_texto}"
+
         # Enriquecer descricao com regras de comportamento (v0.53.0)
         descricao_enriquecida = (
             f"{descricao}\n\n"
-            "REGRAS OBRIGATORIAS:\n"
+            + (f"{contexto_visual}\n\n" if contexto_visual else "")
+            + "REGRAS OBRIGATORIAS:\n"
             "- NUNCA envie emails sem o usuario pedir explicitamente\n"
             "- Voce TEM ferramentas disponiveis — USE-AS para ler arquivos, buscar codigo, consultar a base de conhecimento\n"
             "- Responda de forma direta e objetiva em portugues brasileiro\n"
@@ -615,10 +723,15 @@ def executar_tarefa(
     db.commit()
     db.refresh(tarefa)
 
+    # v0.58.1: Serializar anexos para passar ao background thread
+    anexos_json = None
+    if req.anexos:
+        anexos_json = [a.model_dump() for a in req.anexos]
+
     threading.Thread(
         target=_executar_tarefa_bg,
         args=(tarefa_id, req.squad_nome, req.agente_indice,
-              req.descricao, req.resultado_esperado, fabrica),
+              req.descricao, req.resultado_esperado, fabrica, anexos_json),
         daemon=True,
     ).start()
 
