@@ -22,13 +22,13 @@ import threading
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from api.dependencias import obter_usuario_atual
 from database.models import (
-    UsuarioDB, ArtifactDB, MissionControlSessaoDB, ProjetoDB,
+    UsuarioDB, ArtifactDB, MissionControlSessaoDB, ProjetoDB, TeamChatDB,
 )
 from database.session import get_db, SessionLocal
 
@@ -380,84 +380,202 @@ def disparar_agente(
     }
 
 
+EQUIPE_AGENTES = [
+    {"nome": "Tech Lead", "perfil": "arquiteto", "emoji": "🏗️"},
+    {"nome": "Backend Dev", "perfil": "backend", "emoji": "⚙️"},
+    {"nome": "Frontend Dev", "perfil": "frontend", "emoji": "🎨"},
+    {"nome": "QA Engineer", "perfil": "qa", "emoji": "🛡️"},
+]
+
+
 def _executar_agente_mission_control(
     sessao_id: str, agente_id: str, agente_nome: str,
     instrucao: str, tipo: str, projeto_id: int | None,
     usuario_id: int, company_id: int,
 ):
-    """Executa agente em background e gera artifacts."""
+    """
+    Executa multi-agente com conversa visivel no Team Chat.
+
+    Fases:
+    1. PLANEJAMENTO — Tech Lead analisa e propoe plano
+    2. DISCUSSAO — Cada agente opina sobre sua area
+    3. EXECUCAO — Agentes geram artifacts concretos (codigo, testes, etc.)
+    4. REVIEW — QA revisa e gera checklist final
+    """
+    import json
+    import re
+    import time
+
     db = SessionLocal()
     try:
-        # Chamar LLM com contexto do projeto
         from core.llm_fallback import chamar_llm_com_fallback
         from langchain_core.messages import HumanMessage, SystemMessage
         from core.classificador_mensagem import classificar_mensagem
 
-        # Montar contexto do projeto
+        # Contexto do projeto
         contexto_projeto = ""
         if projeto_id:
             projeto = db.query(ProjetoDB).filter_by(id=projeto_id).first()
             if projeto:
-                contexto_projeto = f"Projeto: {projeto.nome}\nDescrição: {projeto.descricao or ''}\n"
+                contexto_projeto = f"Projeto: {projeto.nome}\nDescricao: {projeto.descricao or ''}\n"
 
-        system_msg = (
-            f"Voce e o {agente_nome}, agente do Mission Control do Synerium Factory.\n"
-            f"Tipo de tarefa: {tipo}\n"
+        # ── FASE 1: PLANEJAMENTO (Tech Lead) ──
+
+        _chat_msg(db, sessao_id, "Sistema", f"Nova tarefa recebida: {instrucao[:200]}", tipo="sistema", fase="planejamento")
+        _chat_msg(db, sessao_id, "Tech Lead", "Analisando a tarefa... Vou montar o plano de execucao.", tipo="planejamento", fase="planejamento")
+
+        plan_system = (
+            "Voce e o Tech Lead de uma equipe de desenvolvimento no Synerium Factory.\n"
             f"{contexto_projeto}\n"
-            "Gere um plano detalhado com checklist de tarefas.\n"
-            "Retorne JSON:\n"
-            '{"plano": "descricao do plano", "checklist": [{"item": "...", "feito": false}], '
-            '"arquivos_impactados": ["arquivo1.tsx", "arquivo2.py"], '
-            '"comandos_sugeridos": ["npm run build", "pytest"]}'
+            "Analise a tarefa e gere um plano de execucao detalhado.\n"
+            "Retorne JSON VALIDO:\n"
+            '{"plano": "descricao do plano em 2-3 paragrafos", '
+            '"etapas": [{"numero": 1, "titulo": "...", "responsavel": "Backend Dev|Frontend Dev|QA", "descricao": "..."}], '
+            '"arquivos_impactados": ["arquivo1.tsx"], '
+            '"riscos": ["risco1"], '
+            '"estimativa_minutos": 30}'
         )
 
-        msgs = [
-            SystemMessage(content=system_msg),
-            HumanMessage(content=instrucao),
-        ]
-
         cls = classificar_mensagem(instrucao)
-        resposta, provider, modelo = chamar_llm_com_fallback(msgs, max_tokens=2000, classificacao=cls)
-        texto = resposta.content
+        resp_plan, prov, mod = chamar_llm_com_fallback(
+            [SystemMessage(content=plan_system), HumanMessage(content=instrucao)],
+            max_tokens=2000, classificacao=cls,
+        )
+        texto_plan = resp_plan.content
 
-        logger.info(f"[MISSION] Agente {agente_nome} respondeu via {provider}/{modelo}")
-
-        # Extrair JSON se possivel
-        import json, re
-        dados = {}
-        json_match = re.search(r'\{[\s\S]*\}', texto)
-        if json_match:
+        dados_plan = {}
+        jm = re.search(r'\{[\s\S]*\}', texto_plan)
+        if jm:
             try:
-                dados = json.loads(json_match.group())
+                dados_plan = json.loads(jm.group())
             except json.JSONDecodeError:
                 pass
 
-        # Criar artifact: plano
+        plano_texto = dados_plan.get("plano", texto_plan[:2000])
+        etapas = dados_plan.get("etapas", [])
+
+        _chat_msg(db, sessao_id, "Tech Lead", f"Plano pronto: {plano_texto[:500]}", tipo="planejamento", fase="planejamento")
+
+        # Criar artifact de plano
         _criar_artifact(
-            db, sessao_id, "plano",
-            f"Plano: {instrucao[:100]}",
-            dados.get("plano", texto[:3000]),
-            dados=dados,
-            agente_nome=agente_nome,
-            usuario_id=usuario_id,
-            company_id=company_id,
-            workflow_id=None,
+            db, sessao_id, "plano", f"Plano: {instrucao[:100]}",
+            plano_texto, dados=dados_plan,
+            agente_nome="Tech Lead", usuario_id=usuario_id, company_id=company_id,
         )
 
-        # Criar artifact: checklist
-        checklist = dados.get("checklist", [])
-        if checklist:
-            _criar_artifact(
-                db, sessao_id, "checklist",
-                f"Checklist: {instrucao[:80]}",
-                "\n".join(f"- [ ] {c.get('item', c) if isinstance(c, dict) else c}" for c in checklist),
-                dados={"items": checklist},
-                agente_nome=agente_nome,
-                usuario_id=usuario_id,
-                company_id=company_id,
-            )
+        if etapas:
+            etapas_texto = "\n".join(f"  {e.get('numero', i+1)}. [{e.get('responsavel', '?')}] {e.get('titulo', e.get('descricao', ''))}" for i, e in enumerate(etapas))
+            _chat_msg(db, sessao_id, "Tech Lead", f"Etapas do plano:\n{etapas_texto}", tipo="planejamento", fase="planejamento")
 
-        # Atualizar status do agente na sessao
+        # ── FASE 2: DISCUSSAO (cada agente opina) ──
+
+        _chat_msg(db, sessao_id, "Sistema", "Fase de discussao iniciada — agentes analisando o plano.", tipo="sistema", fase="discussao")
+
+        for ag in EQUIPE_AGENTES[1:]:  # Pula Tech Lead (ja falou)
+            disc_system = (
+                f"Voce e o {ag['nome']} da equipe. O Tech Lead propos este plano:\n\n"
+                f"{plano_texto[:1000]}\n\n"
+                f"Tarefa original: {instrucao}\n\n"
+                f"Como {ag['nome']}, de seu parecer em 2-3 frases CURTAS sobre:\n"
+                f"- O que voce faria na sua area\n"
+                f"- Algum risco ou sugestao\n"
+                "Responda em texto simples, SEM JSON."
+            )
+            try:
+                resp_disc, _, _ = chamar_llm_com_fallback(
+                    [SystemMessage(content=disc_system), HumanMessage(content="Qual seu parecer?")],
+                    max_tokens=300, classificacao="SIMPLES",
+                )
+                _chat_msg(db, sessao_id, ag["nome"], resp_disc.content[:500], tipo="mensagem", fase="discussao")
+            except Exception as e_disc:
+                _chat_msg(db, sessao_id, ag["nome"], f"(sem resposta: {str(e_disc)[:100]})", tipo="alerta", fase="discussao")
+
+        # ── FASE 3: EXECUCAO (gerar artifacts concretos) ──
+
+        _chat_msg(db, sessao_id, "Sistema", "Fase de execucao — agentes gerando entregaveis.", tipo="sistema", fase="execucao")
+        _chat_msg(db, sessao_id, "Tech Lead", "Plano aprovado pela equipe. Iniciando execucao.", tipo="decisao", fase="execucao")
+
+        exec_system = (
+            f"Voce e um engenheiro senior. Com base no plano abaixo, gere codigo/implementacao concreta.\n\n"
+            f"Plano: {plano_texto[:1500]}\n"
+            f"Tarefa: {instrucao}\n\n"
+            "Retorne JSON:\n"
+            '{"codigo": "codigo completo aqui...", "arquivo": "caminho/do/arquivo.ext", '
+            '"descricao": "o que este codigo faz", "linguagem": "python|typescript|php"}'
+        )
+
+        try:
+            resp_code, _, _ = chamar_llm_com_fallback(
+                [SystemMessage(content=exec_system), HumanMessage(content="Gere a implementacao.")],
+                max_tokens=3000, classificacao="COMPLEXO",
+            )
+            dados_code = {}
+            jm2 = re.search(r'\{[\s\S]*\}', resp_code.content)
+            if jm2:
+                try:
+                    dados_code = json.loads(jm2.group())
+                except json.JSONDecodeError:
+                    pass
+
+            codigo = dados_code.get("codigo", resp_code.content[:3000])
+            arquivo = dados_code.get("arquivo", "implementacao.tsx")
+            descricao = dados_code.get("descricao", "Implementacao gerada pelo agente")
+
+            _chat_msg(db, sessao_id, "Backend Dev", f"Codigo gerado: {arquivo} — {descricao[:200]}", tipo="mensagem", fase="execucao")
+
+            _criar_artifact(
+                db, sessao_id, "codigo", f"Codigo: {arquivo}",
+                codigo, dados={"arquivo": arquivo, "linguagem": dados_code.get("linguagem", ""), "descricao": descricao},
+                agente_nome="Backend Dev", usuario_id=usuario_id, company_id=company_id,
+            )
+        except Exception as e_code:
+            _chat_msg(db, sessao_id, "Backend Dev", f"Erro ao gerar codigo: {str(e_code)[:200]}", tipo="alerta", fase="execucao")
+
+        # ── FASE 4: REVIEW (QA) ──
+
+        _chat_msg(db, sessao_id, "Sistema", "Fase de review — QA analisando entregaveis.", tipo="sistema", fase="review")
+
+        review_system = (
+            f"Voce e o QA Engineer. Revise o plano e a implementacao.\n\n"
+            f"Plano: {plano_texto[:800]}\n"
+            f"Tarefa: {instrucao}\n\n"
+            "Gere uma checklist de validacao. Retorne JSON:\n"
+            '{"checklist": [{"item": "...", "feito": false}], "parecer": "aprovado|pendente|reprovado", "observacoes": "..."}'
+        )
+
+        try:
+            resp_qa, _, _ = chamar_llm_com_fallback(
+                [SystemMessage(content=review_system), HumanMessage(content="Revise e gere checklist.")],
+                max_tokens=1000, classificacao="MEDIO",
+            )
+            dados_qa = {}
+            jm3 = re.search(r'\{[\s\S]*\}', resp_qa.content)
+            if jm3:
+                try:
+                    dados_qa = json.loads(jm3.group())
+                except json.JSONDecodeError:
+                    pass
+
+            checklist = dados_qa.get("checklist", [])
+            parecer = dados_qa.get("parecer", "pendente")
+            obs = dados_qa.get("observacoes", "")
+
+            _chat_msg(db, sessao_id, "QA Engineer", f"Review concluido. Parecer: {parecer}. {obs[:300]}", tipo="mensagem", fase="review")
+
+            if checklist:
+                _criar_artifact(
+                    db, sessao_id, "checklist", f"QA Review: {instrucao[:80]}",
+                    "\n".join(f"- [ ] {c.get('item', c) if isinstance(c, dict) else c}" for c in checklist),
+                    dados={"items": checklist, "parecer": parecer, "observacoes": obs},
+                    agente_nome="QA Engineer", usuario_id=usuario_id, company_id=company_id,
+                )
+        except Exception as e_qa:
+            _chat_msg(db, sessao_id, "QA Engineer", f"Erro no review: {str(e_qa)[:200]}", tipo="alerta", fase="review")
+
+        # ── CONCLUSAO ──
+
+        _chat_msg(db, sessao_id, "Sistema", "Tarefa concluida — todos os entregaveis gerados.", tipo="sistema", fase="conclusao")
+
         sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
         if sessao:
             ativos = sessao.agentes_ativos or []
@@ -465,15 +583,15 @@ def _executar_agente_mission_control(
                 if a.get("id") == agente_id:
                     a["status"] = "concluido"
                     a["fim"] = datetime.utcnow().isoformat()
-                    a["resultado"] = f"Gerou {1 + (1 if checklist else 0)} artifacts"
+                    a["resultado"] = "Plano + codigo + review gerados"
             sessao.agentes_ativos = ativos
             sessao.atualizado_em = datetime.utcnow()
             db.commit()
 
     except Exception as e:
-        logger.error(f"[MISSION] Erro no agente {agente_nome}: {e}")
-        # Marcar agente como erro
+        logger.error(f"[MISSION] Erro multi-agente: {e}")
         try:
+            _chat_msg(db, sessao_id, "Sistema", f"Erro critico: {str(e)[:300]}", tipo="alerta", fase="erro")
             sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
             if sessao:
                 ativos = sessao.agentes_ativos or []
@@ -523,6 +641,60 @@ def _criar_artifact(
     db.refresh(artifact)
     return artifact
 
+
+# =====================================================================
+# TEAM CHAT
+# =====================================================================
+
+@router.get("/sessao/{sessao_id}/chat")
+def listar_team_chat(
+    sessao_id: str,
+    desde: str | None = Query(None),
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Lista mensagens do Team Chat da sessao (polling)."""
+    query = db.query(TeamChatDB).filter_by(sessao_id=sessao_id)
+    if desde:
+        try:
+            from datetime import datetime as dt2
+            desde_dt = dt2.fromisoformat(desde)
+            query = query.filter(TeamChatDB.criado_em > desde_dt)
+        except (ValueError, TypeError):
+            pass
+    msgs = query.order_by(TeamChatDB.criado_em.asc()).limit(200).all()
+    return [
+        {
+            "id": m.id,
+            "agente_nome": m.agente_nome,
+            "tipo": m.tipo,
+            "conteudo": m.conteudo,
+            "fase": m.fase,
+            "metadata": m.metadata or {},
+            "criado_em": m.criado_em.isoformat() if m.criado_em else None,
+        }
+        for m in msgs
+    ]
+
+
+def _chat_msg(db: Session, sessao_id: str, agente: str, conteudo: str, tipo: str = "mensagem", fase: str = "", metadata: dict = None):
+    """Helper: insere mensagem no Team Chat."""
+    msg = TeamChatDB(
+        sessao_id=sessao_id,
+        agente_nome=agente,
+        tipo=tipo,
+        conteudo=conteudo,
+        fase=fase,
+        metadata=metadata or {},
+    )
+    db.add(msg)
+    db.commit()
+    return msg
+
+
+# =====================================================================
+# ARTIFACTS
+# =====================================================================
 
 @router.get("/artifacts/{sessao_id}")
 def listar_artifacts(

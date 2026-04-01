@@ -530,6 +530,29 @@ class ArtifactDB(Base):
         return f"<Artifact {self.artifact_id}: {self.tipo} — {self.titulo[:50]}>"
 
 
+class TeamChatDB(Base):
+    """
+    Mensagens do Team Chat no Mission Control (v0.57.1).
+
+    Registro de TODA conversa entre agentes e entre agente-usuario.
+    Visivel em tempo real no painel Team Chat.
+    """
+    __tablename__ = "team_chat"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sessao_id = Column(String(20), nullable=False, index=True)
+    agente_nome = Column(String(255), nullable=False)  # "Tech Lead", "Backend Dev", "QA", "Sistema"
+    tipo = Column(String(50), default="mensagem")  # mensagem, planejamento, decisao, alerta, sistema
+    conteudo = Column(Text, nullable=False)
+    fase = Column(String(50), default="")  # planejamento, implementacao, testes, review
+    metadata = Column(JSON, default=dict)  # dados extras (ex: arquivo mencionado, comando)
+    company_id = Column(Integer, default=1)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<TeamChat {self.agente_nome}: {self.conteudo[:50]}>"
+
+
 class MissionControlSessaoDB(Base):
     """
     Sessao do Mission Control (v0.55.0).
