@@ -22,6 +22,12 @@ Botão **LIVE** (verde, ligado por padrão) na barra de progresso. Quando ativad
 - **Badge "STREAMING"** na barra de progresso quando o backend está enviando chunks
 - **Proteção**: se o usuário digitar manualmente no editor, o streaming não sobrescreve
 
+### Bug Fix Crítico — Recovery de Agentes Órfãos (Bug #52)
+- **Problema**: `systemctl restart` matava threads de execução silenciosamente. Agentes ficavam presos em `status: "executando"` para sempre no banco — sem possibilidade de retry pelo usuário.
+- **Fix**: `_recovery_agentes_orfaos()` adicionada em `api/routes/mission_control.py`, chamada no import do módulo. A cada startup do servidor, varre todas as sessões ativas e marca como `status: "erro"` qualquer agente ainda em `"executando"`.
+- **Commit**: `fix(mission-control): recovery de agentes orfaos no startup`
+- **Lição registrada**: qualquer thread de background que persiste estado no banco precisa de recovery no startup.
+
 ---
 
 ## v0.57.2 — Visible Execution: Progresso Real + Código ao Vivo (01/Abr/2026)

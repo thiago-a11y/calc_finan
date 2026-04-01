@@ -32,9 +32,20 @@
 - [x] Build TypeScript passou sem erros
 - [x] Deploy em produção OK (synerium-factory.service active)
 
+#### Bug #52 — Recovery de Agentes Órfãos (Sessão 29, parte 2)
+- [x] Identificado bug crítico: agente disparado antes de `systemctl restart` ficava preso em "Executando..." 0% para sempre
+- [x] Causa raiz: `systemctl restart` mata threads Python sem notificar o banco — `agentes_ativos[].status` permanecia `"executando"` para sempre
+- [x] Diagnóstico via `journalctl -u synerium-factory | grep MISSION` — sem log `"[MISSION] Agente disparado"` após o restart, só GETs de polling
+- [x] Fix emergencial: script Python manual no servidor marcou sessão `819548c7da7a` como erro no banco
+- [x] Fix permanente: `_recovery_agentes_orfaos()` em `api/routes/mission_control.py` — executada no import do módulo (a cada startup)
+- [x] Commit: `fix(mission-control): recovery de agentes orfaos no startup`
+- [x] Deploy em produção + verificação via `systemctl status synerium-factory`
+- [x] Documentado em: Bugs-Conhecidos.md (#52), Changelog.md (v0.57.3), Decisoes-Tecnicas.md, CONTEXTO
+
 ### Status atual (01/Abr/2026 — v0.57.3)
 - Versão: **v0.57.3** em produção
 - Modo LIVE ligado por padrão — código aparece ao vivo no editor
+- Recovery automático de agentes órfãos ativo no startup
 
 ---
 
