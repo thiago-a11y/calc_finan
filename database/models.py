@@ -545,7 +545,7 @@ class TeamChatDB(Base):
     tipo = Column(String(50), default="mensagem")  # mensagem, planejamento, decisao, alerta, sistema
     conteudo = Column(Text, nullable=False)
     fase = Column(String(50), default="")  # planejamento, implementacao, testes, review
-    metadata = Column(JSON, default=dict)  # dados extras (ex: arquivo mencionado, comando)
+    dados_extra = Column(JSON, default=dict)  # dados extras (ex: arquivo mencionado, comando)
     company_id = Column(Integer, default=1)
     criado_em = Column(DateTime, default=datetime.utcnow)
 

@@ -670,7 +670,7 @@ def listar_team_chat(
             "tipo": m.tipo,
             "conteudo": m.conteudo,
             "fase": m.fase,
-            "metadata": m.metadata or {},
+            "metadata": m.dados_extra or {},
             "criado_em": m.criado_em.isoformat() if m.criado_em else None,
         }
         for m in msgs
@@ -685,7 +685,7 @@ def _chat_msg(db: Session, sessao_id: str, agente: str, conteudo: str, tipo: str
         tipo=tipo,
         conteudo=conteudo,
         fase=fase,
-        metadata=metadata or {},
+        dados_extra=metadata or {},
     )
     db.add(msg)
     db.commit()
