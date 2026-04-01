@@ -4,6 +4,39 @@
 
 ---
 
+## v0.55.0 — Code Studio 2.0: Mission Control (01/Abr/2026)
+
+### Feature Principal
+Painel triplo simultâneo (Editor + Terminal + Artifacts) com agentes vivos e comentários inline.
+
+### Funcionalidades
+- **Painel Triplo Redimensionável** — Editor, Terminal e Artifacts lado a lado, cada um maximizável
+- **Terminal Interativo Sandboxed** — Executa comandos com histórico, output colorido e timeout de 30s
+- **Agentes Vivos** — Aparecem animados no header (pulse) enquanto executam, geram artifacts automaticamente
+- **Artifacts Inteligentes** — Planos, checklists, código e logs de terminal gerados pelos agentes
+- **Comentários Inline** — Estilo Google Docs em qualquer artifact (CEO comenta, agente lê e ajusta)
+- **Barra de Instrução** — Dispatch rápido de agentes com Enter
+
+### Endpoints
+- `POST /api/mission-control/sessao` — Cria sessão
+- `GET /api/mission-control/sessao/{id}` — Detalhes com artifacts
+- `POST /api/mission-control/sessao/{id}/comando` — Terminal
+- `POST /api/mission-control/sessao/{id}/agente` — Dispara agente
+- `GET /api/mission-control/artifacts/{sessao_id}` — Lista artifacts
+- `POST /api/mission-control/artifacts/{id}/comentar` — Comentário inline
+- `POST /api/mission-control/artifacts/{id}/status` — Aprovar/rejeitar
+
+### Models
+- `ArtifactDB` — Entregáveis tangíveis com comentários inline (JSON)
+- `MissionControlSessaoDB` — Sessão com estado dos 3 painéis
+
+### Arquivos
+- `api/routes/mission_control.py` (NOVO) — 450+ linhas
+- `dashboard/src/pages/MissionControl.tsx` (NOVO) — 400+ linhas
+- `database/models.py` — 2 novos models
+
+---
+
 ## v0.54.0 — Continuous Factory — Modo Contínuo 24/7 (31/Mar/2026)
 
 ### Feature Principal
