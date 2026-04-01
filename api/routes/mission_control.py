@@ -436,10 +436,10 @@ def _executar_agente_mission_control(
             '"estimativa_minutos": 30}'
         )
 
-        cls = classificar_mensagem(instrucao)
+        cls_plan = classificar_mensagem(instrucao)
         resp_plan, prov, mod = chamar_llm_com_fallback(
             [SystemMessage(content=plan_system), HumanMessage(content=instrucao)],
-            max_tokens=2000, classificacao=cls,
+            max_tokens=2000, classificacao=cls_plan,
         )
         texto_plan = resp_plan.content
 
@@ -482,9 +482,10 @@ def _executar_agente_mission_control(
                 "Responda em texto simples, SEM JSON."
             )
             try:
+                cls_disc = classificar_mensagem("parecer tecnico sobre o plano")
                 resp_disc, _, _ = chamar_llm_com_fallback(
                     [SystemMessage(content=disc_system), HumanMessage(content="Qual seu parecer?")],
-                    max_tokens=300, classificacao="SIMPLES",
+                    max_tokens=300, classificacao=cls_disc,
                 )
                 _chat_msg(db, sessao_id, ag["nome"], resp_disc.content[:500], tipo="mensagem", fase="discussao")
             except Exception as e_disc:
@@ -505,9 +506,10 @@ def _executar_agente_mission_control(
         )
 
         try:
+            cls_exec = classificar_mensagem(instrucao)
             resp_code, _, _ = chamar_llm_com_fallback(
                 [SystemMessage(content=exec_system), HumanMessage(content="Gere a implementacao.")],
-                max_tokens=3000, classificacao="COMPLEXO",
+                max_tokens=3000, classificacao=cls_exec,
             )
             dados_code = {}
             jm2 = re.search(r'\{[\s\S]*\}', resp_code.content)
@@ -544,9 +546,10 @@ def _executar_agente_mission_control(
         )
 
         try:
+            cls_qa = classificar_mensagem("review e checklist de qualidade")
             resp_qa, _, _ = chamar_llm_com_fallback(
                 [SystemMessage(content=review_system), HumanMessage(content="Revise e gere checklist.")],
-                max_tokens=1000, classificacao="MEDIO",
+                max_tokens=1000, classificacao=cls_qa,
             )
             dados_qa = {}
             jm3 = re.search(r'\{[\s\S]*\}', resp_qa.content)
