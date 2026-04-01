@@ -401,4 +401,24 @@ Minimax MiniMax-Text-01 retorna erro 2013 quando recebe mensagens com role `syst
 
 ---
 
-> Última atualização: 2026-03-31
+## Por que polling + DB para "Visible Execution" (não WebSocket/SSE)?
+
+O Mission Control v0.57.2 precisava mostrar execução ao vivo: barra de progresso, código aparecendo no editor e terminal com comandos do agente. Três opções foram avaliadas:
+
+1. **WebSocket** — Bidirecional, tempo real verdadeiro. Rejeitado: complexidade de manter conexão persistente no FastAPI + frontend, necessita infraestrutura de ping/pong, reconexão automática e estado compartilhado entre threads
+2. **SSE (Server-Sent Events)** — Unidirecional, bom para streaming. Rejeitado: o agente roda em background thread separada — precisaria de queue entre a thread e o endpoint SSE. Adiciona complexidade sem benefício claro sobre polling
+3. **Polling + persistência no banco** — **Escolhido**: O agente escreve progresso/código/terminal diretamente nos campos JSON da sessão (`agentes_ativos`, `painel_editor`, `painel_terminal`). O frontend já faz polling a cada 2s (chat) e 5s (sessão). Latência máxima de 5s é aceitável para o caso de uso.
+
+**Vantagens da abordagem escolhida:**
+- Zero infraestrutura nova (sem WebSocket server, sem Redis, sem message queue)
+- Persistência gratuita — se o usuário recarregar a página, o estado completo está no banco
+- Funciona com múltiplas abas do navegador simultaneamente
+- O backend não precisa saber quem está ouvindo (desacoplamento total)
+
+**Trade-off aceito:** Latência de até 5s entre o agente escrever e o frontend exibir. Para uma execução que leva 2-3 minutos, isso é imperceptível.
+
+**Padrão utilizado:** `painel_editor.fonte = "agente"` sinaliza ao frontend que o conteúdo veio do agente (não do usuário). O frontend só sobrescreve o editor se o usuário não editou manualmente (`editorEditadoPeloUsuario`). Isso evita conflitos de escrita.
+
+---
+
+> Última atualização: 2026-04-01
