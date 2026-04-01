@@ -1,10 +1,30 @@
 # Code Studio 2.0 — Mission Control
 
-> Versão: v0.55.0 | Data: 01/Abr/2026
+> Versão: v0.57.0 | Data: 01/Abr/2026
 
 ## Visão Geral
 
 O Mission Control é o Code Studio 2.0 — um ambiente de desenvolvimento imersivo com painel triplo simultâneo (Editor + Terminal + Artifacts/Navegador). Agentes IA trabalham em tempo real, gerando entregáveis tangíveis que o CEO pode revisar e comentar inline.
+
+## Persistência de Sessões (v0.57.0)
+
+### Fluxo do usuário
+1. Acessa `/mission-control` → vê **lista de sessões recentes** (titulo, status, metricas, tempo relativo)
+2. Clica "Retomar" → navega para `/mission-control/{sessionId}` → carrega estado completo
+3. Ou clica "Nova Sessão" → cria sessão e navega automaticamente para ela
+4. Enquanto trabalha, **auto-save a cada 10s** persiste: conteúdo do editor, arquivo ativo, histórico do terminal
+5. Fecha aba/navega para outra página → ao voltar, tudo restaurado exatamente
+
+### Endpoints de persistência
+- `GET /api/mission-control/sessoes` — Últimas 20 sessões do usuário
+- `PATCH /api/mission-control/sessao/{id}/save` — Auto-save (chamado a cada 10s pelo frontend)
+
+### O que é persistido
+- **Editor**: conteúdo completo (`painel_editor.conteudo`), arquivo ativo (`arquivo_ativo`)
+- **Terminal**: últimos 50 comandos com output, sucesso/falha, timestamp
+- **Artifacts**: todos os artifacts gerados por agentes (ArtifactDB)
+- **Comentários inline**: `ArtifactDB.comentarios_inline` (JSON)
+- **Agentes**: estado de cada agente (executando/concluído/erro)
 
 ## Arquitetura
 

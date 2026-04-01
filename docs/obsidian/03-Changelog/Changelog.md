@@ -4,6 +4,27 @@
 
 ---
 
+## v0.57.0 — Persistencia Completa de Sessoes no Mission Control (01/Abr/2026)
+
+### Feature Principal
+Sessoes do Mission Control agora persistem no banco. O usuario pode sair e voltar horas/dias depois, retomando exatamente de onde parou (editor, terminal, artifacts, comentarios).
+
+### Backend
+- `PATCH /api/mission-control/sessao/{id}/save` — Auto-save do estado dos paineis (editor + terminal)
+
+### Frontend
+- **Tela de sessoes**: lista sessoes recentes com titulo, status, metricas (artifacts, cmds), ultimo agente, tempo relativo ("5min atras", "2h atras")
+- **Nova sessao**: campo de titulo + botao "Nova Sessao"
+- **Auto-save a cada 10s**: salva conteudo do editor, arquivo ativo e historico do terminal no banco via PATCH
+- **URL com ID**: `/mission-control/{sessionId}` — acesso direto via link (compartilhavel)
+- **Resume perfeito**: ao retomar, editor restaura conteudo exato, terminal restaura historico completo, artifacts carregam
+- **Editor editavel**: `<pre>` substituido por `<textarea>` para digitacao real com fonte monospace
+- **Indicador de save**: "Salvo HH:MM" no header com icone de disquete/spinner
+- **Voltar para lista**: clique no icone Rocket no header volta para a tela de sessoes
+- **Rota React**: `/mission-control/:sessionId` adicionada no App.tsx
+
+---
+
 ## v0.56.0 — Suporte Completo aos Novos Agentes (01/Abr/2026)
 
 ### Feature Principal
