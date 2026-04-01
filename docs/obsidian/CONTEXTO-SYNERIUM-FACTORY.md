@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.55.0 (01/Abr/2026)
+**Versão Atual:** v0.56.0 (01/Abr/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -454,6 +454,11 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.51.0** — **Minimax como LLM Principal** — MiniMax-Text-01 como provider principal ($0.0004/1K input), nova cadeia Minimax→Groq→Anthropic→OpenAI, Smart Router com Provider.MINIMAX, config/settings.py e config/llm_providers.py atualizados
 - **v0.52.0** — **Smart Router Dinâmico por Mensagem** — Classificação por complexidade (SIMPLES→Minimax, MEDIO→Groq, COMPLEXO→Sonnet, TOOLS→GPT-4o-mini), classificador regex em `core/classificador_mensagem.py`, adaptador system→user para Minimax
 - **v0.52.2** — **Build Gate** — Validação obrigatória de build antes de push (`core/vcs_service.py`), revert automático se build falhar, prevenção de código quebrado em produção (motivado pelo Bug #43)
+- **v0.53.0→v0.53.3** — **Pipeline Completo + Correções** — Agente→Proposta→Aprovação→Build→Deploy, tool schemas Pydantic no CrewAI, retry com backoff exponencial, throttle Fase 4
+- **v0.54.0** — **Continuous Factory (24/7)** — Modo contínuo com toggle CEO/Ops Lead, auto-aprovação gates soft/hard, notificações SES, relatório diário LLM às 23h, worker background com recovery
+- **v0.55.0** — **Mission Control** — Painel triplo Editor+Terminal+Artifacts, agentes live animados, comentários inline estilo Google Docs, 8 endpoints REST, ArtifactDB + MissionControlSessaoDB
+- **v0.55.1** — **Fix Mission Control Produção** — URL relativa para API (`VITE_API_URL || ''`), systemd service para dashboard, diagnóstico porta 5173 bloqueada pelo Lightsail
+- **v0.56.0** — **Suporte Completo Novos Agentes** — Ícones GitBranch/TrendingUp/FlaskConical, categorias qualidade/infraestrutura/otimizacao com cores nos filtros, perfis diretor/arquiteto na Skills, CATEGORIAS_DISPONIVEIS expandido, Escritório DK 9→16 posições (agentes 10–16 têm mesa própria), 3 bugs críticos resolvidos (Aprovação 500, Git Pull conflito, Command Center reiniciar workflow)
 
 ---
 

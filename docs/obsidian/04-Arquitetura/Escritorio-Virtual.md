@@ -1,6 +1,6 @@
 # Escritório Virtual — Visualização Isométrica
 
-> **Status:** ✅ Implementado (v0.11.0)
+> **Status:** ✅ Implementado (v0.11.0) · expandido v0.56.0 (16 posições)
 > **Rota:** `/escritorio`
 > **Arquivo:** `dashboard/src/pages/Escritorio.tsx`
 
@@ -40,22 +40,32 @@ Quando há uma reunião em andamento, aparece banner amarelo pulsante no topo co
 - `brilho` — indicadores de status pulsam
 - `pulso` — banner de reunião pulsa com box-shadow
 
-## Agentes e Emojis
+## Layout de Mesas — Array DK (v0.56.0)
 
-| # | Agente | Emoji | Cor |
-|---|--------|-------|-----|
-| 1 | Tech Lead / Arquiteto | 🏗️ | Verde (#10b981) |
-| 2 | Backend Developer | ⚙️ | Azul (#3b82f6) |
-| 3 | Frontend Developer | 🎨 | Roxo (#8b5cf6) |
-| 4 | Especialista IA | 🧠 | Amarelo (#f59e0b) |
-| 5 | Integrações | 🔗 | Rosa (#ec4899) |
-| 6 | DevOps & Infra | 🚀 | Indigo (#6366f1) |
-| 7 | QA & Segurança | 🛡️ | Vermelho (#ef4444) |
-| 8 | Product Manager | 📊 | Teal (#14b8a6) |
+O escritório usa coordenadas absolutas pixel (x, y). O array `DK` define 16 posições:
+
+```
+Fileira 1 (y=160): x=340, 540, 740          → agentes 1, 2, 3
+Fileira 2 (y=340): x=340, 540, 740          → agentes 4, 5, 6
+Fileira 3 (y=520): x=340, 540, 740          → agentes 7, 8, 9
+Fileira 4 (y=160,340,520): x=920            → agentes 10, 11, 12 (ala expandida)
+Fileira 5 (y=160,340,520,400): x=1060       → agentes 13, 14, 15, 16 (ala premium)
+```
+
+Posições especiais: `CEO_POS` (x=80, y=310), `MEET_CENTER` (x=1180, y=350, sala de reunião).
+
+## Agentes no Escritório (dinâmico — baseado em atribuições do usuário)
+
+Os agentes exibidos são carregados de `GET /api/squads` → `nomes_agentes[]`. Cada nome é mapeado para uma configuração visual via `agCfg(index, nome)`:
+- Cor única baseada em hash do índice
+- Emoji/ícone baseado no perfil do agente (`buscarAgente(nome)` em `config/agents.ts`)
+- Status: livre / trabalhando / reunião (polling 3s em tarefas ativas)
 
 ## Histórico de Versões
-- **v0.11.0** — Primeira versão com CSS isométrico 3D (rotateX/rotateZ). Ficou distorcido e ilegível.
-- **v0.11.1** — Refatorado para grid responsivo com cards animados. Muito mais limpo e funcional.
+- **v0.11.0** — Primeira versão com CSS isométrico 3D. Ficou distorcido.
+- **v0.11.1** — Refatorado para grid responsivo com cards animados.
+- **v0.43.0** — Live Agents: balões de status animados, pulse em tarefas ativas.
+- **v0.56.0** — Array DK expandido de 9 → 16 posições. Agentes 10–16 têm mesa dedicada.
 
 ## Evolução Futura
 - Arrastar agentes para reposicionar mesas

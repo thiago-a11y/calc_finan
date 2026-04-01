@@ -1,7 +1,7 @@
 # Roadmap — Synerium Factory
 
 > Fases de desenvolvimento da fábrica de SaaS da Objetiva.
-> Atualizado em: 31/03/2026
+> Atualizado em: 01/04/2026 — v0.56.0
 
 ---
 
@@ -184,6 +184,9 @@
 
 ## Concluídos Recentes
 
+- [x] Suporte completo novos agentes — categorias, ícones, Escritório 16 posições (v0.56.0)
+- [x] Fix Mission Control URL relativa em produção + systemd service (v0.55.1)
+- [x] 3 bugs críticos: Aprovação 500, Git Pull conflito, Command Center sem erro (v0.55.x)
 - [x] Code Studio 2.0 — Mission Control: painel triplo, artifacts, comentários inline (v0.55.0)
 - [x] Continuous Factory — Modo Contínuo 24/7 com auto-gates e relatório diário (v0.54.0)
 - [x] Pipeline completo: Agente → Proposta → Build → Deploy com auto-deploy opcional (v0.53.0)
@@ -196,15 +199,15 @@
 
 | # | Item | Impacto | Esforço | Status |
 |---|------|---------|---------|--------|
-| 1 | ✅ Testes automatizados | Alto — 32 testes passando | Médio | Concluído |
-| 2 | 🔴 Mapear 45 funcionários | Alto — escala real | Baixo | Próximo |
-| 3 | ✅ Deploy em servidor | Alto — sair da rede local | Médio | Concluído (AWS Lightsail) |
-| 4 | 🟡 Multi-tenant real | Alto — licenciamento | Alto | Planejado |
-| 5 | 🟡 WhatsApp Business API | Médio — notificações | Médio | Planejado |
-| 6 | 🟢 2FA | Médio — segurança | Baixo | Planejado |
-| 7 | 🟢 RAG separado por produto | Médio — multi-produto | Médio | Planejado |
-| 8 | 🔴 Manual do Synerium Factory — 12 capítulos, formato Obsidian, público: toda a Objetiva (45 funcionários) | Alto — documentação | Médio | Planejado |
+| 1 | 🔴 Mapear e cadastrar 45 funcionários da Objetiva | Alto — escala real | Baixo | **Próximo** |
+| 2 | 🔴 Manual do Synerium Factory — 12 capítulos | Alto — documentação interna | Médio | Planejado |
+| 3 | 🟡 Multi-tenant real (company_id por cliente) | Alto — licenciamento SaaS | Alto | Planejado |
+| 4 | 🟡 WhatsApp Business API — notificações | Médio | Médio | Planejado |
+| 5 | 🟢 2FA | Médio — segurança | Baixo | Planejado |
+| 6 | 🟢 RAG separado por produto | Médio — multi-produto | Médio | Planejado |
+| 7 | 🟢 Sala de reunião no Escritório (vidro transparente) | Baixo — UX | Médio | Planejado |
+| 8 | 🟢 Migrations automáticas (Alembic) | Médio — devops | Médio | Planejado |
 
 ---
 
-> Última atualização: 2026-03-31
+> Última atualização: 2026-04-01

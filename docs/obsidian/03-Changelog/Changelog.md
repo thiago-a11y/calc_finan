@@ -4,6 +4,42 @@
 
 ---
 
+## v0.56.0 — Suporte Completo aos Novos Agentes (01/Abr/2026)
+
+### Feature Principal
+Todos os 16 agentes do catálogo (incluindo Test Master, GitHub Master, GitBucket Master, Factory Optimizer) agora aparecem corretamente em todas as telas com ícones, cores e filtros adequados.
+
+### Corrigido
+- **`Catalogo.tsx`**: Ícones `GitBranch`, `TrendingUp`, `FlaskConical` adicionados ao mapa estático. Chips de filtro e paleta de cores para categorias `qualidade` (cyan), `infraestrutura` (sky), `otimizacao` (teal).
+- **`Atribuicoes.tsx`**: Mesmos ícones e cores. Categoria `qualidade` (#22d3ee) e `otimizacao` (#2dd4bf) mapeadas.
+- **`Skills.tsx`**: Perfis `diretor` (Factory Optimizer) e `arquiteto` adicionados à aba "Por Agente".
+- **`api/routes/catalogo.py`**: `CATEGORIAS_DISPONIVEIS` expandido com `qualidade`, `infraestrutura`, `otimizacao`.
+- **`Escritorio.tsx`**: Array `DK` expandido de 9 → 16 posições. Agentes 10–16 agora têm mesa, cadeira e espaço dedicado no escritório virtual (fileiras 4 e 5 adicionadas no eixo x 920–1060).
+
+### Agentes Afetados
+| ID | Nome | Categoria | Ícone |
+|----|------|-----------|-------|
+| 13 | Test Master — Principal Engineer de Testes | qualidade | ShieldCheck |
+| 14 | GitHub Master — Staff Engineer de Platform | infraestrutura | GitBranch |
+| 15 | GitBucket Master — Staff Engineer de Platform | infraestrutura | GitBranch |
+| 16 | Factory Optimizer — Meta-Analista de Sistemas IA | otimizacao | TrendingUp |
+
+---
+
+## v0.55.1 — Fix Mission Control URL em Produção (01/Abr/2026)
+
+### Corrigido
+- **`MissionControl.tsx` linha 16**: `VITE_API_URL || 'http://localhost:8000'` → `VITE_API_URL || ''`
+- Em produção, `VITE_API_URL` não está definida no build estático. O fallback `localhost:8000` tornava as chamadas à API inacessíveis do browser.
+- Com URL relativa (`''`), o Nginx faz proxy de `/api/` → porta 8000 corretamente.
+- Botão "Iniciar Mission Control" agora cria sessão e abre o painel triplo.
+
+### Infraestrutura
+- Criado `/etc/systemd/system/synerium-dashboard.service` no servidor para manter o `vite preview` ativo após reboot.
+- Problema diagnosticado: porta 5173 estava bloqueada pelo firewall Lightsail → URL correta é o domínio `https://synerium-factory.objetivasolucao.com.br`.
+
+---
+
 ## v0.55.0 — Code Studio 2.0: Mission Control (01/Abr/2026)
 
 ### Feature Principal
