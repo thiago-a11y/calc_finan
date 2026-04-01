@@ -55,6 +55,7 @@ PROVIDERS_REGISTRO = {
         "custo_1k_input": 0.0004,
         "system_role": False,
         "function_calling": False,
+        "vision": False,  # nao suporta image_url em content
         "streaming": True,
     },
     "groq": {
@@ -62,6 +63,7 @@ PROVIDERS_REGISTRO = {
         "custo_1k_input": 0.00059,
         "system_role": True,
         "function_calling": False,  # falha com tool_use_failed
+        "vision": False,  # Llama text-only no Groq
         "streaming": True,
     },
     "gpt4o_mini": {
@@ -69,6 +71,7 @@ PROVIDERS_REGISTRO = {
         "custo_1k_input": 0.00015,
         "system_role": True,
         "function_calling": True,
+        "vision": True,  # suporta image_url — mais barato com vision
         "streaming": True,
     },
     "fireworks": {
@@ -76,6 +79,7 @@ PROVIDERS_REGISTRO = {
         "custo_1k_input": 0.0009,
         "system_role": True,
         "function_calling": False,
+        "vision": False,  # Llama text-only
         "streaming": True,
     },
     "together": {
@@ -83,6 +87,7 @@ PROVIDERS_REGISTRO = {
         "custo_1k_input": 0.00088,
         "system_role": True,
         "function_calling": False,
+        "vision": False,  # Llama text-only
         "streaming": True,
     },
     "anthropic_sonnet": {
@@ -90,6 +95,7 @@ PROVIDERS_REGISTRO = {
         "custo_1k_input": 0.003,
         "system_role": True,
         "function_calling": True,
+        "vision": True,  # Claude Vision nativo
         "streaming": True,
     },
     "gpt4o": {
@@ -97,6 +103,7 @@ PROVIDERS_REGISTRO = {
         "custo_1k_input": 0.005,
         "system_role": True,
         "function_calling": True,
+        "vision": True,  # GPT-4o Vision nativo
         "streaming": True,
     },
     "anthropic_opus": {
@@ -104,6 +111,7 @@ PROVIDERS_REGISTRO = {
         "custo_1k_input": 0.015,
         "system_role": True,
         "function_calling": True,
+        "vision": True,  # Claude Vision nativo
         "streaming": True,
     },
 }
@@ -169,6 +177,7 @@ _RE_MEDIO = re.compile(
 def classificar_mensagem(
     mensagem: str,
     tem_tools: bool = False,
+    tem_imagem: bool = False,
     precisa_streaming: bool = False,
     historico_resumo: str = "",
 ) -> ProviderRecomendado:
@@ -178,6 +187,7 @@ def classificar_mensagem(
     Args:
         mensagem: Texto da mensagem do usuario.
         tem_tools: Se o contexto requer function calling (CrewAI com tools).
+        tem_imagem: Se a mensagem contem imagem (requer provider com vision).
         precisa_streaming: Se precisa de streaming (Luna chat).
         historico_resumo: Resumo do historico recente (opcional).
 
@@ -202,7 +212,15 @@ def classificar_mensagem(
         complexidade = NivelComplexidade.SIMPLES
 
     # --- Escolher provider pela matriz de decisao ---
-    if tem_tools:
+
+    # Se tem imagem, OBRIGATORIAMENTE usar provider com vision
+    if tem_imagem:
+        if complexidade == NivelComplexidade.COMPLEXO:
+            provider, motivo = "gpt4o", "complexo + imagem (vision)"
+        else:
+            # gpt4o_mini e o mais barato com vision
+            provider, motivo = "gpt4o_mini", f"{complexidade.value} + imagem (vision)"
+    elif tem_tools:
         if complexidade == NivelComplexidade.COMPLEXO:
             provider, motivo = "gpt4o", "complexo + tools"
         else:
@@ -216,7 +234,7 @@ def classificar_mensagem(
             provider, motivo = "minimax", "tarefa simples, mais barato"
 
     # --- Construir cadeia de fallback ---
-    cadeia = _construir_cadeia_fallback(provider, tem_tools)
+    cadeia = _construir_cadeia_fallback(provider, tem_tools, tem_imagem)
 
     modelo = PROVIDERS_REGISTRO[provider]["modelo"]
 
@@ -231,7 +249,7 @@ def classificar_mensagem(
     logger.info(
         f"[SMART ROUTER] Mensagem → Escolhido: {provider} ({modelo}) | "
         f"Motivo: {motivo} | Complexidade: {complexidade.value} | "
-        f"Tools: {tem_tools} | Matches: {matches_complexo}C/{matches_medio}M"
+        f"Tools: {tem_tools} | Imagem: {tem_imagem} | Matches: {matches_complexo}C/{matches_medio}M"
     )
 
     return resultado
@@ -240,10 +258,11 @@ def classificar_mensagem(
 def _construir_cadeia_fallback(
     provider_principal: str,
     tem_tools: bool,
+    tem_imagem: bool = False,
 ) -> list[str]:
     """
     Constroi cadeia de fallback ordenada por custo, excluindo providers
-    incompativeis com o contexto (tools, system_role).
+    incompativeis com o contexto (tools, vision, system_role).
 
     O provider principal fica primeiro, depois os demais por custo crescente.
     Anthropic fica no final (sem creditos atualmente).
@@ -257,6 +276,9 @@ def _construir_cadeia_fallback(
             continue
         # Se precisa de tools, excluir providers sem function_calling
         if tem_tools and not info["function_calling"]:
+            continue
+        # Se tem imagem, excluir providers sem vision
+        if tem_imagem and not info.get("vision", False):
             continue
         candidatos.append((pid, info["custo_1k_input"]))
 

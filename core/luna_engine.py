@@ -434,22 +434,29 @@ class LunaEngine:
             logger.warning(f"[Luna] Erro ao converter imagem: {e}")
             return None
 
-    def _decidir_modelo(self, mensagem: str, modelo_preferido: str = "auto") -> str | None:
+    def _decidir_modelo(self, mensagem: str, modelo_preferido: str = "auto", anexos: list | None = None) -> str | None:
         """
         Usa o Smart Router Dinamico para classificar a mensagem.
         Retorna "opus", "sonnet", "groq", "minimax" ou None (auto).
 
         v0.52.0: Tambem armazena a classificacao completa para uso no streaming.
         v0.52.1: Retorna provider recomendado pelo Smart Router (não apenas Anthropic).
+        v0.58.0: Detecta imagens nos anexos e forca provider com vision.
         """
         if modelo_preferido in ("opus", "sonnet"):
             return modelo_preferido
+
+        # v0.58.0: Detectar se tem imagem nos anexos
+        tem_imagem = any(
+            a.get("tipo") == "imagem" for a in (anexos or [])
+        )
 
         # v0.52.0: Usar classificador dinamico
         from core.classificador_mensagem import classificar_mensagem
         self._ultima_classificacao = classificar_mensagem(
             mensagem=mensagem,
             tem_tools=False,
+            tem_imagem=tem_imagem,
             precisa_streaming=True,
         )
 
@@ -521,8 +528,8 @@ class LunaEngine:
         db.add(msg_usuario)
         db.commit()
 
-        # Decidir modelo
-        forcar = self._decidir_modelo(conteudo, conversa.modelo_preferido)
+        # Decidir modelo (v0.58.0: passa anexos para detectar imagens → vision)
+        forcar = self._decidir_modelo(conteudo, conversa.modelo_preferido, anexos=anexos_json)
 
         # Montar histórico (inclui referência a anexos no contexto do LLM)
         mensagens = self._montar_mensagens(db, conversa_id, conteudo, anexos_json)
@@ -670,7 +677,8 @@ class LunaEngine:
         ).first()
         forcar = self._decidir_modelo(
             ultima_user.conteudo,
-            conversa.modelo_preferido if conversa else "auto"
+            conversa.modelo_preferido if conversa else "auto",
+            anexos=ultima_user.anexos,  # v0.58.0: detectar imagens na regeneracao
         )
         mensagens = self._montar_mensagens(db, conversa_id, ultima_user.conteudo)
 
