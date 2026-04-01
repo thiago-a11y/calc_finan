@@ -1,13 +1,14 @@
-/* Mission Control — Code Studio 2.0 (v0.57.1)
+/* Mission Control — Code Studio 2.0 (v0.57.5)
  *
  * Painel triplo: Editor + Terminal + Team Chat/Artifacts
  * Multi-agente com conversa visivel, planejamento, review
  *
- * v0.57.1:
- * - Team Chat: conversa em tempo real entre agentes
- * - Artifacts em modal grande expansivel (nunca fecham sozinhos)
- * - Planejamento visivel antes de codar
- * - Multi-agente com 4 fases: Planejamento → Discussao → Execucao → Review
+ * v0.57.5 — Visible Live Execution:
+ * - Typewriter effect: codigo aparece caractere a caractere no editor
+ * - Progress bar animada com texto descritivo + porcentagem
+ * - Icone de agente pulsante no header + badge "Em execucao" no chat
+ * - Terminal com comandos reais (npm build, pytest, eslint)
+ * - Fluxo fluido: editor nunca vazio, codigo aparece gradualmente
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
@@ -152,6 +153,12 @@ export default function MissionControl() {
   const [editorStreaming, setEditorStreaming] = useState(false)  // true = codigo sendo escrito
   const agentExecutandoRef = useRef(false)  // evita auto-save sobrescrever conteudo do agente
 
+  // Typewriter effect
+  const [editorAlvo, setEditorAlvo] = useState('')  // conteudo alvo (o que chegou do backend)
+  const [editorDisplay, setEditorDisplay] = useState('')  // conteudo exibido (digitando...)
+  const typewriterRef = useRef<number | null>(null)
+  const editorAlvoRef = useRef('')  // ref para evitar stale closure no rAF
+
   // Auto-save
   const [ultimoSave, setUltimoSave] = useState('')
   const [salvando, setSalvando] = useState(false)
@@ -210,15 +217,23 @@ export default function MissionControl() {
       if (editorData?.conteudo) {
         const isFromAgent = editorData.fonte === 'agente'
         if (isFromAgent) {
-          // Agente escreveu codigo — sempre atualizar, independente do que o usuario fez
-          setEditorConteudo(editorData.conteudo)
+          // Agente escreveu codigo — usar typewriter effect
           if (editorData.arquivo_ativo) setEditorArquivo(editorData.arquivo_ativo)
           setEditorFonteAgente(true)
           setEditorEditadoPeloUsuario(false)
           editorEditadoRef.current = false
+
+          // Se conteudo mudou, atualizar alvo do typewriter
+          if (editorData.conteudo !== editorAlvoRef.current) {
+            editorAlvoRef.current = editorData.conteudo
+            setEditorAlvo(editorData.conteudo)
+          }
         } else if (!editorEditadoRef.current) {
-          // Conteudo normal (auto-save ou inicial) — atualiza so se usuario nao editou
+          // Conteudo normal (auto-save ou inicial) — atualiza direto
           setEditorConteudo(editorData.conteudo)
+          setEditorDisplay(editorData.conteudo)
+          editorAlvoRef.current = editorData.conteudo
+          setEditorAlvo(editorData.conteudo)
           if (editorData.arquivo_ativo) setEditorArquivo(editorData.arquivo_ativo)
         }
       }
@@ -280,6 +295,49 @@ export default function MissionControl() {
   }, [sessao?.sessao_id, headers, editorConteudo, editorArquivo, terminalHistorico])
 
   /* ============================================================
+     Typewriter Effect — digita caractere a caractere quando agente escreve
+     ============================================================ */
+
+  useEffect(() => {
+    // Se nao ha agente escrevendo, ou conteudo ja alcancou o alvo, nada a fazer
+    if (!editorAlvo || editorAlvo === editorDisplay) {
+      // Se alcancou o alvo, sincronizar editorConteudo
+      if (editorAlvo && editorAlvo === editorDisplay) {
+        setEditorConteudo(editorAlvo)
+      }
+      return
+    }
+
+    // Se o alvo e menor que o display (novo conteudo completamente diferente), resetar
+    if (!editorAlvo.startsWith(editorDisplay.slice(0, Math.min(20, editorDisplay.length)))) {
+      setEditorDisplay('')
+      setEditorConteudo('')
+    }
+
+    // Animar: adicionar caracteres rapidamente
+    const CHARS_PER_FRAME = 8  // 8 chars por frame = ~480 chars/s a 60fps
+    const animate = () => {
+      setEditorDisplay(prev => {
+        const alvo = editorAlvoRef.current
+        if (prev.length >= alvo.length) {
+          setEditorConteudo(alvo)
+          return alvo
+        }
+        const next = alvo.slice(0, prev.length + CHARS_PER_FRAME)
+        setEditorConteudo(next)
+        return next
+      })
+    }
+
+    const timer = setInterval(animate, 16)  // ~60fps
+    typewriterRef.current = timer as unknown as number
+
+    return () => {
+      if (typewriterRef.current) clearInterval(typewriterRef.current)
+    }
+  }, [editorAlvo, editorDisplay])
+
+  /* ============================================================
      Polling sessao — sempre 2s para nao perder atualizacoes do agente
      (nao depende de sessao?.agentes_ativos para evitar restart a cada poll)
      ============================================================ */
@@ -329,10 +387,13 @@ export default function MissionControl() {
     if (!sessao || !instrucaoAgente.trim()) return
     setDisparandoAgente(true)
     setAbaDireita('chat') // Mudar para chat para ver a conversa
-    // Resetar estado do editor para receber conteudo do agente
+    // Resetar estado do editor para receber conteudo do agente (typewriter)
     setEditorEditadoPeloUsuario(false)
     editorEditadoRef.current = false
     setEditorFonteAgente(false)
+    setEditorAlvo('')
+    setEditorDisplay('')
+    editorAlvoRef.current = ''
     try {
       await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/agente`, {
         method: 'POST', headers,
@@ -497,9 +558,18 @@ export default function MissionControl() {
         {agentesExecutando.length > 0 && (
           <div className="flex items-center gap-2 ml-4">
             {agentesExecutando.map(a => (
-              <div key={a.id} className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs animate-pulse"
-                style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' }}>
-                <Bot className="w-3.5 h-3.5" /><span>{a.nome}</span><Loader2 className="w-3 h-3 animate-spin" />
+              <div key={a.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+                style={{
+                  background: 'rgba(16,185,129,0.2)',
+                  color: 'var(--sf-accent)',
+                  border: '1px solid rgba(16,185,129,0.3)',
+                  boxShadow: '0 0 12px rgba(16,185,129,0.15)',
+                }}>
+                <div className="agent-pulse" style={{ lineHeight: 0 }}>
+                  <Bot className="w-3.5 h-3.5" style={{ filter: 'drop-shadow(0 0 4px rgba(16,185,129,0.5))' }} />
+                </div>
+                <span>{a.nome}</span>
+                <Loader2 className="w-3 h-3 animate-spin" />
               </div>
             ))}
           </div>
@@ -523,21 +593,56 @@ export default function MissionControl() {
 
       {/* Instrucao do Agente + Barra de Progresso */}
       <div className="flex-shrink-0" style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+        {/* CSS para animacoes */}
+        <style>{`
+          @keyframes progressShimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+          }
+          @keyframes agentPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+          }
+          @keyframes dotBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+          }
+          .progress-shimmer {
+            background-size: 200% 100%;
+            animation: progressShimmer 2s linear infinite;
+          }
+          .agent-pulse {
+            animation: agentPulse 1.5s ease-in-out infinite;
+          }
+        `}</style>
+
         {/* Progress bar + LIVE toggle - aparece quando executa */}
         {agentesExecutando.length > 0 && (
-          <div className="px-4 pt-2">
+          <div className="px-4 pt-2 pb-1">
             <div className="flex items-center gap-2 mb-1.5">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--sf-accent)' }} />
-              <span className="text-xs font-medium" style={{ color: 'var(--sf-accent)' }}>
+              {/* Icone de agente pulsante */}
+              <div className="agent-pulse" style={{ lineHeight: 0 }}>
+                <Bot className="w-4 h-4" style={{ color: 'var(--sf-accent)', filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.6))' }} />
+              </div>
+              <span className="text-xs font-bold" style={{ color: 'var(--sf-accent)' }}>
                 {faseLabel ? `Fase ${faseAtual}/5 — ${faseLabel}` : 'Executando...'}
               </span>
               {editorStreaming && modoLive && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full animate-pulse font-bold"
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-1"
                   style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171' }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" style={{ animation: 'dotBlink 0.8s infinite' }} />
                   STREAMING
                 </span>
               )}
               <div className="flex-1" />
+              {/* Descricao textual do progresso */}
+              <span className="text-[10px] font-medium" style={{ color: 'var(--sf-text-secondary)' }}>
+                {faseAtual === 1 ? 'Analisando tarefa...' :
+                 faseAtual === 2 ? 'Equipe discutindo...' :
+                 faseAtual === 3 ? 'Gerando código...' :
+                 faseAtual === 4 ? 'Revisando qualidade...' :
+                 faseAtual === 5 ? 'Finalizando!' : 'Processando...'}
+              </span>
               {/* Botao LIVE toggle */}
               <button onClick={() => setModoLive(prev => !prev)}
                 className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all"
@@ -549,18 +654,20 @@ export default function MissionControl() {
                 <Radio className="w-3 h-3" style={modoLive ? { filter: 'drop-shadow(0 0 3px #10b981)' } : {}} />
                 LIVE
               </button>
-              <span className="text-[10px]" style={{ color: 'var(--sf-text-secondary)' }}>
+              <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--sf-accent)', minWidth: '32px', textAlign: 'right' }}>
                 {progressoAtual || 0}%
               </span>
             </div>
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--sf-bg)' }}>
-              <div className="h-full rounded-full transition-all duration-1000 ease-out"
+            {/* Barra de progresso mais grossa + shimmer */}
+            <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--sf-bg)' }}>
+              <div className="h-full rounded-full transition-all duration-700 ease-out progress-shimmer"
                 style={{
                   width: `${progressoAtual || 5}%`,
                   background: modoLive
-                    ? 'linear-gradient(90deg, #10b981, #60a5fa, #a78bfa)'
+                    ? 'linear-gradient(90deg, #10b981, #34d399, #60a5fa, #a78bfa, #10b981)'
                     : 'linear-gradient(90deg, var(--sf-accent), #60a5fa)',
-                  boxShadow: modoLive ? '0 0 12px rgba(16,185,129,0.5)' : '0 0 8px var(--sf-accent)',
+                  backgroundSize: '200% 100%',
+                  boxShadow: modoLive ? '0 0 16px rgba(16,185,129,0.6)' : '0 0 8px var(--sf-accent)',
                 }} />
             </div>
           </div>
@@ -620,16 +727,32 @@ export default function MissionControl() {
               <textarea className="absolute inset-0 p-3 font-mono text-sm resize-none outline-none" spellCheck={false}
                 style={{ background: '#1e1e2e', color: '#cdd6f4', border: 'none' }}
                 value={editorConteudo} onChange={e => { setEditorConteudo(e.target.value); setEditorEditadoPeloUsuario(true); editorEditadoRef.current = true; setEditorFonteAgente(false) }} />
-              {/* Cursor pulsante durante streaming LIVE */}
+              {/* Cursor pulsante + indicador durante streaming LIVE */}
               {editorStreaming && modoLive && (
-                <div className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded-lg"
-                  style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
-                  <span className="w-2 h-4 rounded-sm" style={{
+                <div className="absolute bottom-3 right-3 flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                  style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)', border: '1px solid rgba(16,185,129,0.3)' }}>
+                  <span className="w-2 h-5 rounded-sm" style={{
                     background: '#10b981',
-                    animation: 'pulse 0.6s infinite alternate',
-                    boxShadow: '0 0 8px #10b981',
+                    animation: 'pulse 0.5s infinite alternate',
+                    boxShadow: '0 0 10px #10b981',
                   }} />
-                  <span className="text-[10px] font-mono" style={{ color: '#10b981' }}>escrevendo...</span>
+                  <span className="text-[10px] font-mono font-bold" style={{ color: '#10b981' }}>
+                    escrevendo código
+                    <span style={{ animation: 'dotBlink 1s infinite' }}>...</span>
+                  </span>
+                  <span className="text-[9px] font-mono" style={{ color: '#6b7280' }}>
+                    {editorConteudo.split('\n').length} linhas
+                  </span>
+                </div>
+              )}
+              {/* Indicador "agente ativo" mesmo fora de streaming (fases 1, 2, 4) */}
+              {!editorStreaming && agentesExecutando.length > 0 && editorFonteAgente && (
+                <div className="absolute bottom-3 right-3 flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                  style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+                  <Loader2 className="w-3 h-3 animate-spin" style={{ color: '#fbbf24' }} />
+                  <span className="text-[10px] font-mono" style={{ color: '#fbbf24' }}>
+                    agente trabalhando...
+                  </span>
                 </div>
               )}
             </div>
@@ -646,6 +769,12 @@ export default function MissionControl() {
             <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
               style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
               <Terminal className="w-3.5 h-3.5" /><span className="font-medium">Terminal</span>
+              {agentesExecutando.length > 0 && (
+                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full animate-pulse"
+                  style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+                  <Loader2 className="w-2.5 h-2.5 animate-spin" /> ativo
+                </span>
+              )}
               <div className="flex-1" />
               <button onClick={() => setPainelMaximizado(painelMaximizado === 1 ? null : 1)} className="opacity-60 hover:opacity-100">
                 {painelMaximizado === 1 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -668,9 +797,19 @@ export default function MissionControl() {
                   )}
                 </div>
               ))}
+              {/* Cursor piscante no final quando agente executa */}
+              {agentesExecutando.length > 0 && (
+                <div className="flex items-center gap-1 mt-1">
+                  <span style={{ color: '#10b981' }}>$</span>
+                  <span className="w-2 h-3.5 rounded-sm" style={{
+                    background: '#10b981',
+                    animation: 'dotBlink 0.8s infinite',
+                  }} />
+                </div>
+              )}
               {terminalHistorico.length === 0 && (
                 <div style={{ color: '#484f58' }}>
-                  Terminal pronto. Agentes usam este painel para mostrar progresso.
+                  Terminal pronto. Agentes executam comandos reais aqui.
                 </div>
               )}
             </div>
@@ -727,11 +866,14 @@ export default function MissionControl() {
                 ) : chatMsgs.map(msg => {
                   const fase = FASE_COR[msg.fase] || null
                   const isSistema = msg.tipo === 'sistema'
+                  // Verificar se este agente esta executando agora
+                  const agenteAtivo = agentesExecutando.find(a => a.nome === msg.agente_nome)
                   return (
                     <div key={msg.id} className={`rounded-lg px-3 py-2 ${isSistema ? 'text-center' : ''}`}
                       style={{
                         background: isSistema ? 'rgba(107,114,128,0.08)' : fase?.bg || 'var(--sf-surface)',
-                        border: isSistema ? 'none' : '1px solid var(--sf-border-subtle)',
+                        border: isSistema ? 'none' : `1px solid ${agenteAtivo ? 'rgba(16,185,129,0.3)' : 'var(--sf-border-subtle)'}`,
+                        ...(agenteAtivo ? { boxShadow: '0 0 8px rgba(16,185,129,0.1)' } : {}),
                       }}>
                       {!isSistema && (
                         <div className="flex items-center gap-1.5 mb-1">
@@ -743,6 +885,13 @@ export default function MissionControl() {
                             </span>
                           )}
                           {msg.tipo === 'decisao' && <Zap className="w-3 h-3" style={{ color: '#fbbf24' }} />}
+                          {/* Badge "Em execucao" para agentes ativos */}
+                          {agenteAtivo && (
+                            <span className="flex items-center gap-1 text-[8px] px-1.5 py-0.5 rounded-full animate-pulse font-bold"
+                              style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981' }}>
+                              <Loader2 className="w-2.5 h-2.5 animate-spin" /> Em execução
+                            </span>
+                          )}
                           <span className="text-[9px] ml-auto" style={{ color: 'var(--sf-text-secondary)', opacity: 0.5 }}>
                             {msg.criado_em ? new Date(msg.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
                           </span>
