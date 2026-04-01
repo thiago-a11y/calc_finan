@@ -1,7 +1,25 @@
 # Pendencias do Ultimo Chat — 01/Abr/2026
 
-> Atualizado em 01/Abr/2026 (sessao 32 — v0.58.0)
-> Sessao 32: Agentes Multimodais Vision (v0.58.0). Sessao anterior: Visible Live Execution (v0.57.5).
+> Atualizado em 01/Abr/2026 (sessao 33 — v0.58.1)
+> Sessao 33: Vision real para agentes de squad (v0.58.1). Sessao anterior: Agentes Multimodais Vision (v0.58.0).
+
+## Sessao 33 (01/Abr/2026) — Vision Real para Agentes de Squad (v0.58.1)
+
+### O que foi feito
+
+#### v0.58.1 — Vision real para agentes de squad
+- [x] ChatFloating.tsx: envia anexos com URL real ao invés de texto placeholder
+- [x] tarefas.py: `_analisar_imagens_com_vision()` pré-processa imagens com GPT-4o-mini
+- [x] luna_engine.py: fix path resolution absoluto + fallback não-silencioso
+- [x] 4 arquivos alterados, 158 linhas adicionadas
+
+### Status atual
+- Versão: **v0.58.1**
+- Imagens pré-processadas com GPT-4o-mini vision antes de enviar ao agente
+- URLs reais de upload no ChatFloating (não mais placeholders)
+- Luna Engine com path absoluto e erro não-silencioso
+
+---
 
 ## Sessao 32 (01/Abr/2026) — Agentes Multimodais Vision (v0.58.0)
 

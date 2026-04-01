@@ -4,6 +4,28 @@
 
 ---
 
+## v0.58.1 — Vision Real para Agentes de Squad: Pré-processamento de Imagens (01/Abr/2026)
+
+### Problema
+O sistema roteava imagens para o Minimax (sem vision) mesmo após o fix v0.58.0. O classificador não recebia a flag `tem_imagem` corretamente em todos os pontos de entrada.
+
+### Solução: Pré-processamento com GPT-4o-mini Vision
+
+**ChatFloating (`dashboard/src/components/ChatFloating.tsx`)**
+- Envia anexos com URL real (upload pré-assinado) ao invés de texto placeholder
+- Permite que o backend processe a imagem corretamente
+
+**Tarefas Route (`api/routes/tarefas.py`)**
+- Nova função `_analisar_imagens_com_vision()`: pré-processa imagens com GPT-4o-mini vision antes de enviar ao agente
+- Extrai descrição textual da imagem para ser adicionada ao contexto da mensagem
+- Funciona como camada de segurança adicional (independentemente do classificador)
+
+**Luna Engine (`core/luna_engine.py`)**
+- Fix: path resolution absoluto para arquivos de imagem
+- Fallback não-silencioso: se falhar ao processar imagem, loga erro e continua (não quebra a conversa)
+
+---
+
 ## v0.58.0 — Agentes Multimodais (Vision): Roteamento Inteligente para Imagens (01/Abr/2026)
 
 ### Problema Resolvido
