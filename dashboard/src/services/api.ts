@@ -256,6 +256,7 @@ export const executarTarefa = (dados: {
   agente_indice: number
   descricao: string
   resultado_esperado?: string
+  anexos?: Array<{ nome_original: string; url: string; tipo: string; tamanho: number }>
 }) => post<TarefaResultado>('/tarefas/executar', dados)
 
 export const buscarHistoricoTarefas = (limite = 20) =>

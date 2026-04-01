@@ -107,23 +107,22 @@ export default function ChatFloating({
     setEnviando(true)
     try {
       let descricao = mensagem.trim()
-      if (anexos.length > 0) {
-        // Imagens: informar ao agente sem enviar URL (evita tokens excessivos)
-        // Documentos: enviar referencia normalmente
-        const listaAnexos = anexos.map(a => {
-          if (a.tipo === 'imagem') {
-            return `[Imagem anexada: ${a.nome_original} — o usuario enviou um screenshot/imagem para contexto visual]`
-          }
-          return `[Anexo: ${a.nome_original} (${a.url})]`
-        }).join('\n')
-        descricao = descricao
-          ? `${descricao}\n\nArquivos anexados:\n${listaAnexos}`
-          : `Arquivos anexados:\n${listaAnexos}`
+      // v0.58.1: Enviar anexos com URLs reais para o backend processar
+      // Imagens serao analisadas por vision LLM no backend
+      const anexosPayload = anexos.map(a => ({
+        nome_original: a.nome_original,
+        url: a.url,
+        tipo: a.tipo,
+        tamanho: a.tamanho || 0,
+      }))
+      if (anexos.length > 0 && !descricao) {
+        descricao = 'Analise os arquivos anexados.'
       }
       const resultado = await executarTarefa({
         squad_nome: squadNome,
         agente_indice: agenteIdx,
         descricao,
+        anexos: anexosPayload.length > 0 ? anexosPayload : undefined,
       })
       setHistorico(prev => [resultado, ...prev])
       setMensagem('')

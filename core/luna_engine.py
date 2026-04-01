@@ -299,6 +299,12 @@ class LunaEngine:
             url = a.get("url", "")
             tipo = a.get("tipo", "documento")
 
+            # v0.58.1: Se imagem falhou na conversao base64, informar ao LLM
+            erro_visao = a.get("_erro_visao")
+            if erro_visao:
+                partes.append(f"\n\n{erro_visao}")
+                continue
+
             # Extrair conteúdo REAL do arquivo
             conteudo_arquivo = extrair_conteudo_arquivo(url, nome, tipo)
 
@@ -358,10 +364,20 @@ class LunaEngine:
             for a in anexos:
                 tipo = a.get("tipo", "documento")
                 url = a.get("url", "")
+                nome = a.get("nome_original", "imagem")
                 if tipo == "imagem" and url:
                     b64 = self._imagem_para_base64(url)
                     if b64:
                         imagens_base64.append(b64)
+                        logger.info(f"[Luna] Imagem '{nome}' anexada ao contexto multimodal")
+                        continue
+                    else:
+                        # v0.58.1: Nao dropar silenciosamente — avisar que tinha imagem
+                        logger.warning(f"[Luna] Falha ao converter imagem '{nome}' — sera mencionada como texto")
+                        anexos_texto.append({
+                            **a,
+                            "_erro_visao": f"[IMAGEM ANEXADA: {nome} — o usuario enviou esta imagem mas houve erro ao processar. Pergunte ao usuario para descrever o que ele ve na imagem.]",
+                        })
                         continue
                 anexos_texto.append(a)
 
@@ -390,24 +406,30 @@ class LunaEngine:
 
         Returns:
             Data URI string (data:image/png;base64,...) ou None se falhar.
+
+        v0.58.1: Corrigido para usar caminho absoluto (igual luna_file_reader.py).
+        Antes usava Path("data") relativo ao CWD — falhava silenciosamente.
         """
         import base64
+        import os
         from pathlib import Path
 
         try:
-            # Resolver path absoluto do upload
+            # Resolver path absoluto do upload (v0.58.1: usa __file__ como ancora)
             if url_relativa.startswith("/uploads/"):
-                # Uploads ficam em data/uploads/ ou uploads/ relativo ao projeto
-                for base in ["data", "."]:
-                    caminho = Path(base) / url_relativa.lstrip("/")
-                    if caminho.is_file():
-                        break
-                else:
-                    logger.warning(f"[Luna] Imagem nao encontrada: {url_relativa}")
+                nome_arquivo = url_relativa.split("/")[-1]
+                # Caminho absoluto baseado na localizacao deste arquivo
+                upload_dir = Path(__file__).parent.parent / "data" / "uploads" / "chat"
+                if os.path.exists("/opt/synerium-factory"):
+                    upload_dir = Path("/opt/synerium-factory/data/uploads/chat")
+                caminho = upload_dir / nome_arquivo
+                if not caminho.is_file():
+                    logger.warning(f"[Luna] Imagem nao encontrada: {caminho} (url: {url_relativa})")
                     return None
             else:
                 caminho = Path(url_relativa)
                 if not caminho.is_file():
+                    logger.warning(f"[Luna] Imagem path invalido: {url_relativa}")
                     return None
 
             # Verificar tamanho (max 10MB para base64)
