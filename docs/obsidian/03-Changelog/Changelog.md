@@ -4,6 +4,31 @@
 
 ---
 
+## v0.57.6 — True Live Typing & Execution Feeling (01/Abr/2026)
+
+### True Live Typing no Editor
+- **Caractere por caractere**: delay variável (8-40ms) para simular digitação natural real
+  - Caracteres comuns: 15ms | Pontuação: 28ms | Newline: 40ms | Indentação: 8ms
+- **Cursor verde piscando**: 0.65s blink cycle com box-shadow glow (0 0 12px #10b981)
+- **Highlight de linha atual**: borda verde à esquerda + fundo sutil rgba(16,185,129,0.06)
+
+### Feedback Visual Forte
+- **Badge STREAMING**: glow vermelho pulsante (liveGlow animation, 0.8s)
+- **Badge "Em execução"**: glow verde forte (execBadgePulse animation, 1.2s)
+- **Barra de progresso**: glow intenso quando LIVE (box-shadow 0 0 24px rgba)
+- **Texto descritivo**: "⚡ Gerando código... Fase 3/5" com emoji
+- **Animação agent-pulse**: mais forte (0.8s, scale 1.3x, drop-shadow 8px)
+
+### Terminal Real
+- Cursor verde com texto "agente executando..." no final do terminal
+- Comandos reais: npm build, pytest, eslint, tsc --noEmit
+
+### Backend (streaming 2 linhas/200ms)
+- Mantido streaming em blocos de 2 linhas com 200ms de delay
+- Frontend faz character-by-character a partir dos chunks
+
+---
+
 ## v0.58.1 — Vision Real para Agentes de Squad: Pré-processamento de Imagens (01/Abr/2026)
 
 ### Problema

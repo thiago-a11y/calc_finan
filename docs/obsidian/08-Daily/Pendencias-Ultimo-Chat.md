@@ -1,7 +1,32 @@
 # Pendencias do Ultimo Chat — 01/Abr/2026
 
-> Atualizado em 01/Abr/2026 (sessao 33 — v0.58.1)
-> Sessao 33: Vision real para agentes de squad (v0.58.1). Sessao anterior: Agentes Multimodais Vision (v0.58.0).
+> Atualizado em 01/Abr/2026 (sessao 34 — v0.57.6)
+> Sessao 34: True Live Typing & Execution Feeling (v0.57.6). Sessao anterior: Vision real para agentes de squad (v0.58.1).
+
+## Sessao 34 (01/Abr/2026) — True Live Typing & Execution Feeling (v0.57.6)
+
+### O que foi feito
+
+#### v0.57.6 — True Live Typing & Execution Feeling
+- [x] True Live Typing: caractere por caractere no editor com delay variável (8-40ms)
+- [x] Cursor verde piscando com glow (0.65s blink cycle, box-shadow)
+- [x] Highlight de linha atual (borda verde + fundo sutil rgba)
+- [x] Badge STREAMING com glow vermelho pulsante
+- [x] Badge "Em execução" com glow verde forte
+- [x] Barra de progresso com glow intenso quando LIVE
+- [x] Texto descritivo "Fase X/5" com emoji
+- [x] Animação agent-pulse mais forte (0.8s, scale 1.3x)
+- [x] Cursor verde no terminal com texto "agente executando..."
+- [x] Build TypeScript passando
+- [x] Deploy em produção OK
+
+### Status atual
+- Versão: **v0.57.6** em produção
+- True Live Typing: digitação caractere por caractere com cursor verde
+- Execution feeling: todos os elementos pulsam, glow forte
+- Terminal: cursor verde com "agente executando..."
+
+---
 
 ## Sessao 33 (01/Abr/2026) — Vision Real para Agentes de Squad (v0.58.1)
 
