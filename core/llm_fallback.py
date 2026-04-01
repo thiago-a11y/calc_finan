@@ -173,6 +173,20 @@ def _criar_llm(provider: dict, max_tokens: int = 2000, temperature: float = 0.3)
         return None
 
 
+def _mensagens_tem_imagem(mensagens) -> bool:
+    """Detecta se alguma mensagem contem image_url (content multimodal). Safety net para vision."""
+    for msg in mensagens:
+        if hasattr(msg, 'content') and isinstance(msg.content, list):
+            for part in msg.content:
+                if isinstance(part, dict) and part.get("type") == "image_url":
+                    return True
+    return False
+
+
+# Providers que NAO suportam vision (image_url em content_parts)
+_PROVIDERS_SEM_VISION = {"minimax", "groq_llama", "fireworks_llama", "together_llama"}
+
+
 def chamar_llm_com_fallback(
     mensagens,
     max_tokens: int = 2000,
@@ -183,20 +197,25 @@ def chamar_llm_com_fallback(
     Chama LLM com fallback automatico. Retorna (resposta, provider_usado, modelo_usado).
 
     v0.53.1: Retry com backoff exponencial para rate limit (429).
-    - Rate limit → retry ate MAX_RETRIES vezes com backoff (2s, 4s, 8s)
-    - Erro de credito/auth → fallback direto para proximo provider
-    - Outro erro → fallback direto
-
-    Se classificacao (ProviderRecomendado) for fornecida, reordena a cadeia
-    conforme recomendacao do Smart Router Dinamico.
+    v0.58.0: Safety net — pula providers sem vision quando mensagem contem imagem.
     """
     from core.classificador_mensagem import adaptar_mensagens_para_provider
 
     cadeia = _reordenar_cadeia(classificacao) if classificacao else list(CADEIA_FALLBACK)
     primeiro = cadeia[0]["nome"]
 
+    # v0.58.0: Detectar imagem nas mensagens (safety net independente do classificador)
+    tem_imagem = _mensagens_tem_imagem(mensagens)
+    if tem_imagem:
+        logger.info("[FALLBACK] Imagem detectada nas mensagens — filtrando providers sem vision")
+
     erros = []
     for provider in cadeia:
+        # v0.58.0: Pular providers sem vision se mensagem contem imagem
+        if tem_imagem and provider["nome"] in _PROVIDERS_SEM_VISION:
+            logger.info(f"[FALLBACK] Pulando {provider['nome']} — nao suporta vision")
+            continue
+
         msgs = adaptar_mensagens_para_provider(mensagens, provider["nome"])
 
         llm = _criar_llm(provider, max_tokens, temperature)
@@ -246,15 +265,23 @@ async def chamar_llm_com_fallback_async(
     Versao async do fallback. Retorna (resposta, provider_usado, modelo_usado).
 
     v0.53.1: Retry com backoff exponencial para rate limit (429).
-    Se classificacao fornecida, reordena cadeia conforme Smart Router Dinamico.
+    v0.58.0: Safety net — pula providers sem vision quando mensagem contem imagem.
     """
     from core.classificador_mensagem import adaptar_mensagens_para_provider
 
     cadeia = _reordenar_cadeia(classificacao) if classificacao else list(CADEIA_FALLBACK)
     primeiro = cadeia[0]["nome"]
 
+    # v0.58.0: Detectar imagem nas mensagens (safety net)
+    tem_imagem = _mensagens_tem_imagem(mensagens)
+
     erros = []
     for provider in cadeia:
+        # v0.58.0: Pular providers sem vision se mensagem contem imagem
+        if tem_imagem and provider["nome"] in _PROVIDERS_SEM_VISION:
+            logger.info(f"[FALLBACK] Pulando {provider['nome']} — nao suporta vision (async)")
+            continue
+
         msgs = adaptar_mensagens_para_provider(mensagens, provider["nome"])
 
         llm = _criar_llm(provider, max_tokens, temperature)
