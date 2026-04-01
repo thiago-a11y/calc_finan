@@ -1439,6 +1439,48 @@ def cancelar_autonomo(
     return {"mensagem": "Workflow cancelado.", "status": "cancelado"}
 
 
+@router.post("/autonomo/{workflow_id}/reiniciar")
+def reiniciar_autonomo(
+    workflow_id: str,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """
+    Reinicia workflow com status 'erro' a partir da fase onde parou.
+    Permite reabrir atividades que falharam sem precisar criar nova.
+    """
+    wf = db.query(WorkflowAutonomoDB).filter_by(id=workflow_id).first()
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow nao encontrado.")
+
+    if wf.status not in ("erro", "cancelado"):
+        raise HTTPException(status_code=400, detail=f"Apenas workflows com erro ou cancelados podem ser reiniciados. Status atual: {wf.status}")
+
+    fase_reinicio = max(1, wf.fase_atual or 1)
+
+    # Limpar erro dos outputs mas manter fases ja concluidas
+    outputs = wf.outputs or {}
+    outputs.pop("erro", None)
+
+    wf.status = "em_execucao"
+    wf.outputs = outputs
+    wf.atualizado_em = datetime.utcnow()
+    db.commit()
+
+    # Disparar execucao em background
+    from api.dependencias import obter_fabrica
+    fabrica = obter_fabrica()
+    import threading
+    threading.Thread(
+        target=_executar_workflow_autonomo_bg,
+        args=(workflow_id, wf.squad_nome, wf.titulo, wf.descricao or "", fase_reinicio, fabrica),
+        daemon=True,
+    ).start()
+
+    logger.info(f"[AUTONOMO] Workflow {workflow_id} REINICIADO na fase {fase_reinicio} por {usuario.nome}")
+    return {"mensagem": f"Workflow reiniciado a partir da Fase {fase_reinicio}.", "status": "em_execucao", "fase": fase_reinicio}
+
+
 def _executar_workflow_autonomo_bg(
     workflow_id: str,
     squad_nome: str,

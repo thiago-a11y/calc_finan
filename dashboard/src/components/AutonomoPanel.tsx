@@ -1,8 +1,8 @@
 /* AutonomoPanel — Painel de progresso do Workflow Autonomo BMAD */
 
 import { useState, useEffect, useCallback } from 'react'
-import { Zap, Loader2, Check, X, AlertCircle, ChevronDown, ChevronRight, Clock, Pause } from 'lucide-react'
-import { buscarAutonomo, aprovarGate, cancelarAutonomo, type WorkflowAutonomo } from '../services/api'
+import { Zap, Loader2, Check, X, AlertCircle, ChevronDown, ChevronRight, Clock, Pause, RefreshCw } from 'lucide-react'
+import { buscarAutonomo, aprovarGate, cancelarAutonomo, reiniciarAutonomo, type WorkflowAutonomo } from '../services/api'
 
 interface Props {
   workflowId: string
@@ -251,6 +251,35 @@ export default function AutonomoPanel({ workflowId, onFechar }: Props) {
             style={{ background: 'var(--sf-accent)', color: '#fff' }}>
             Fechar
           </button>
+        </div>
+      )}
+
+      {/* Footer — Erro: mostrar causa + botão reiniciar */}
+      {workflow.status === 'erro' && (
+        <div className="px-4 py-3" style={{ borderTop: '1px solid rgba(239,68,68,0.3)' }}>
+          {workflow.outputs?.erro && (
+            <div className="mb-3 px-3 py-2 rounded-lg text-[10px] font-mono overflow-auto max-h-28"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5' }}>
+              <span className="font-bold text-red-400 block mb-1">Causa do erro:</span>
+              {workflow.outputs.erro}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button onClick={async () => {
+              try { await reiniciarAutonomo(workflow.id); atualizar() }
+              catch (e) { setErro(e instanceof Error ? e.message : 'Erro ao reiniciar') }
+            }}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:brightness-110"
+              style={{ background: '#f59e0b', color: '#000' }}>
+              <RefreshCw size={11} />
+              Reiniciar da Fase {workflow.fase_atual}
+            </button>
+            <button onClick={onFechar}
+              className="px-3 py-1.5 rounded-lg text-[11px]"
+              style={{ background: 'var(--sf-bg-2)', color: 'var(--sf-text-2)', border: '1px solid var(--sf-border-subtle)' }}>
+              Fechar
+            </button>
+          </div>
         </div>
       )}
     </div>
