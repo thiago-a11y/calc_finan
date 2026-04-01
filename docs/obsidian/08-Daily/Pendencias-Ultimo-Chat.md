@@ -21,9 +21,20 @@
 - [x] Build TypeScript passou sem erros
 - [x] Commit + push para `claude/condescending-einstein`
 
-### Status atual (01/Abr/2026 — v0.57.2)
-- Versão: **v0.57.2** — deploy em andamento
-- Execução agora 100% visível: progresso, código ao vivo, terminal do agente
+#### v0.57.3 — Modo LIVE
+- [x] Backend: `_escrever_codigo_no_editor(streaming=True/False)` — escrita progressiva em blocos de 4 linhas
+- [x] Backend: Fase 3 escreve código com `time.sleep(0.35)` entre chunks para efeito de digitação
+- [x] Frontend: `modoLive` state (default true) + `editorStreaming`
+- [x] Frontend: botão toggle LIVE verde na barra de progresso
+- [x] Frontend: polling dinâmico 1s (LIVE + executando) / 5s (normal)
+- [x] Frontend: badge LIVE vermelho pulsante no editor header durante streaming
+- [x] Frontend: indicador "escrevendo..." com cursor pulsante no canto do editor
+- [x] Build TypeScript passou sem erros
+- [x] Deploy em produção OK (synerium-factory.service active)
+
+### Status atual (01/Abr/2026 — v0.57.3)
+- Versão: **v0.57.3** em produção
+- Modo LIVE ligado por padrão — código aparece ao vivo no editor
 
 ---
 

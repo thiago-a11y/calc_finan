@@ -4,6 +4,26 @@
 
 ---
 
+## v0.57.3 — Modo LIVE: Código Streaming ao Vivo no Editor (01/Abr/2026)
+
+### Feature Principal
+Botão **LIVE** (verde, ligado por padrão) na barra de progresso. Quando ativado, o código aparece **ao vivo** no painel Editor — linha a linha, como se alguém estivesse digitando em tempo real. O frontend faz polling a cada 1s (vs 5s normal) e mostra indicadores visuais de streaming.
+
+### Backend
+- `_escrever_codigo_no_editor()` aceita flag `streaming: bool` — sinaliza ao frontend se ainda está escrevendo
+- **Streaming progressivo na Fase 3**: após receber o código do LLM, escreve em blocos de 4 linhas com 350ms de delay entre cada flush. Para 40 linhas = 10 flushes em ~3.5s de "digitação" visível
+- `painel_editor.streaming = True` durante escrita, `False` ao concluir
+
+### Frontend
+- **Botão toggle LIVE**: verde quando ativo, cinza quando desligado. Na barra de progresso (aparece só durante execução)
+- **Polling dinâmico**: 1s quando LIVE + agente executando, 5s caso contrário
+- **Badge "LIVE"** vermelho pulsante no header do editor durante streaming, com ícone Radio e glow
+- **Indicador "escrevendo..."** no canto inferior direito do editor: cursor verde pulsante
+- **Badge "STREAMING"** na barra de progresso quando o backend está enviando chunks
+- **Proteção**: se o usuário digitar manualmente no editor, o streaming não sobrescreve
+
+---
+
 ## v0.57.2 — Visible Execution: Progresso Real + Código ao Vivo (01/Abr/2026)
 
 ### Feature Principal
