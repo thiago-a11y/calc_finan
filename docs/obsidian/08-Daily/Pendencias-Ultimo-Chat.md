@@ -3,6 +3,29 @@
 > Atualizado em 01/Abr/2026 (sessao 28 — v0.57.1)
 > Sessao 28: Mission Control Session Persistence (v0.57.0) + Team Chat Multi-Agente + Artifact Modal (v0.57.1). Sessao anterior: Bug fixes críticos + suporte completo novos agentes (v0.56.0).
 
+## Sessao 30 (01/Abr/2026) — Fix Crítico Streaming ao Vivo (v0.57.4)
+
+### O que foi feito
+
+#### v0.57.4 — Root cause fix streaming
+- [x] Identificados 3 root causes que impediam o streaming de funcionar
+- [x] Backend: helpers com session isolada + flag_modified + deep copy + try/except
+- [x] Backend: auto_save_sessao preserva conteúdo do agente (não sobrescreve se fonte='agente')
+- [x] Backend: auto_save não sobrescreve terminal se agente tem entradas que frontend não recebeu
+- [x] Frontend: polling fixo 2s (sem sessao?.agentes_ativos nos deps)
+- [x] Frontend: agentExecutandoRef — auto-save pula quando agente executando
+- [x] Frontend: editorEditadoRef — closures sem stale state no carregarSessao
+- [x] Frontend: dispararAgente recarrega sessão imediatamente após dispatch
+- [x] Build TypeScript passou sem erros
+- [x] Deploy em produção: synerium-factory.service ativo
+
+### Status atual
+- Versão: **v0.57.4** em produção
+- Streaming ao vivo: funcionando (code aparece linha por linha no editor)
+- Barra de progresso: mostra fase real e %
+
+---
+
 ## Sessao 29 (01/Abr/2026) — Mission Control v0.57.2 — Visible Execution
 
 ### O que foi feito

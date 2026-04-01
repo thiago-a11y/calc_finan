@@ -4,6 +4,30 @@
 
 ---
 
+## v0.57.4 — Fix Crítico: Streaming ao Vivo Funcionando de Verdade (01/Abr/2026)
+
+### Bugs Corrigidos (3 root causes identificadas)
+
+**Bug #53 — SQLAlchemy JSON mutation não persistia** (causa raiz #1):
+- Os helpers `_atualizar_fase_agente`, `_escrever_codigo_no_editor`, `_adicionar_terminal_agente` compartilhavam a mesma `db` session de toda a execução. SQLAlchemy não detectava as mutações nos campos JSON, fazendo `db.commit()` não salvar nada.
+- Fix: cada helper cria sua própria `SessionLocal()`, usa `flag_modified()` explicitamente, e faz deep copy com `[dict(a) for a in list]`. try/except/finally em cada helper — uma falha não mata a execução.
+
+**Bug #54 — Auto-save sobrescrevia conteúdo do agente** (causa raiz #2):
+- O auto-save do frontend enviava `painel_editor: { conteudo: '// Selecione...', arquivo_ativo: '...' }` a cada 10s com o conteúdo INICIAL do editor, antes do poll ter atualizado o state.
+- Fix backend: se `painel_editor.fonte === 'agente'`, auto-save ignora o update (agente controla o editor).
+- Fix frontend: `agentExecutandoRef` — quando agente está executando, auto-save pula completamente.
+
+**Bug #55 — Polling reiniciava a cada poll** (causa raiz #3):
+- `useEffect` de polling tinha `sessao?.agentes_ativos` no deps array. Como `setSessao(data)` cria nova referência a cada poll, o effect reiniciava constantemente (clearInterval + setInterval), causando timing instável.
+- Fix: polling fixo de 2s, sem `sessao?.agentes_ativos` nos deps.
+
+### Outras melhorias
+- `dispararAgente`: recarrega sessão imediatamente após dispatch (antes esperava até 5s para ver a barra)
+- `carregarSessao`: lógica de update do editor simplificada — usa `editorEditadoRef` (useRef) para evitar stale closures
+- Terminal sempre atualizado do banco a cada poll (antes era condicional)
+
+---
+
 ## v0.57.3 — Modo LIVE: Código Streaming ao Vivo no Editor (01/Abr/2026)
 
 ### Feature Principal
