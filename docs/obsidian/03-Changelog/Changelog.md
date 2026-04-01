@@ -4,6 +4,30 @@
 
 ---
 
+## v0.57.2 — Visible Execution: Progresso Real + Código ao Vivo (01/Abr/2026)
+
+### Feature Principal
+O usuário agora VÊ a execução acontecendo: barra de progresso animada por fase ("Fase 2/5 — Discussão · 35%"), código aparecendo no editor conforme os agentes geram, e terminal mostrando cada passo dos agentes em tempo real. A sensação de "está acontecendo de verdade" foi completamente implementada.
+
+### Backend (`api/routes/mission_control.py`)
+- **`_atualizar_fase_agente()`** — novo helper que escreve `fase_atual`, `fase_label`, `progresso` no registro do agente dentro de `agentes_ativos`. Frontend detecta no polling a cada 5s.
+- **`_escrever_codigo_no_editor()`** — novo helper que persiste o código gerado diretamente em `painel_editor.conteudo` com flag `fonte: "agente"`. Frontend atualiza o editor automaticamente.
+- **`_adicionar_terminal_agente()`** — novo helper que insere entradas tipadas como `"tipo": "agente"` no `painel_terminal.historico`. Frontend as renderiza com ícone Bot verde.
+- Fluxo de progresso: Planejamento (10%) → Discussão (35%) → Execução (60%) → Review QA (85%) → Concluído (100%)
+- Durante Fase 3: escreve placeholder `"// ⚡ Gerando código..."` no editor imediatamente; ao concluir, substitui pelo código real
+- Após QA: terminal mostra parecer e contagem de itens do checklist
+
+### Frontend (`dashboard/src/pages/MissionControl.tsx`)
+- **Interfaces atualizadas**: `AgenteAtivo` com `fase_atual?`, `fase_label?`, `progresso?`; `TerminalEntry` com `tipo?: string`; `painel_editor` com `fonte?: string`
+- **Novos estados**: `editorFonteAgente` (badge "agente" no painel), `editorEditadoPeloUsuario` (protege edições manuais)
+- **Barra de progresso animada**: aparece acima do campo de instrução apenas durante execução — mostra fase atual, label e % com gradiente verde→azul e glow
+- **Editor ao vivo**: `carregarSessao` detecta `fonte === "agente"` e atualiza editor sem sobrescrever o que o usuário digitou manualmente
+- **Badge no editor**: "🤖 agente" pulsante quando há código do agente; "⚡ gerando..." durante Fase 3
+- **Terminal estilizado**: entradas do agente têm ícone `Bot` verde; entradas do usuário mantêm `$` azul; scroll automático quando agente adiciona entradas
+- **Botão "Rodar Testes"** no modal de artifact de código: executa `node --version` no terminal e exibe o resultado
+
+---
+
 ## v0.57.1 — Team Chat Multi-Agente + Artifact Modal Estavel (01/Abr/2026)
 
 ### Feature Principal

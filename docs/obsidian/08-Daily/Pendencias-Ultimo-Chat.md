@@ -3,6 +3,30 @@
 > Atualizado em 01/Abr/2026 (sessao 28 — v0.57.1)
 > Sessao 28: Mission Control Session Persistence (v0.57.0) + Team Chat Multi-Agente + Artifact Modal (v0.57.1). Sessao anterior: Bug fixes críticos + suporte completo novos agentes (v0.56.0).
 
+## Sessao 29 (01/Abr/2026) — Mission Control v0.57.2 — Visible Execution
+
+### O que foi feito
+
+#### v0.57.2 — Visible Execution
+- [x] `_atualizar_fase_agente()` — helper persiste fase/progresso em `agentes_ativos` a cada fase
+- [x] `_escrever_codigo_no_editor()` — helper persiste código gerado em `painel_editor` com `fonte: "agente"`
+- [x] `_adicionar_terminal_agente()` — helper insere entradas `tipo: "agente"` no terminal da sessão
+- [x] Progresso por fase: Planejamento (10%) → Discussão (35%) → Execução (60%) → QA Review (85%) → Concluído (100%)
+- [x] Fase 3: placeholder "Gerando..." no editor imediatamente; código real ao concluir
+- [x] Frontend: barra de progresso animada com gradiente + glow acima do campo de instrução
+- [x] Frontend: editor detecta `fonte === "agente"` e auto-atualiza (sem sobrescrever edições manuais)
+- [x] Frontend: badge "agente" pulsante no header do editor; "gerando..." durante Fase 3
+- [x] Frontend: terminal com ícone Bot verde para entradas do agente vs `$` azul para usuário
+- [x] Frontend: botão "Rodar Testes" no modal de artifact de código
+- [x] Build TypeScript passou sem erros
+- [x] Commit + push para `claude/condescending-einstein`
+
+### Status atual (01/Abr/2026 — v0.57.2)
+- Versão: **v0.57.2** — deploy em andamento
+- Execução agora 100% visível: progresso, código ao vivo, terminal do agente
+
+---
+
 ## Sessao 28 (01/Abr/2026) — Mission Control v0.57.0 + v0.57.1
 
 ### O que foi feito
