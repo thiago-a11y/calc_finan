@@ -1,7 +1,41 @@
-# Pendencias do Ultimo Chat — 31/Mar/2026
+# Pendencias do Ultimo Chat — 01/Abr/2026
 
-> Atualizado em 01/Abr/2026 (sessao 26 — v0.55.0)
-> Sessao anterior: Correcao Minimax + Smart Router Luna (v0.52.1). Sessao 26: Pipeline + Continuous Factory + Mission Control.
+> Atualizado em 01/Abr/2026 (sessao 27 — v0.56.0)
+> Sessao anterior: Continuous Factory + Mission Control (v0.54.0–v0.55.0). Sessao 27: Bug fixes críticos + suporte completo novos agentes.
+
+## Sessao 27 (01/Abr/2026) — Bug Fixes + Novos Agentes
+
+### O que foi feito
+
+#### Bugs corrigidos (3 críticos)
+- [x] **Bug #43 — Aprovação retornava Erro 500**: HTTPException(400) do Build Gate era capturada por `except Exception` genérico e re-lançada como 500. Fix: `except HTTPException: raise` antes do handler genérico em `api/routes/propostas.py`.
+- [x] **Bug #44 — Git Pull com conflito "unmerged files"**: Agente havia substituído `EditProposalModal.tsx` e `App.tsx` do SyneriumX por texto puro. Fix: `git checkout HEAD -- <arquivo>` nos dois arquivos afetados no servidor.
+- [x] **Bug #45 — Command Center sem detalhes de erro e sem reabrir**: Adicionado bloco de exibição de `outputs.erro` com monospace vermelho + botão "Reiniciar da Fase X" em `AutonomoPanel.tsx`. Novo endpoint `POST /tarefas/autonomo/{id}/reiniciar`.
+
+#### v0.55.1 — Mission Control URL fix
+- [x] `MissionControl.tsx`: `VITE_API_URL || 'http://localhost:8000'` → `VITE_API_URL || ''`
+- [x] Criado `/etc/systemd/system/synerium-dashboard.service` (vite preview porta 5173)
+- [x] Diagnóstico: porta 5173 bloqueada pelo Lightsail → URL correta é o domínio HTTPS
+
+#### v0.56.0 — Suporte completo novos agentes
+- [x] `Catalogo.tsx`: ícones `GitBranch`, `TrendingUp`, `FlaskConical` + filtros + cores para 3 novas categorias
+- [x] `Atribuicoes.tsx`: mesmos ícones + cores (`qualidade`, `otimizacao`, `operacional`)
+- [x] `Skills.tsx`: perfis `diretor` e `arquiteto` adicionados
+- [x] `api/routes/catalogo.py`: `CATEGORIAS_DISPONIVEIS` expandido
+- [x] `Escritorio.tsx`: `DK` de 9 → 16 posições (fileiras 4 e 5 com agentes 10–16)
+
+#### Deploy e infraestrutura
+- [x] Servidor Lightsail reiniciado (SSH daemon travado — UPSTREAM_ERROR 515)
+- [x] PRs #7, #8, #9 criados e mergeados em main
+- [x] Todos os deploys realizados via git pull + npm run build no servidor
+
+### Status atual (01/Abr/2026)
+- Versão: **v0.56.0** em produção
+- URL: `https://synerium-factory.objetivasolucao.com.br`
+- 16 agentes no catálogo, todos visíveis e atribuíveis
+- Escritório virtual suporta até 16 agentes por squad
+- Mission Control acessível em `/mission-control`
+- 3 bugs críticos resolvidos (Aprovação 500, Git Pull, Command Center)
 
 ## Resumo da sessao
 
@@ -213,40 +247,39 @@ Sessao mais produtiva da historia do Synerium Factory. 13 versoes entregues em u
 
 ## Status atual
 
-- Tudo em producao (AWS)
-- Versao atual: v0.54.0
+- Tudo em produção (AWS Lightsail — Virginia Zone A)
+- Versão atual: **v0.56.0**
+- URL: `https://synerium-factory.objetivasolucao.com.br`
 - Build Gate ativo — validação de build obrigatória antes de push
-- PR #2 mergeado na main (Smart Router + Minimax fix + Build Gate)
-- 16 agentes no catalogo (9 CEO + 3 Jonatas + 3 Elite + Factory Optimizer)
-- LLM Principal: **Minimax MiniMax-Text-01** (funcionando em producao)
+- PRs #7, #8, #9 mergeados em main
+- 16 agentes no catálogo (todos visíveis com ícones, filtros e cores corretos)
+- LLM Principal: **Minimax MiniMax-Text-01** (funcionando em produção)
 - Cadeia de fallback: Minimax → Groq → Fireworks → Together → Anthropic → OpenAI
 - Vision-to-Product operacional e testado no Command Center
-- Autonomous Squads com session isolada e fila automatica
+- Autonomous Squads com session isolada e fila automática
 - Code Studio completo: Company Context, Apply+Deploy, Push/PR/Merge, conversas separadas
-- Live Agents com animacoes de status no Escritorio Virtual
-- Chat resiliente com timeout de 30min e botoes de retomar conversa
-- Teste end-to-end aprovado: Fase 2→3→4 sem crash
+- Continuous Factory: modo 24/7 com auto-gates, relatório diário e notificações SES
+- Mission Control: painel triplo (Editor + Terminal + Artifacts) com agentes live
+- Escritório virtual suporta até 16 agentes por squad (DK expandido)
+- 3 bugs críticos resolvidos (Aprovação 500, Git Pull conflito, Command Center)
 
 ## Pendencias / Proximos passos
 
-- [ ] CrewAI com fallback (integrar llm_fallback.py no CrewAI para agentes)
-- [x] ~~Fila pos-gate~~ — Resolvido
-- [x] ~~Review pos-gate~~ — Resolvido
-- [x] ~~Minimax como LLM principal~~ — Resolvido (v0.51.0)
-- [ ] Testar integracao VCS com repositorio GitBucket real
-- [ ] Testar exclusao permanente de usuarios em producao
-- [ ] Atribuir agentes ao Marcos e Rhammon via dashboard
-- [ ] Testar solicitacao de agente por um usuario comum
-- [ ] Ajustar permissoes granulares para a pagina de Atribuicoes (so admin ve)
-- [ ] Mapear os 45 funcionarios da Objetiva e criar squads
-- [ ] Corrigir testes de integracao (mock do lifespan para CI)
+- [ ] Atribuir agentes ao Marcos, Rhammon e André via dashboard (usar tela Atribuições)
+- [ ] Testar solicitação de agente por usuário comum (fluxo de aprovação)
+- [ ] Mapear os 45 funcionários da Objetiva e criar squads personalizados
 - [ ] Manual completo do Synerium Factory (docs/obsidian/10-Manual/) — 12 capítulos planejados, prioridade alta
-- [ ] Melhorar escritorio: interacao com sala de reuniao (vidro transparente vendo agentes dentro)
-- [ ] Adicionar historico de conversas Luna ao RAG para contexto cruzado
-- [ ] Implementar sistema de migrations automaticas no bootstrap (Alembic ou ALTER TABLE strategy)
-- [ ] Implementar busca global no Code Studio (Ctrl+Shift+F)
-- [ ] Terminal integrado no Code Studio
-- [ ] Monitoramento de saude dos agentes (heartbeat)
+- [ ] Testar integração VCS com repositório GitBucket real (on-premise)
+- [ ] Melhorar escritório: sala de reunião com vidro transparente (ver agentes dentro)
+- [ ] Adicionar histórico de conversas Luna ao RAG para contexto cruzado
+- [ ] Implementar migrations automáticas no bootstrap (Alembic ou ALTER TABLE strategy)
+- [ ] Busca global no Code Studio (Ctrl+Shift+F)
+- [ ] Monitoramento de saúde dos agentes (heartbeat)
+- [ ] CrewAI com fallback integrado (llm_fallback.py no CrewAI)
+- [x] ~~Fila pós-gate~~ — Resolvido
+- [x] ~~Minimax como LLM principal~~ — Resolvido (v0.51.0)
+- [x] ~~Build Gate~~ — Resolvido (v0.52.2)
+- [x] ~~Atribuições de agentes com novos ícones/categorias~~ — Resolvido (v0.56.0)
 
 ## Teste End-to-End Vision-to-Product — APROVADO ✅
 - Visão: "Lançar PlaniFactory como SaaS em 90 dias"

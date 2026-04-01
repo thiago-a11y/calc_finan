@@ -94,4 +94,13 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 
 ---
 
-> Última atualização: 2026-03-31
+- **Bug #43** ✅ RESOLVIDO: `except Exception` genérico capturava `HTTPException(400)` do Build Gate em `propostas.py` e re-lançava como 500. Fix: adicionar `except HTTPException: raise` antes do handler genérico. Padrão obrigatório em toda rota FastAPI que chama validações que podem lançar HTTPException intencionalmente.
+- **Bug #44** ✅ RESOLVIDO: Agente IA substituiu arquivos React do SyneriumX (`EditProposalModal.tsx`, `App.tsx`) por texto puro, corrompendo build. O PR foi mergeado sem Build Gate detectar (o build estava passando parcialmente). Fix emergencial: `git checkout HEAD -- <arquivo>`. Lição: Build Gate deve rodar `tsc --noEmit` além de `vite build` para detectar arquivos corrompidos que ainda compilam.
+- **Bug #45** ✅ RESOLVIDO: Command Center não exibia causa do erro em workflows falhos e não tinha botão para reiniciar. Fix: `AutonomoPanel.tsx` exibe `outputs.erro` em bloco monospace vermelho + botão "Reiniciar da Fase X". Novo endpoint `POST /tarefas/autonomo/{id}/reiniciar` retorna ao estado `em_execucao` a partir da fase onde parou.
+- **Bug #46** ✅ RESOLVIDO: `MissionControl.tsx` usava `VITE_API_URL || 'http://localhost:8000'` como fallback. Em produção, a variável não está definida no build estático, tornando todas as chamadas à API inacessíveis do browser. Regra: sempre usar URL relativa (`''`) em componentes React — o Nginx faz o proxy.
+- **Bug #47** ✅ RESOLVIDO: Novos agentes (Test Master, GitHub/GitBucket Master, Factory Optimizer) não apareciam nos filtros do Catálogo nem com ícones corretos. Causa: `categoriasFiltro`, `categoriaCores` e `iconesMap` eram estáticos e não incluíam as novas categorias (`qualidade`, `infraestrutura`, `otimizacao`) nem os novos ícones (`GitBranch`, `TrendingUp`). Regra: ao adicionar novo agente com categoria/ícone novo, atualizar os mapas estáticos no frontend junto.
+- **Bug #48** ✅ RESOLVIDO: Escritório virtual com mais de 9 agentes empilhava todos os extras na posição `DK[0]`. Array `DK` tinha apenas 9 posições (3×3). Fix: expandido para 16 posições (4 fileiras).
+
+---
+
+> Última atualização: 2026-04-01
