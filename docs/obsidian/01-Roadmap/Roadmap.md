@@ -1,7 +1,7 @@
 # Roadmap — Synerium Factory
 
 > Fases de desenvolvimento da fábrica de SaaS da Objetiva.
-> Atualizado em: 01/04/2026 — v0.56.0
+> Atualizado em: 01/04/2026 — v0.57.5
 
 ---
 
@@ -184,6 +184,9 @@
 
 ## Concluídos Recentes
 
+- [x] Visible Live Execution — typewriter, shimmer, pulso, cursor piscante, streaming 2 linhas/200ms (v0.57.5)
+- [x] Fix crítico streaming ao vivo — session isolada, flag_modified, polling estável (v0.57.4)
+- [x] Modo LIVE no Mission Control — código ao vivo no editor (v0.57.3)
 - [x] Suporte completo novos agentes — categorias, ícones, Escritório 16 posições (v0.56.0)
 - [x] Fix Mission Control URL relativa em produção + systemd service (v0.55.1)
 - [x] 3 bugs críticos: Aprovação 500, Git Pull conflito, Command Center sem erro (v0.55.x)

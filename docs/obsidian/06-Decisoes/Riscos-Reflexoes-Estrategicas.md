@@ -124,4 +124,40 @@ Após deploy da Luna v0.16.2 (com anexos de arquivos), a produção retornou 500
 
 ---
 
-> Última atualização: 2026-03-27
+## #005 — Polling+DB vs WebSocket para Visible Execution (2026-04-01)
+
+### Contexto
+O Mission Control v0.57.2-v0.57.5 precisava mostrar execucao ao vivo: codigo aparecendo gradualmente no editor, barra de progresso animada, terminal com comandos reais. A latencia aceitavel e a arquitetura do backend (agentes em background threads) definiram as opcoes.
+
+### Opcoes
+1. **WebSocket** — Tempo real verdadeiro (<100ms). Complexidade: conexao persistente, reconexao, ping/pong, estado compartilhado entre thread do agente e conexao WS
+2. **SSE (Server-Sent Events)** — Unidirecional, bom para streaming. Complexidade: queue entre thread do agente e endpoint SSE, gerenciamento de conexoes ativas
+3. **Polling + DB** — Agente escreve no banco, frontend le a cada 2s. Zero infra nova
+
+### Decisao: Polling + DB
+- O agente ja persiste estado no banco (SQLAlchemy). Adicionar campos JSON (`agentes_ativos`, `painel_editor.fonte`) foi trivial
+- Frontend ja fazia polling para o Team Chat (2s). Reaproveitar o mesmo ciclo para sessao foi natural
+- Se o usuario recarregar a pagina, o estado completo esta no banco (resiliencia gratis)
+- Multiplas abas funcionam sem logica extra (cada uma faz seu polling independente)
+
+### Riscos identificados
+- **Latencia de ate 2s** entre agente escrever e frontend exibir (aceitavel para execucao de 2-3 min)
+- **Carga no banco** com polling de 2s por usuario ativo. Com 45 usuarios simultaneos = 22.5 queries/s no SQLite
+- **Stale data** se o polling falhar silenciosamente (mitigado: frontend exibe timestamp do ultimo update)
+
+### Mitigacao
+- Typewriter frontend mascara a latencia do polling (enquanto anima chars, proximo poll ja chegou)
+- SQLite suporta facilmente 100+ reads/s em disco SSD (Lightsail)
+- Se escalar para 200+ usuarios, migrar polling para SSE com Redis pub/sub como intermediario
+
+### Quando reconsiderar
+- Se a latencia de 2s for inaceitavel para algum caso de uso futuro (ex: pair programming ao vivo)
+- Se o numero de usuarios simultaneos ultrapassar 100 (carga de polling no SQLite)
+- Se implementar comunicacao bidirecional (usuario envia comandos enquanto agente executa)
+
+### Ponto sem retorno
+Nenhum — a interface do frontend (`carregarSessao`, `dispararAgente`) abstrai a fonte de dados. Trocar polling por WebSocket exige mudar apenas o transporte, nao a logica de UI. Decisao 100% reversivel.
+
+---
+
+> Ultima atualizacao: 2026-04-01

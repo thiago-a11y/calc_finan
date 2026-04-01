@@ -1,6 +1,6 @@
 # Code Studio 2.0 — Mission Control
 
-> Versão: v0.57.0 | Data: 01/Abr/2026
+> Versão: v0.57.5 | Data: 01/Abr/2026
 
 ## Visão Geral
 
@@ -60,6 +60,30 @@ Dashboard (/mission-control)
 - Barra de instrução de agente no topo
 - Agentes vivos com animação pulse no header
 - Artifacts expansíveis com comentários
+
+### Visible Live Execution (v0.57.5)
+
+O Mission Control oferece experiência visual completa de execução ao vivo:
+
+**Frontend — Efeitos visuais:**
+- **Typewriter**: caracteres aparecem gradualmente no editor (8 chars/frame a 60fps), não mais linhas inteiras
+- **Barra de progresso com shimmer**: gradiente animado via CSS keyframes + texto descritivo da fase + porcentagem
+- **Icone do agente pulsante**: animacao CSS pulse em todos os paineis durante execucao
+- **Badge "Em execucao"** nas mensagens do Team Chat
+- **Cursor piscante no terminal**: efeito de digitacao real via CSS keyframe `blink`
+- **Indicador de atividade** em todos os paineis simultaneamente
+
+**Backend — Streaming otimizado:**
+- Chunks de 2 linhas com delay de 200ms (era 4 linhas / 350ms)
+- Progresso granular dentro de cada fase (nao apenas nas transicoes)
+- Editor recebe conteudo desde a Fase 1 (scaffold -> plan -> code)
+- Comandos reais no terminal: `npm run build`, `pytest`, `eslint`, `tsc --noEmit`
+- Todas as fases geram entradas de terminal
+
+**Polling:**
+- Sessao: a cada 2s (era 5s)
+- Chat: a cada 2s (incremental via `?desde=timestamp`)
+- Auto-save: a cada 10s (pula quando agente executando via `agentExecutandoRef`)
 
 ### Models
 
@@ -138,4 +162,4 @@ class TeamChatDB(Base):
 | Artifacts tangíveis | Não | Sim, com checklist e planos |
 | Comentários inline | Não | Sim, estilo Google Docs |
 | Agentes vivos animados | Não | Sim, com pulse animation |
-| Background execution | Limitado | Full async com polling 5s |
+| Background execution | Limitado | Full async com polling 2s |
