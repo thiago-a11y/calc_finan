@@ -472,4 +472,34 @@ CSS keyframes sao preferidos a animacoes JavaScript porque:
 
 ---
 
+## Por que GPT-4o-mini como provider padrão para vision (não GPT-4o)?
+
+**Contexto (v0.58.0):** Quando o usuário envia imagem no Escritório Virtual, o sistema precisa rotear para um provider com suporte a vision. GPT-4o é o mais capaz em multimodal, mas custa 16x mais que GPT-4o-mini para input ($0.0025/1K vs $0.00015/1K).
+
+**Decisão:** GPT-4o-mini é o provider padrão para mensagens com imagem de complexidade SIMPLES e MEDIA. GPT-4o é reservado apenas para mensagens COMPLEXAS com imagem.
+
+**Motivos:**
+1. GPT-4o-mini suporta vision com qualidade suficiente para descrever capturas de tela, diagramas e fotos
+2. Custo 16x menor no input — com 45 squads enviando imagens, a diferença é significativa
+3. GPT-4o é reservado para análise multimodal complexa (arquitetura visual, debugging visual, comparação de layouts)
+
+**Alternativas descartadas:**
+- **Gemini 2.5 Flash** — Suporta vision e tem free tier, mas a qualidade de análise visual é inferior ao GPT-4o-mini em testes informais
+- **Claude Sonnet** — Excelente vision, mas custo 20x maior que GPT-4o-mini para input ($0.003/1K vs $0.00015/1K)
+
+## Por que rede de segurança dupla para vision (classificador + fallback)?
+
+**Contexto:** O roteamento de imagens tem dois mecanismos independentes:
+1. `classificador_mensagem.py` — flag `tem_imagem` filtra providers sem vision na cadeia de fallback
+2. `llm_fallback.py` — detecta `image_url` em `HumanMessage.content_parts` e pula providers sem vision
+
+**Por que não apenas um mecanismo?**
+- O classificador depende de `luna_engine.py` passar `tem_imagem=True` corretamente. Se um novo call site esquecer de passar, o classificador não filtra.
+- O fallback inspeciona as mensagens diretamente — funciona mesmo que nenhum código upstream sinalize `tem_imagem`.
+- Defense in depth: dois mecanismos independentes eliminam single point of failure no roteamento.
+
+**Trade-off aceito:** Código ligeiramente duplicado (detecção de imagem em dois lugares). Justificado pela criticidade — enviar imagem para Minimax gera experiência terrível para o usuário ("Não consigo interpretar imagens").
+
+---
+
 > Ultima atualizacao: 2026-04-01

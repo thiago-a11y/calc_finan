@@ -4,6 +4,41 @@
 
 ---
 
+## v0.58.0 — Agentes Multimodais (Vision): Roteamento Inteligente para Imagens (01/Abr/2026)
+
+### Problema Resolvido
+Usuário enviava imagem no Escritório Virtual → Smart Router encaminhava para Minimax (sem suporte a vision) → agente respondia "Não consigo interpretar imagens". Agora o sistema detecta imagens automaticamente e roteia para providers com suporte a vision.
+
+### Classificador de Mensagem (`core/classificador_mensagem.py`)
+- **Flag `vision` adicionada** a todos os 8 providers em `PROVIDERS_REGISTRO`: indica se o provider suporta imagens
+- **Novo parâmetro `tem_imagem`** na função `classificar_mensagem()`: quando `True`, força provider com vision
+- **Roteamento com imagem**: SIMPLES/MEDIO → GPT-4o-mini (vision, mais barato com suporte), COMPLEXO → GPT-4o (vision, máxima qualidade)
+- **Fallback chain filtrada**: quando `tem_imagem=True`, cadeia de fallback exclui providers sem vision automaticamente
+
+### Luna Engine (`core/luna_engine.py`)
+- **`_decidir_modelo()` aceita `anexos`**: detecta `tipo="imagem"` nos anexos e passa `tem_imagem=True` ao classificador
+- **Streaming e regeneração atualizados**: ambos os call sites de `_decidir_modelo()` passam anexos corretamente
+
+### LLM Fallback (`core/llm_fallback.py`)
+- **`_mensagens_tem_imagem()`**: helper que detecta `image_url` em `content_parts` de `HumanMessage` (LangChain)
+- **Sync + Async**: ambas as versões do fallback pulam Minimax, Groq, Fireworks e Together quando imagem detectada
+- **Rede de segurança independente**: funciona mesmo se o classificador não receber a flag `tem_imagem`
+
+### Providers com Vision
+| Provider | Vision | Modelo |
+|----------|--------|--------|
+| GPT-4o-mini | Sim | Mais barato com vision ($0.00015/1K input) |
+| GPT-4o | Sim | Máxima qualidade multimodal |
+| Claude Sonnet | Sim | Qualidade premium |
+| Claude Opus | Sim | Tarefas críticas |
+| Gemini 2.5 Flash | Sim | Free tier |
+| Minimax | **Não** | Texto apenas |
+| Groq | **Não** | Texto apenas |
+| Fireworks | **Não** | Texto apenas |
+| Together | **Não** | Texto apenas |
+
+---
+
 ## v0.57.5 — Visible Live Execution: Experiência Visual Completa (01/Abr/2026)
 
 ### Frontend (`dashboard/src/pages/MissionControl.tsx`)
