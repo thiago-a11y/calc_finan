@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.57.4 (01/Abr/2026)
+**Versão Atual:** v0.57.5 (01/Abr/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -464,6 +464,7 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.57.2** — **Visible Execution** — 3 novos helpers no backend (fase/progresso, código no editor, terminal do agente), barra de progresso animada por fase (10%→35%→60%→85%→100%), código aparece ao vivo no editor com badge "agente", terminal distingue entradas do agente (ícone Bot verde) vs usuário ($), proteção de edições manuais do CEO no editor, botão "Rodar Testes" no modal
 - **v0.57.3** — **Modo LIVE + Recovery de Agentes Órfãos** — Botão toggle LIVE (verde, default on) na barra de progresso, streaming progressivo de código no editor (4 linhas/flush, 350ms delay), polling dinâmico 1s em LIVE vs 5s normal, badge LIVE vermelho pulsante durante streaming, indicador "escrevendo..." com cursor pulsante, proteção contra sobrescrita de edições manuais. **Bug #52 corrigido**: `_recovery_agentes_orfaos()` executada no import do módulo — varre sessões ativas no startup e marca como erro agentes que ficaram travados em "executando" após `systemctl restart`
 - **v0.57.4** — **Fix Crítico Streaming ao Vivo** — 3 root causes corrigidas: session isolada por helper + flag_modified (Bug #53), auto-save protegido contra race condition com agente (Bug #54), polling estável sem restart a cada poll (Bug #55). Streaming ao vivo finalmente funciona.
+- **v0.57.5** — **Visible Live Execution** — Efeito typewriter no editor (caracteres graduais), barra de progresso com shimmer + texto descritivo + %, ícone do agente pulsante, badge "Em execução" no Team Chat, cursor piscante no terminal. Backend: chunks 2 linhas/200ms (era 4/350ms), progresso granular dentro das fases, comandos reais no terminal (npm run build, pytest, eslint, tsc), editor com conteúdo desde Fase 1 (scaffold→plan→code), mais entradas de terminal em todas as fases.
 
 ---
 

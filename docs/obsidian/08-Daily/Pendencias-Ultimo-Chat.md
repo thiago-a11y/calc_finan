@@ -1,7 +1,31 @@
 # Pendencias do Ultimo Chat — 01/Abr/2026
 
-> Atualizado em 01/Abr/2026 (sessao 28 — v0.57.1)
-> Sessao 28: Mission Control Session Persistence (v0.57.0) + Team Chat Multi-Agente + Artifact Modal (v0.57.1). Sessao anterior: Bug fixes críticos + suporte completo novos agentes (v0.56.0).
+> Atualizado em 01/Abr/2026 (sessao 31 — v0.57.5)
+> Sessao 31: Visible Live Execution (v0.57.5). Sessao anterior: Fix Crítico Streaming ao Vivo (v0.57.4).
+
+## Sessao 31 (01/Abr/2026) — Visible Live Execution (v0.57.5)
+
+### O que foi feito
+
+#### v0.57.5 — Visible Live Execution
+- [x] Frontend: efeito typewriter — caracteres aparecem gradualmente no editor
+- [x] Frontend: barra de progresso animada com shimmer + texto descritivo + porcentagem
+- [x] Frontend: ícone do agente pulsante durante execução
+- [x] Frontend: badge "Em execução" nas mensagens do Team Chat
+- [x] Frontend: cursor piscante no terminal (efeito de digitação)
+- [x] Frontend: indicador de atividade do agente em todos os painéis
+- [x] Backend: chunks de streaming reduzidos de 4→2 linhas, delay de 350ms→200ms
+- [x] Backend: progresso granular dentro das fases (não apenas nas transições)
+- [x] Backend: comandos reais no terminal (npm run build, pytest, eslint, tsc --noEmit)
+- [x] Backend: editor mostra conteúdo desde a Fase 1 (scaffold → plan → code)
+- [x] Backend: mais entradas de terminal em todas as fases
+
+### Status atual
+- Versão: **v0.57.5**
+- Experiência visual completa: typewriter, shimmer, pulso, cursor piscante
+- Streaming mais fluido (2 linhas, 200ms)
+
+---
 
 ## Sessao 30 (01/Abr/2026) — Fix Crítico Streaming ao Vivo (v0.57.4)
 
