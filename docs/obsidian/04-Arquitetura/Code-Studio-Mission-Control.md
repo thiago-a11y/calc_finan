@@ -77,6 +77,51 @@ Dashboard (/mission-control)
 | screenshot | Captura de tela do navegador | Eye |
 | markdown | Documentação ou notas | FileText |
 
+## Team Chat Multi-Agente (v0.57.1)
+
+### Visão geral
+O Painel 3 do Mission Control agora tem duas abas: **Team Chat** e **Artifacts**. O Team Chat exibe em tempo real a conversa entre os agentes enquanto trabalham — o CEO assiste ao vivo ao planejamento, debate e execução.
+
+### Fluxo de 4 Fases
+```
+Instrução do CEO → Tech Lead (plano) → Discussão (Backend+Frontend+QA) → Execução (código) → Review (checklist)
+```
+
+| Fase | Agente | Output | Artifact |
+|------|--------|--------|---------|
+| Planejamento | Tech Lead | JSON com etapas e riscos | PLANO |
+| Discussão | Backend Dev, Frontend Dev, QA | Parecer técnico individual | — |
+| Execução | Tech Lead | Código gerado | CODIGO |
+| Review | QA Engineer | Checklist de qualidade | CHECKLIST |
+
+### Model: TeamChatDB
+```python
+class TeamChatDB(Base):
+    sessao_id: str          # FK para MissionControlSessaoDB
+    agente_nome: str        # "Tech Lead", "Backend Dev", etc.
+    tipo: str               # "sistema" | "mensagem" | "acao"
+    conteudo: str           # Texto completo da mensagem
+    fase: str               # "planejamento"|"discussao"|"execucao"|"review"|"conclusao"
+    dados_extra: JSON       # Metadados extras (NÃO "metadata" — reservado pelo SQLAlchemy)
+    company_id: int
+    criado_em: datetime
+```
+
+### Endpoint de Polling
+- `GET /api/mission-control/sessao/{id}/chat?desde=2026-04-01T12:00:00` — retorna apenas mensagens criadas após o timestamp informado. Frontend chama a cada 2s para atualização incremental sem duplicação.
+
+### Frontend — Painel 3 (Abas)
+- **Team Chat**: badges coloridos por fase, ícones distintos por agente, scroll automático, mensagens de sistema centralizadas
+- **Artifacts**: lista clicável, clique abre modal full-size. Modal com botões: "Aplicar no Editor", "Copiar", "Download"
+- Auto-switch para aba Team Chat quando agente é disparado
+
+### Artifact Modal
+- Nunca fecha sozinho — apenas via botão X ou clique fora do overlay
+- Tamanho máximo `max-w-4xl` para legibilidade de código
+- "Aplicar no Editor": copia conteúdo diretamente para o `<textarea>` do editor
+
+---
+
 ## Segurança
 
 - Comandos destrutivos bloqueados (rm -rf, mkfs, shutdown, etc)

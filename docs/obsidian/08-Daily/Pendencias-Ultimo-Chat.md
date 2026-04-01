@@ -1,7 +1,52 @@
 # Pendencias do Ultimo Chat — 01/Abr/2026
 
-> Atualizado em 01/Abr/2026 (sessao 27 — v0.56.0)
-> Sessao anterior: Continuous Factory + Mission Control (v0.54.0–v0.55.0). Sessao 27: Bug fixes críticos + suporte completo novos agentes.
+> Atualizado em 01/Abr/2026 (sessao 28 — v0.57.1)
+> Sessao 28: Mission Control Session Persistence (v0.57.0) + Team Chat Multi-Agente + Artifact Modal (v0.57.1). Sessao anterior: Bug fixes críticos + suporte completo novos agentes (v0.56.0).
+
+## Sessao 28 (01/Abr/2026) — Mission Control v0.57.0 + v0.57.1
+
+### O que foi feito
+
+#### v0.57.0 — Persistência de Sessões
+- [x] `PATCH /api/mission-control/sessao/{id}/save` — auto-save a cada 10s (editor + terminal)
+- [x] Tela de sessões recentes com "Retomar" e "Nova Sessão"
+- [x] URL com ID: `/mission-control/:sessionId` (rota adicionada em App.tsx)
+- [x] Auto-save indica "Salvo HH:MM" no header com spinner
+- [x] Editor `<pre>` → `<textarea>` editável com monospace
+
+#### v0.57.1 — Team Chat + Modal de Artifacts
+- [x] `TeamChatDB` model criado (campo `dados_extra` — NOT `metadata`, reservado pelo SQLAlchemy)
+- [x] `GET /api/mission-control/sessao/{id}/chat?desde=...` — polling incremental a cada 2s
+- [x] `_executar_agente_mission_control()` reescrito: 4 fases com 4 agentes distintos
+  - Fase 1: Tech Lead → plano JSON → artifact PLANO
+  - Fase 2: Backend Dev + Frontend Dev + QA Engineer → pareceres técnicos
+  - Fase 3: Tech Lead → código real → artifact CODIGO
+  - Fase 4: QA Engineer → checklist → artifact CHECKLIST
+- [x] Painel 3 com abas: Team Chat | Artifacts
+- [x] Team Chat com ícones por agente, badges de fase coloridos, scroll automático
+- [x] Artifact modal: nunca fecha sozinho, max-w-4xl, botões "Aplicar no Editor" / "Copiar" / "Download"
+- [x] Bug #49: `metadata` reservado → renomeado para `dados_extra`
+- [x] Bug #50: string raw como classificação → `classificar_mensagem()` em todos os pontos
+- [x] Bug #51: import `FileText` desnecessário → removido (build TypeScript passando)
+
+#### Teste de Integração Completo — APROVADO ✅
+- Sessão `17f4adb17602`: instrução "Crie componente de Login com validação de email..."
+- 14 mensagens no Team Chat com 4 agentes participando
+- 3 artifacts gerados: PLANO + CODIGO + CHECKLIST
+- Polling 2s funcionando sem duplicações
+- Modal de artifact funcionando com "Aplicar no Editor"
+
+#### Deploy
+- [x] `git push` + `git pull` no servidor + `npm run build` + `systemctl restart synerium-api`
+- [x] PR #10 criado e mergeado em main
+
+### Status atual (01/Abr/2026 — v0.57.1)
+- Versão: **v0.57.1** em produção
+- URL: `https://synerium-factory.objetivasolucao.com.br`
+- Mission Control com Team Chat ao vivo, 4 fases multi-agente, session persistence
+- 3 bugs novos resolvidos (#49, #50, #51)
+
+---
 
 ## Sessao 27 (01/Abr/2026) — Bug Fixes + Novos Agentes
 

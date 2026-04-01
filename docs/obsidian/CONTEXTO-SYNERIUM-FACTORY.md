@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.57.0 (01/Abr/2026)
+**Versão Atual:** v0.57.1 (01/Abr/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -459,6 +459,8 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.55.0** — **Mission Control** — Painel triplo Editor+Terminal+Artifacts, agentes live animados, comentários inline estilo Google Docs, 8 endpoints REST, ArtifactDB + MissionControlSessaoDB
 - **v0.55.1** — **Fix Mission Control Produção** — URL relativa para API (`VITE_API_URL || ''`), systemd service para dashboard, diagnóstico porta 5173 bloqueada pelo Lightsail
 - **v0.56.0** — **Suporte Completo Novos Agentes** — Ícones GitBranch/TrendingUp/FlaskConical, categorias qualidade/infraestrutura/otimizacao com cores nos filtros, perfis diretor/arquiteto na Skills, CATEGORIAS_DISPONIVEIS expandido, Escritório DK 9→16 posições (agentes 10–16 têm mesa própria), 3 bugs críticos resolvidos (Aprovação 500, Git Pull conflito, Command Center reiniciar workflow)
+- **v0.57.0** — **Mission Control Session Persistence** — Auto-save a cada 10s (editor+terminal), tela de sessões recentes com "Retomar", URL `/mission-control/:sessionId`, endpoint PATCH /save, editor `<pre>`→`<textarea>`, indicador "Salvo HH:MM"
+- **v0.57.1** — **Team Chat Multi-Agente + Artifact Modal** — TeamChatDB, 4 fases multi-agente (Tech Lead+Backend+Frontend+QA), polling GET /chat a cada 2s, Painel 3 com abas Team Chat|Artifacts, modal estável (não fecha sozinho) com botões Aplicar/Copiar/Download, 3 bugs corrigidos (#49 metadata reservado, #50 string como ProviderRecomendado, #51 import TypeScript desnecessário), teste integração APROVADO (14 mensagens, 3 artifacts)
 
 ---
 
