@@ -13,7 +13,7 @@ import type { AgenteCatalogo, PerfilDisponivel, Usuario } from '../types'
 import {
   Bot, Plus, X, Users, Search, Code2, Server, Palette, Brain,
   Plug, Cloud, ShieldCheck, ClipboardList, FileText, SearchCode,
-  Network, Lock,
+  Network, Lock, GitBranch, TrendingUp, FlaskConical, Wrench,
 } from 'lucide-react'
 
 /* --- Mapa estático de ícones lucide (fallback: Bot) --- */
@@ -21,6 +21,7 @@ import {
 const iconesMap: Record<string, typeof Bot> = {
   Code2, Server, Palette, Brain, Plug, Cloud, ShieldCheck,
   ClipboardList, FileText, SearchCode, Network, Lock, Bot,
+  GitBranch, TrendingUp, FlaskConical, Wrench,
 }
 
 function IconeDinamico({ nome, size = 20, className = '' }: { nome: string; size?: number; className?: string }) {
@@ -31,11 +32,14 @@ function IconeDinamico({ nome, size = 20, className = '' }: { nome: string; size
 /* --- Cores por categoria --- */
 
 const categoriaCores: Record<string, { bg: string; text: string; border: string }> = {
-  desenvolvimento: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
-  gestao:          { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
-  seguranca:       { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/20' },
-  ia:              { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' },
+  desenvolvimento: { bg: 'bg-blue-500/10',    text: 'text-blue-400',    border: 'border-blue-500/20' },
+  gestao:          { bg: 'bg-purple-500/10',  text: 'text-purple-400',  border: 'border-purple-500/20' },
+  seguranca:       { bg: 'bg-red-500/10',     text: 'text-red-400',     border: 'border-red-500/20' },
+  ia:              { bg: 'bg-amber-500/10',   text: 'text-amber-400',   border: 'border-amber-500/20' },
   operacional:     { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
+  qualidade:       { bg: 'bg-cyan-500/10',    text: 'text-cyan-400',    border: 'border-cyan-500/20' },
+  infraestrutura:  { bg: 'bg-sky-500/10',     text: 'text-sky-400',     border: 'border-sky-500/20' },
+  otimizacao:      { bg: 'bg-teal-500/10',    text: 'text-teal-400',    border: 'border-teal-500/20' },
 }
 
 function corCategoria(cat: string) {
@@ -45,12 +49,15 @@ function corCategoria(cat: string) {
 /* --- Categorias disponíveis para filtro --- */
 
 const categoriasFiltro = [
-  { id: 'todas', label: 'Todas' },
+  { id: 'todas',         label: 'Todas' },
   { id: 'desenvolvimento', label: 'Desenvolvimento' },
-  { id: 'gestao', label: 'Gestão' },
-  { id: 'seguranca', label: 'Segurança' },
-  { id: 'ia', label: 'IA' },
-  { id: 'operacional', label: 'Operacional' },
+  { id: 'gestao',        label: 'Gestão' },
+  { id: 'seguranca',     label: 'Segurança' },
+  { id: 'ia',            label: 'IA' },
+  { id: 'operacional',   label: 'Operacional' },
+  { id: 'qualidade',     label: 'Qualidade' },
+  { id: 'infraestrutura', label: 'Infraestrutura' },
+  { id: 'otimizacao',    label: 'Otimização' },
 ]
 
 /* --- Classes reutilizáveis --- */

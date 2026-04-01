@@ -60,6 +60,7 @@ PERFIS_DISPONIVEIS = [
 
 CATEGORIAS_DISPONIVEIS = [
     "desenvolvimento", "gestao", "seguranca", "ia", "operacional", "geral",
+    "qualidade", "infraestrutura", "otimizacao",
 ]
 
 
