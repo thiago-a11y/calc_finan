@@ -422,6 +422,8 @@ def _executar_agente_mission_control(
         # ── FASE 1: PLANEJAMENTO (Tech Lead) ──
 
         _chat_msg(db, sessao_id, "Sistema", f"Nova tarefa recebida: {instrucao[:200]}", tipo="sistema", fase="planejamento")
+        _atualizar_fase_agente(db, sessao_id, agente_id, 1, "Planejamento", 10)
+        _adicionar_terminal_agente(db, sessao_id, "# 🏗️ Tech Lead: analisando tarefa...", f"Tarefa: {instrucao[:200]}")
         _chat_msg(db, sessao_id, "Tech Lead", "Analisando a tarefa... Vou montar o plano de execucao.", tipo="planejamento", fase="planejamento")
 
         plan_system = (
@@ -469,6 +471,8 @@ def _executar_agente_mission_control(
 
         # ── FASE 2: DISCUSSAO (cada agente opina) ──
 
+        _atualizar_fase_agente(db, sessao_id, agente_id, 2, "Discussão", 35)
+        _adicionar_terminal_agente(db, sessao_id, "# 💬 Equipe: revisando plano...", f"Etapas identificadas: {len(etapas)}")
         _chat_msg(db, sessao_id, "Sistema", "Fase de discussao iniciada — agentes analisando o plano.", tipo="sistema", fase="discussao")
 
         for ag in EQUIPE_AGENTES[1:]:  # Pula Tech Lead (ja falou)
@@ -493,6 +497,10 @@ def _executar_agente_mission_control(
 
         # ── FASE 3: EXECUCAO (gerar artifacts concretos) ──
 
+        _atualizar_fase_agente(db, sessao_id, agente_id, 3, "Execução", 60)
+        _adicionar_terminal_agente(db, sessao_id, "# ⚡ Backend Dev: gerando implementação...", "Aguardando LLM...")
+        # Sinalizar editor: código a caminho
+        _escrever_codigo_no_editor(db, sessao_id, f"// ⚡ Gerando código para: {instrucao[:100]}\n// Aguarde...", "gerando.tsx")
         _chat_msg(db, sessao_id, "Sistema", "Fase de execucao — agentes gerando entregaveis.", tipo="sistema", fase="execucao")
         _chat_msg(db, sessao_id, "Tech Lead", "Plano aprovado pela equipe. Iniciando execucao.", tipo="decisao", fase="execucao")
 
@@ -530,11 +538,22 @@ def _executar_agente_mission_control(
                 codigo, dados={"arquivo": arquivo, "linguagem": dados_code.get("linguagem", ""), "descricao": descricao},
                 agente_nome="Backend Dev", usuario_id=usuario_id, company_id=company_id,
             )
+            # Escrever codigo no editor — frontend vai detectar e exibir
+            _escrever_codigo_no_editor(db, sessao_id, codigo, arquivo)
+            # Terminal: simular verificação de sintaxe
+            _adicionar_terminal_agente(
+                db, sessao_id,
+                f"# ✅ Código gerado: {arquivo}",
+                f"Linhas: {len(codigo.splitlines())}\nArquivo: {arquivo}\nPor: Backend Dev",
+                True,
+            )
         except Exception as e_code:
             _chat_msg(db, sessao_id, "Backend Dev", f"Erro ao gerar codigo: {str(e_code)[:200]}", tipo="alerta", fase="execucao")
 
         # ── FASE 4: REVIEW (QA) ──
 
+        _atualizar_fase_agente(db, sessao_id, agente_id, 4, "Review QA", 85)
+        _adicionar_terminal_agente(db, sessao_id, "# 🛡️ QA Engineer: executando review...", "Analisando código e gerando checklist...")
         _chat_msg(db, sessao_id, "Sistema", "Fase de review — QA analisando entregaveis.", tipo="sistema", fase="review")
 
         review_system = (
@@ -572,12 +591,20 @@ def _executar_agente_mission_control(
                     dados={"items": checklist, "parecer": parecer, "observacoes": obs},
                     agente_nome="QA Engineer", usuario_id=usuario_id, company_id=company_id,
                 )
+            _adicionar_terminal_agente(
+                db, sessao_id,
+                f"# ✅ QA Review: {parecer.upper()}",
+                f"Checklist: {len(checklist)} itens\nParecer: {parecer}\n{obs[:200]}",
+                parecer in ("aprovado", "pendente"),
+            )
         except Exception as e_qa:
             _chat_msg(db, sessao_id, "QA Engineer", f"Erro no review: {str(e_qa)[:200]}", tipo="alerta", fase="review")
 
         # ── CONCLUSAO ──
 
         _chat_msg(db, sessao_id, "Sistema", "Tarefa concluida — todos os entregaveis gerados.", tipo="sistema", fase="conclusao")
+        _atualizar_fase_agente(db, sessao_id, agente_id, 5, "Concluído", 100)
+        _adicionar_terminal_agente(db, sessao_id, "# 🚀 Missão concluída!", f"Artifacts: Plano + Código + Checklist QA\nTarefa: {instrucao[:100]}", True)
 
         sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
         if sessao:
@@ -693,6 +720,56 @@ def _chat_msg(db: Session, sessao_id: str, agente: str, conteudo: str, tipo: str
     db.add(msg)
     db.commit()
     return msg
+
+
+def _atualizar_fase_agente(db: Session, sessao_id: str, agente_id: str, fase_num: int, fase_label: str, progresso: int):
+    """Atualiza fase e progresso do agente na sessao para o frontend ver em tempo real."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+    if sessao:
+        ativos = list(sessao.agentes_ativos or [])
+        for a in ativos:
+            if a.get("id") == agente_id:
+                a["fase_atual"] = fase_num
+                a["fase_label"] = fase_label
+                a["progresso"] = progresso
+        sessao.agentes_ativos = ativos
+        sessao.atualizado_em = datetime.utcnow()
+        db.commit()
+
+
+def _escrever_codigo_no_editor(db: Session, sessao_id: str, codigo: str, arquivo: str):
+    """Escreve o codigo gerado pelo agente no painel editor da sessao."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+    if sessao:
+        sessao.painel_editor = {
+            "conteudo": codigo,
+            "arquivo_ativo": arquivo,
+            "fonte": "agente",  # flag para o frontend saber que veio do agente
+        }
+        sessao.atualizado_em = datetime.utcnow()
+        db.commit()
+
+
+def _adicionar_terminal_agente(db: Session, sessao_id: str, comando: str, saida: str, sucesso: bool = True):
+    """Adiciona entrada no terminal da sessao (gerada pelo agente, nao pelo usuario)."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+    if sessao:
+        terminal = dict(sessao.painel_terminal or {})
+        historico = list(terminal.get("historico", []))
+        historico.append({
+            "comando": comando,
+            "saida": saida,
+            "sucesso": sucesso,
+            "timestamp": datetime.utcnow().isoformat(),
+            "tipo": "agente",
+        })
+        if len(historico) > 50:
+            historico = historico[-50:]
+        terminal["historico"] = historico
+        sessao.painel_terminal = terminal
+        sessao.total_comandos = (sessao.total_comandos or 0) + 1
+        sessao.atualizado_em = datetime.utcnow()
+        db.commit()
 
 
 # =====================================================================
