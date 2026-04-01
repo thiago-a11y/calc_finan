@@ -423,6 +423,9 @@ export const aprovarGate = (id: string, decisao: string, feedback = '') =>
 export const cancelarAutonomo = (id: string) =>
   post<{ mensagem: string }>(`/tarefas/autonomo/${id}/cancelar`, {})
 
+export const reiniciarAutonomo = (id: string) =>
+  post<{ mensagem: string; status: string; fase: number }>(`/tarefas/autonomo/${id}/reiniciar`, {})
+
 // ============================================================
 // Version Control (VCS) — GitHub + GitBucket
 // ============================================================

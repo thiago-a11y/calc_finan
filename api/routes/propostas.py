@@ -201,6 +201,9 @@ def aprovar_proposta(
             "auto_deploy": deploy_resultado,
         }
 
+    except HTTPException:
+        # Re-lançar HTTPException diretamente (ex: Build Gate 400) sem wrapping em 500
+        raise
     except Exception as e:
         proposta["status"] = "erro"
         proposta["erro"] = str(e)
