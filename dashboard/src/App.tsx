@@ -30,6 +30,7 @@ import Atribuicoes from './pages/Atribuicoes'
 import Luna from './pages/Luna'
 import CodeStudio from './pages/CodeStudio'
 import CommandCenter from './pages/CommandCenter'
+import MissionControl from './pages/MissionControl'
 
 /* Rota protegida — redireciona para /login se não autenticado */
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -233,6 +234,14 @@ function AppRoutes() {
         element={
           <RotaProtegida>
             <LayoutPrincipal><CodeStudio /></LayoutPrincipal>
+          </RotaProtegida>
+        }
+      />
+      <Route
+        path="/mission-control"
+        element={
+          <RotaProtegida>
+            <LayoutPrincipal><MissionControl /></LayoutPrincipal>
           </RotaProtegida>
         }
       />
