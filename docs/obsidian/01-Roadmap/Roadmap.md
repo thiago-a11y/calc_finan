@@ -184,6 +184,7 @@
 
 ## Concluídos Recentes
 
+- [x] Code Studio 2.0 — Mission Control: painel triplo, artifacts, comentários inline (v0.55.0)
 - [x] Continuous Factory — Modo Contínuo 24/7 com auto-gates e relatório diário (v0.54.0)
 - [x] Pipeline completo: Agente → Proposta → Build → Deploy com auto-deploy opcional (v0.53.0)
 - [x] Build Gate no core/vcs_service.py — validação de build antes de push (v0.52.2)

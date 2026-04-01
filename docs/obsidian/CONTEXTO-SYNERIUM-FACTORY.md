@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.52.2 (31/Mar/2026)
+**Versão Atual:** v0.55.0 (01/Abr/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -206,7 +206,9 @@ Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 │       ├── propostas.py         # Propostas de edição (aprovação)
 │       ├── uploads.py           # Upload de arquivos (UPLOAD_DIR relativo ao projeto)
 │       ├── consumo.py           # Dashboard de consumo
-│       └── llm.py               # Gestão de LLM providers
+│       ├── llm.py               # Gestão de LLM providers
+│       ├── continuous_factory.py # Modo Contínuo 24/7 (v0.54.0)
+│       └── mission_control.py   # Code Studio 2.0 — Mission Control (v0.55.0)
 ├── dashboard/                   # Frontend React
 │   └── src/
 │       ├── App.tsx              # Roteamento principal
@@ -244,6 +246,9 @@ Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 │           ├── Atribuicoes.tsx   # Atribuição de agentes a usuários
 │           ├── Configuracoes.tsx # Configurações do sistema
 │           ├── Luna.tsx         # Assistente IA (ChatGPT/Claude interno)
+│           ├── CodeStudio.tsx   # Editor de código integrado (v1)
+│           ├── CommandCenter.tsx # Centro de Comando (Vision-to-Product)
+│           ├── MissionControl.tsx # Code Studio 2.0 — painel triplo (v0.55.0)
 │           └── Login.tsx        # Tela de login
 ├── database/                    # Banco de dados
 │   ├── models.py                # Modelos SQLAlchemy
