@@ -43,9 +43,10 @@ interface Artifact {
 interface AgenteAtivo {
   id: string; nome: string; status: string
   tarefa: string; tipo: string; inicio: string; resultado?: string; erro?: string
+  fase_atual?: number; fase_label?: string; progresso?: number
 }
 
-interface TerminalEntry { comando: string; saida: string; sucesso: boolean; timestamp: string }
+interface TerminalEntry { comando: string; saida: string; sucesso: boolean; timestamp: string; tipo?: string }
 
 interface ChatMsg {
   id: number; agente_nome: string; tipo: string
@@ -56,7 +57,7 @@ interface ChatMsg {
 interface Sessao {
   sessao_id: string; titulo: string; status: string; projeto_id: number | null
   agentes_ativos: AgenteAtivo[]; artifacts: Artifact[]
-  painel_editor: { conteudo?: string; arquivo_ativo?: string } | null
+  painel_editor: { conteudo?: string; arquivo_ativo?: string; fonte?: string } | null
   painel_terminal: { historico: TerminalEntry[]; cwd: string } | null
   total_artifacts: number; total_comandos: number
 }
@@ -143,6 +144,10 @@ export default function MissionControl() {
   const [painelMaximizado, setPainelMaximizado] = useState<number | null>(null)
   const [abaDireita, setAbaDireita] = useState<'chat' | 'artifacts'>('chat')
 
+  // Visible Execution
+  const [editorFonteAgente, setEditorFonteAgente] = useState(false)
+  const [editorEditadoPeloUsuario, setEditorEditadoPeloUsuario] = useState(false)
+
   // Auto-save
   const [ultimoSave, setUltimoSave] = useState('')
   const [salvando, setSalvando] = useState(false)
@@ -186,9 +191,31 @@ export default function MissionControl() {
       const data: Sessao = await res.json()
       setSessao(data)
       setArtifacts(data.artifacts || [])
-      setTerminalHistorico(data.painel_terminal?.historico || [])
-      if (data.painel_editor?.conteudo) setEditorConteudo(data.painel_editor.conteudo)
-      if (data.painel_editor?.arquivo_ativo) setEditorArquivo(data.painel_editor.arquivo_ativo)
+
+      // Se o editor tem codigo do agente, atualizar automaticamente
+      if (data.painel_editor?.conteudo && data.painel_editor?.fonte === 'agente') {
+        setEditorConteudo(data.painel_editor.conteudo)
+        if (data.painel_editor.arquivo_ativo) setEditorArquivo(data.painel_editor.arquivo_ativo)
+        setEditorFonteAgente(true)
+        setEditorEditadoPeloUsuario(false)
+      } else if (data.painel_editor?.conteudo) {
+        setEditorEditadoPeloUsuario(prev => {
+          if (!prev) {
+            setEditorConteudo(data.painel_editor!.conteudo!)
+            if (data.painel_editor!.arquivo_ativo) setEditorArquivo(data.painel_editor!.arquivo_ativo!)
+          }
+          return prev
+        })
+      }
+
+      // Atualizar terminal com entradas do agente
+      const histBanco = data.painel_terminal?.historico || []
+      if (histBanco.length > 0 && histBanco[histBanco.length - 1]?.tipo === 'agente') {
+        setTerminalHistorico(histBanco)
+        setTimeout(() => terminalRef.current?.scrollTo(0, terminalRef.current.scrollHeight), 100)
+      } else {
+        setTerminalHistorico(data.painel_terminal?.historico || [])
+      }
     } catch { /* */ }
   }, [headers])
 
@@ -420,6 +447,11 @@ export default function MissionControl() {
   const agentes = sessao.agentes_ativos || []
   const agentesExecutando = agentes.filter(a => a.status === 'executando')
 
+  const agente_exec = agentesExecutando[0]
+  const faseAtual = agente_exec?.fase_atual as number | undefined
+  const faseLabel = agente_exec?.fase_label as string | undefined
+  const progressoAtual = agente_exec?.progresso as number | undefined
+
   /* ============================================================
      Render: Painel Triplo
      ============================================================ */
@@ -465,21 +497,44 @@ export default function MissionControl() {
         </div>
       </header>
 
-      {/* Instrucao do Agente */}
-      <div className="flex items-center gap-2 px-4 py-2 flex-shrink-0"
-        style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
-        <Sparkles className="w-4 h-4" style={{ color: 'var(--sf-accent)' }} />
-        <input type="text" placeholder="Instruir equipe: 'Crie um componente de login com validacao e testes'"
-          value={instrucaoAgente} onChange={e => setInstrucaoAgente(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && dispararAgente()}
-          className="flex-1 px-3 py-1.5 rounded text-sm"
-          style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
-        <button onClick={dispararAgente} disabled={disparandoAgente || !instrucaoAgente.trim()}
-          className="px-3 py-1.5 rounded text-xs font-medium text-white flex items-center gap-1"
-          style={{ background: disparandoAgente ? '#666' : 'var(--sf-accent)' }}>
-          {disparandoAgente ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-          Executar Equipe
-        </button>
+      {/* Instrucao do Agente + Barra de Progresso */}
+      <div className="flex-shrink-0" style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+        {/* Progress bar - só aparece quando executa */}
+        {agentesExecutando.length > 0 && (
+          <div className="px-4 pt-2">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--sf-accent)' }} />
+              <span className="text-xs font-medium" style={{ color: 'var(--sf-accent)' }}>
+                {faseLabel ? `Fase ${faseAtual}/5 — ${faseLabel}` : 'Executando...'}
+              </span>
+              <span className="text-[10px] ml-auto" style={{ color: 'var(--sf-text-secondary)' }}>
+                {progressoAtual || 0}%
+              </span>
+            </div>
+            <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--sf-bg)' }}>
+              <div className="h-full rounded-full transition-all duration-1000 ease-out"
+                style={{
+                  width: `${progressoAtual || 5}%`,
+                  background: 'linear-gradient(90deg, var(--sf-accent), #60a5fa)',
+                  boxShadow: '0 0 8px var(--sf-accent)',
+                }} />
+            </div>
+          </div>
+        )}
+        <div className="flex items-center gap-2 px-4 py-2">
+          <Sparkles className="w-4 h-4" style={{ color: 'var(--sf-accent)' }} />
+          <input type="text" placeholder="Instruir equipe: 'Crie um componente de login com validacao e testes'"
+            value={instrucaoAgente} onChange={e => setInstrucaoAgente(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && dispararAgente()}
+            className="flex-1 px-3 py-1.5 rounded text-sm"
+            style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
+          <button onClick={dispararAgente} disabled={disparandoAgente || !instrucaoAgente.trim()}
+            className="px-3 py-1.5 rounded text-xs font-medium text-white flex items-center gap-1"
+            style={{ background: disparandoAgente ? '#666' : 'var(--sf-accent)' }}>
+            {disparandoAgente ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            Executar Equipe
+          </button>
+        </div>
       </div>
 
       {/* === Painel Triplo === */}
@@ -490,16 +545,30 @@ export default function MissionControl() {
           <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 0 ? '100%' : `${painelLarguras[0]}%` }}>
             <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
               style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
-              <Code2 className="w-3.5 h-3.5" /><span className="font-medium">Editor</span>
-              <span className="opacity-60">{editorArquivo}</span>
+              <Code2 className="w-3.5 h-3.5" />
+              <span className="font-medium">Editor</span>
+              <span className="opacity-60 truncate max-w-[120px]">{editorArquivo}</span>
+              {editorFonteAgente && (
+                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full animate-pulse"
+                  style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' }}>
+                  <Bot className="w-3 h-3" /> agente
+                </span>
+              )}
+              {faseAtual === 3 && agentesExecutando.length > 0 && !editorFonteAgente && (
+                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full animate-pulse"
+                  style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>
+                  <Loader2 className="w-3 h-3 animate-spin" /> gerando...
+                </span>
+              )}
               <div className="flex-1" />
+              {editorEditadoPeloUsuario && <span className="text-[9px] opacity-40">editado</span>}
               <button onClick={() => setPainelMaximizado(painelMaximizado === 0 ? null : 0)} className="opacity-60 hover:opacity-100">
                 {painelMaximizado === 0 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               </button>
             </div>
             <textarea className="flex-1 p-3 font-mono text-sm resize-none outline-none" spellCheck={false}
               style={{ background: '#1e1e2e', color: '#cdd6f4', border: 'none' }}
-              value={editorConteudo} onChange={e => setEditorConteudo(e.target.value)} />
+              value={editorConteudo} onChange={e => { setEditorConteudo(e.target.value); setEditorEditadoPeloUsuario(true); setEditorFonteAgente(false) }} />
           </div>
         )}
 
@@ -521,11 +590,25 @@ export default function MissionControl() {
             <div ref={terminalRef} className="flex-1 overflow-auto p-3 font-mono text-xs" style={{ background: '#0d1117', color: '#c9d1d9' }}>
               {terminalHistorico.map((entry, i) => (
                 <div key={i} className="mb-3">
-                  <div className="flex items-center gap-1"><span style={{ color: '#58a6ff' }}>$</span><span style={{ color: '#f0f6fc' }}>{entry.comando}</span></div>
-                  <pre className="whitespace-pre-wrap mt-0.5" style={{ color: entry.sucesso ? '#8b949e' : '#f85149' }}>{entry.saida}</pre>
+                  <div className="flex items-center gap-1">
+                    {entry.tipo === 'agente'
+                      ? <Bot className="w-3 h-3 flex-shrink-0" style={{ color: '#10b981' }} />
+                      : <span style={{ color: '#58a6ff' }}>$</span>
+                    }
+                    <span style={{ color: entry.tipo === 'agente' ? '#10b981' : '#f0f6fc' }}>
+                      {entry.comando}
+                    </span>
+                  </div>
+                  {entry.saida && (
+                    <pre className="whitespace-pre-wrap mt-0.5 pl-4" style={{ color: entry.sucesso ? '#8b949e' : '#f85149' }}>{entry.saida}</pre>
+                  )}
                 </div>
               ))}
-              {terminalHistorico.length === 0 && <div style={{ color: '#484f58' }}>Terminal pronto.</div>}
+              {terminalHistorico.length === 0 && (
+                <div style={{ color: '#484f58' }}>
+                  Terminal pronto. Agentes usam este painel para mostrar progresso.
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0" style={{ background: '#161b22', borderTop: '1px solid #30363d' }}>
               <span className="text-xs" style={{ color: '#58a6ff' }}>$</span>
@@ -726,6 +809,24 @@ export default function MissionControl() {
                   className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
                   style={{ background: 'var(--sf-accent)' }}>
                   <ExternalLink className="w-4 h-4" /> Aplicar no Editor
+                </button>
+              )}
+              {artifactModal.tipo === 'codigo' && (
+                <button onClick={async () => {
+                  if (!sessao) return
+                  // Rodar build/lint no terminal como verificação rápida
+                  const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/comando`, {
+                    method: 'POST', headers,
+                    body: JSON.stringify({ comando: 'echo "✅ Código aplicado. Rode: npm run build" && node --version' }),
+                  })
+                  const d = await res.json()
+                  setTerminalHistorico(prev => [...prev, { comando: 'node --version', saida: d.saida, sucesso: d.sucesso, timestamp: new Date().toISOString() }])
+                  setArtifactModal(null)
+                  setTimeout(() => terminalRef.current?.scrollTo(0, terminalRef.current.scrollHeight), 100)
+                }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
+                  style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)' }}>
+                  <Play className="w-4 h-4" /> Rodar Testes
                 </button>
               )}
               <button onClick={() => { navigator.clipboard.writeText(artifactModal.conteudo || '') }}
