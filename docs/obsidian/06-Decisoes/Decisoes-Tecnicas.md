@@ -419,6 +419,27 @@ O Mission Control v0.57.2 precisava mostrar execução ao vivo: barra de progres
 
 **Padrão utilizado:** `painel_editor.fonte = "agente"` sinaliza ao frontend que o conteúdo veio do agente (não do usuário). O frontend só sobrescreve o editor se o usuário não editou manualmente (`editorEditadoPeloUsuario`). Isso evita conflitos de escrita.
 
+## Por que recovery de agentes no import do módulo (não em cron, não no startup da API)?
+
+**Contexto (Bug #52):** Após `systemctl restart synerium-factory`, threads Python em execução são mortas silenciosamente. Agentes com `status: "executando"` em `agentes_ativos` ficavam presos nesse estado para sempre — o banco não sabe que a thread morreu.
+
+**Três abordagens avaliadas:**
+
+1. **Cron periódico** (a cada 5 min) — Rejeitado: adiciona delay. Um agente travado pode ficar visível por até 5 minutos antes de ser marcado como erro. Complexidade de gerenciar cron no servidor.
+
+2. **Endpoint de health check** — Rejeitado: exige request explícita. Não executa automaticamente no startup — alguém precisa chamar `/health` para triggar a limpeza.
+
+3. **Import do módulo** — **Escolhido**: `_recovery_agentes_orfaos()` chamada no final do `mission_control.py`, fora de qualquer função. Executa uma única vez, exatamente quando o servidor sobe e o módulo é importado pelo FastAPI. Sem thread extra, sem agendamento, sem endpoint.
+
+**Vantagem do import:** É o ponto mais cedo possível para executar — antes de qualquer request chegar. O banco é limpo ANTES que qualquer cliente tente fazer polling.
+
+**Padrão generalizado:** Qualquer módulo que dispara background threads e persiste estado intermediário no banco deve ter função de recovery no import. Exemplos:
+- `mission_control.py` → `_recovery_agentes_orfaos()` ✅
+- Workflows autônomos → `_recovery_workflows_travados()` (já existe, >30min → erro)
+- Code Studio jobs → a implementar se necessário
+
+**Lição:** `systemctl restart` é garantido acontecer em produção (deploys, atualizações de segurança, reinicializações de servidor). O sistema DEVE ser resiliente a restarts — sempre assumir que pode haver estado inconsistente no banco após subir.
+
 ---
 
 > Última atualização: 2026-04-01
