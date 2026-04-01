@@ -53,9 +53,16 @@ function agCfg(i: number, name: string) {
 
 /* Posições do grid — em coordenadas isométricas (plano X/Y) */
 const DK = [
+  // Fileira 1
   { x: 340, y: 160 }, { x: 540, y: 160 }, { x: 740, y: 160 },
+  // Fileira 2
   { x: 340, y: 340 }, { x: 540, y: 340 }, { x: 740, y: 340 },
+  // Fileira 3
   { x: 340, y: 520 }, { x: 540, y: 520 }, { x: 740, y: 520 },
+  // Fileira 4 (agentes 10-12 — ala expandida)
+  { x: 920, y: 160 }, { x: 920, y: 340 }, { x: 920, y: 520 },
+  // Fileira 5 (agentes 13-16 — ala premium)
+  { x: 1060, y: 160 }, { x: 1060, y: 340 }, { x: 1060, y: 520 }, { x: 1060, y: 400 },
 ]
 const CEO_POS = { x: 80, y: 310 }
 const CEO_SIDE = { x: 210, y: 280 }

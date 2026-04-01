@@ -29,6 +29,10 @@ import {
   Network,
   Lock,
   Bot,
+  GitBranch,
+  TrendingUp,
+  FlaskConical,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -47,6 +51,10 @@ const iconeMapa: Record<string, LucideIcon> = {
   Network,
   Lock,
   Bot,
+  GitBranch,
+  TrendingUp,
+  FlaskConical,
+  Wrench,
 }
 
 function resolverIcone(nome?: string): LucideIcon {
@@ -64,15 +72,18 @@ function ehAdmin(papeis: string[]): boolean {
 /* --- Cores por categoria --- */
 const categoriaCor: Record<string, string> = {
   desenvolvimento: '#6366f1',
-  infraestrutura: '#3b82f6',
-  design: '#ec4899',
-  ia: '#8b5cf6',
-  integracao: '#f59e0b',
-  cloud: '#06b6d4',
-  seguranca: '#10b981',
-  gestao: '#f97316',
-  documentacao: '#84cc16',
-  pesquisa: '#14b8a6',
+  infraestrutura:  '#3b82f6',
+  design:          '#ec4899',
+  ia:              '#8b5cf6',
+  integracao:      '#f59e0b',
+  cloud:           '#06b6d4',
+  seguranca:       '#10b981',
+  gestao:          '#f97316',
+  documentacao:    '#84cc16',
+  pesquisa:        '#14b8a6',
+  qualidade:       '#22d3ee',
+  otimizacao:      '#2dd4bf',
+  operacional:     '#34d399',
 }
 
 function corCategoria(categoria?: string): string {

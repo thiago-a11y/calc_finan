@@ -67,15 +67,17 @@ const categoriaConfig: Record<string, { icon: LucideIcon; label: string; cor: st
 }
 
 const perfilConfig: Record<string, { label: string; cor: string }> = {
-  tech_lead: { label: '#1 Kenji — Tech Lead', cor: '#10b981' },
-  backend_dev: { label: '#2 Amara — Backend', cor: '#3b82f6' },
-  frontend_dev: { label: '#3 Carlos — Frontend', cor: '#8b5cf6' },
-  especialista_ia: { label: '#4 Yuki — IA', cor: '#f59e0b' },
-  integracao: { label: '#5 Rafael — Integrações', cor: '#ec4899' },
-  devops: { label: '#6 Hans — DevOps', cor: '#6366f1' },
-  qa_seguranca: { label: '#7 Fatima — QA', cor: '#ef4444' },
-  product_manager: { label: '#8 Marco — PM', cor: '#14b8a6' },
-  secretaria_executiva: { label: '#9 Sofia — Secretária Exec.', cor: '#d946ef' },
+  tech_lead:            { label: '#1 Kenji — Tech Lead',           cor: '#10b981' },
+  backend_dev:          { label: '#2 Amara — Backend',             cor: '#3b82f6' },
+  frontend_dev:         { label: '#3 Carlos — Frontend',           cor: '#8b5cf6' },
+  especialista_ia:      { label: '#4 Yuki — IA',                   cor: '#f59e0b' },
+  integracao:           { label: '#5 Rafael — Integrações',        cor: '#ec4899' },
+  devops:               { label: '#6 Hans — DevOps',               cor: '#6366f1' },
+  qa_seguranca:         { label: '#7 Fatima — QA / Test Master',   cor: '#ef4444' },
+  product_manager:      { label: '#8 Marco — PM',                  cor: '#14b8a6' },
+  secretaria_executiva: { label: '#9 Sofia — Secretária Exec.',    cor: '#d946ef' },
+  diretor:              { label: '#10 — Diretor / Factory Opt.',   cor: '#f97316' },
+  arquiteto:            { label: '#11 — Arquiteto de Sistemas',    cor: '#a855f7' },
 }
 
 async function fetchSkills(): Promise<{ skills: Skill[]; perfis: Perfil[] }> {
