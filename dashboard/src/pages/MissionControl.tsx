@@ -147,8 +147,10 @@ export default function MissionControl() {
   // Visible Execution + LIVE Mode
   const [editorFonteAgente, setEditorFonteAgente] = useState(false)
   const [editorEditadoPeloUsuario, setEditorEditadoPeloUsuario] = useState(false)
+  const editorEditadoRef = useRef(false)  // ref para closures sem stale state
   const [modoLive, setModoLive] = useState(true)  // LIVE ligado por padrao
   const [editorStreaming, setEditorStreaming] = useState(false)  // true = codigo sendo escrito
+  const agentExecutandoRef = useRef(false)  // evita auto-save sobrescrever conteudo do agente
 
   // Auto-save
   const [ultimoSave, setUltimoSave] = useState('')
@@ -194,34 +196,38 @@ export default function MissionControl() {
       setSessao(data)
       setArtifacts(data.artifacts || [])
 
-      // Detectar streaming do agente
+      // Detectar se agente esta ativo (para auto-save e polling)
+      const temAgente = (data.agentes_ativos || []).some(a => a.status === 'executando')
+      agentExecutandoRef.current = temAgente
+
+      // Detectar streaming
       const isStreaming = data.painel_editor?.streaming === true
       setEditorStreaming(isStreaming)
 
-      // Se o editor tem codigo do agente, atualizar automaticamente
-      if (data.painel_editor?.conteudo && data.painel_editor?.fonte === 'agente') {
-        // No modo LIVE, sempre atualizar o editor (mesmo durante streaming)
-        setEditorConteudo(data.painel_editor.conteudo)
-        if (data.painel_editor.arquivo_ativo) setEditorArquivo(data.painel_editor.arquivo_ativo)
-        setEditorFonteAgente(true)
-        setEditorEditadoPeloUsuario(false)
-      } else if (data.painel_editor?.conteudo) {
-        setEditorEditadoPeloUsuario(prev => {
-          if (!prev) {
-            setEditorConteudo(data.painel_editor!.conteudo!)
-            if (data.painel_editor!.arquivo_ativo) setEditorArquivo(data.painel_editor!.arquivo_ativo!)
-          }
-          return prev
-        })
+      // Atualizar editor com conteudo do agente
+      // Regra: se fonte === 'agente' OU se o usuario nao editou manualmente, atualizar
+      const editorData = data.painel_editor
+      if (editorData?.conteudo) {
+        const isFromAgent = editorData.fonte === 'agente'
+        if (isFromAgent) {
+          // Agente escreveu codigo — sempre atualizar, independente do que o usuario fez
+          setEditorConteudo(editorData.conteudo)
+          if (editorData.arquivo_ativo) setEditorArquivo(editorData.arquivo_ativo)
+          setEditorFonteAgente(true)
+          setEditorEditadoPeloUsuario(false)
+          editorEditadoRef.current = false
+        } else if (!editorEditadoRef.current) {
+          // Conteudo normal (auto-save ou inicial) — atualiza so se usuario nao editou
+          setEditorConteudo(editorData.conteudo)
+          if (editorData.arquivo_ativo) setEditorArquivo(editorData.arquivo_ativo)
+        }
       }
 
-      // Atualizar terminal com entradas do agente
+      // Atualizar terminal com TUDO do banco (agente + usuario)
       const histBanco = data.painel_terminal?.historico || []
-      if (histBanco.length > 0 && histBanco[histBanco.length - 1]?.tipo === 'agente') {
-        setTerminalHistorico(histBanco)
+      setTerminalHistorico(histBanco)
+      if (histBanco.length > 0) {
         setTimeout(() => terminalRef.current?.scrollTo(0, terminalRef.current.scrollHeight), 100)
-      } else {
-        setTerminalHistorico(data.painel_terminal?.historico || [])
       }
     } catch { /* */ }
   }, [headers])
@@ -255,6 +261,9 @@ export default function MissionControl() {
   useEffect(() => {
     if (!sessao?.sessao_id) return
     const timer = setInterval(async () => {
+      // Nao salvar enquanto agente esta executando — evita sobrescrever conteudo do agente
+      // O backend tambem protege, mas melhor prevenir no frontend
+      if (agentExecutandoRef.current) return
       try {
         setSalvando(true)
         await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/save`, {
@@ -271,17 +280,16 @@ export default function MissionControl() {
   }, [sessao?.sessao_id, headers, editorConteudo, editorArquivo, terminalHistorico])
 
   /* ============================================================
-     Polling sessao — LIVE: 1s (durante streaming) / Normal: 5s
+     Polling sessao — sempre 2s para nao perder atualizacoes do agente
+     (nao depende de sessao?.agentes_ativos para evitar restart a cada poll)
      ============================================================ */
 
   useEffect(() => {
     if (!sessao?.sessao_id) return
-    // Se LIVE + tem agentes executando: poll a cada 1s para ver codigo sendo escrito
-    const hasExecutando = (sessao.agentes_ativos || []).some(a => a.status === 'executando')
-    const intervalo = (modoLive && hasExecutando) ? 1000 : 5000
-    const timer = setInterval(() => carregarSessao(sessao.sessao_id), intervalo)
+    // Polling fixo em 2s — rapido o suficiente para ver streaming sem causar instabilidade
+    const timer = setInterval(() => carregarSessao(sessao.sessao_id), 2000)
     return () => clearInterval(timer)
-  }, [sessao?.sessao_id, carregarSessao, modoLive, sessao?.agentes_ativos])
+  }, [sessao?.sessao_id, carregarSessao])
 
   /* ============================================================
      Startup
@@ -321,14 +329,20 @@ export default function MissionControl() {
     if (!sessao || !instrucaoAgente.trim()) return
     setDisparandoAgente(true)
     setAbaDireita('chat') // Mudar para chat para ver a conversa
+    // Resetar estado do editor para receber conteudo do agente
+    setEditorEditadoPeloUsuario(false)
+    editorEditadoRef.current = false
+    setEditorFonteAgente(false)
     try {
       await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/agente`, {
         method: 'POST', headers,
         body: JSON.stringify({ instrucao: instrucaoAgente, tipo: 'implementacao' }),
       })
       setInstrucaoAgente('')
+      // Recarregar imediatamente para exibir agente em execucao e barra de progresso
+      await carregarSessao(sessao.sessao_id)
     } catch { /* */ } finally { setDisparandoAgente(false) }
-  }, [sessao, instrucaoAgente, headers])
+  }, [sessao, instrucaoAgente, headers, carregarSessao])
 
   /* ============================================================
      Comentarios
@@ -605,7 +619,7 @@ export default function MissionControl() {
             <div className="relative flex-1 overflow-hidden">
               <textarea className="absolute inset-0 p-3 font-mono text-sm resize-none outline-none" spellCheck={false}
                 style={{ background: '#1e1e2e', color: '#cdd6f4', border: 'none' }}
-                value={editorConteudo} onChange={e => { setEditorConteudo(e.target.value); setEditorEditadoPeloUsuario(true); setEditorFonteAgente(false) }} />
+                value={editorConteudo} onChange={e => { setEditorConteudo(e.target.value); setEditorEditadoPeloUsuario(true); editorEditadoRef.current = true; setEditorFonteAgente(false) }} />
               {/* Cursor pulsante durante streaming LIVE */}
               {editorStreaming && modoLive && (
                 <div className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded-lg"

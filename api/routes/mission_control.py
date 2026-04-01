@@ -31,6 +31,7 @@ from database.models import (
     UsuarioDB, ArtifactDB, MissionControlSessaoDB, ProjetoDB, TeamChatDB,
 )
 from database.session import get_db, SessionLocal
+from sqlalchemy.orm.attributes import flag_modified
 
 logger = logging.getLogger("synerium.mission_control")
 
@@ -266,9 +267,28 @@ def auto_save_sessao(
         raise HTTPException(status_code=404, detail="Sessao nao encontrada")
 
     if req.painel_editor is not None:
-        sessao.painel_editor = req.painel_editor
+        current_editor = sessao.painel_editor or {}
+        # Nao sobrescrever conteudo do agente — preservar fonte/streaming se o agente esta escrevendo
+        if current_editor.get("fonte") == "agente":
+            # Agente controlando editor: ignorar auto-save do frontend para evitar race condition
+            pass
+        else:
+            sessao.painel_editor = req.painel_editor
+            flag_modified(sessao, "painel_editor")
     if req.painel_terminal is not None:
-        sessao.painel_terminal = req.painel_terminal
+        # Nao sobrescrever terminal se tem entradas do agente recentes (tipo: "agente")
+        current_term = sessao.painel_terminal or {}
+        hist_atual = current_term.get("historico", [])
+        # Verificar se o hist do frontend nao perdeu entradas do agente
+        hist_req = req.painel_terminal.get("historico", [])
+        agente_no_atual = any(e.get("tipo") == "agente" for e in hist_atual)
+        agente_no_req = any(e.get("tipo") == "agente" for e in hist_req)
+        if agente_no_atual and not agente_no_req:
+            # Frontend ainda nao recebeu as entradas do agente — nao sobrescrever
+            pass
+        else:
+            sessao.painel_terminal = req.painel_terminal
+            flag_modified(sessao, "painel_terminal")
     if req.painel_navegador is not None:
         sessao.painel_navegador = req.painel_navegador
 
@@ -458,8 +478,8 @@ def _executar_agente_mission_control(
         # ── FASE 1: PLANEJAMENTO (Tech Lead) ──
 
         _chat_msg(db, sessao_id, "Sistema", f"Nova tarefa recebida: {instrucao[:200]}", tipo="sistema", fase="planejamento")
-        _atualizar_fase_agente(db, sessao_id, agente_id, 1, "Planejamento", 10)
-        _adicionar_terminal_agente(db, sessao_id, "# 🏗️ Tech Lead: analisando tarefa...", f"Tarefa: {instrucao[:200]}")
+        _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento", 10)
+        _adicionar_terminal_agente(sessao_id, "# 🏗️ Tech Lead: analisando tarefa...", f"Tarefa: {instrucao[:200]}")
         _chat_msg(db, sessao_id, "Tech Lead", "Analisando a tarefa... Vou montar o plano de execucao.", tipo="planejamento", fase="planejamento")
 
         plan_system = (
@@ -507,8 +527,8 @@ def _executar_agente_mission_control(
 
         # ── FASE 2: DISCUSSAO (cada agente opina) ──
 
-        _atualizar_fase_agente(db, sessao_id, agente_id, 2, "Discussão", 35)
-        _adicionar_terminal_agente(db, sessao_id, "# 💬 Equipe: revisando plano...", f"Etapas identificadas: {len(etapas)}")
+        _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussão", 35)
+        _adicionar_terminal_agente(sessao_id, "# 💬 Equipe: revisando plano...", f"Etapas identificadas: {len(etapas)}")
         _chat_msg(db, sessao_id, "Sistema", "Fase de discussao iniciada — agentes analisando o plano.", tipo="sistema", fase="discussao")
 
         for ag in EQUIPE_AGENTES[1:]:  # Pula Tech Lead (ja falou)
@@ -533,10 +553,10 @@ def _executar_agente_mission_control(
 
         # ── FASE 3: EXECUCAO (gerar artifacts concretos) ──
 
-        _atualizar_fase_agente(db, sessao_id, agente_id, 3, "Execução", 60)
-        _adicionar_terminal_agente(db, sessao_id, "# ⚡ Backend Dev: gerando implementação...", "Aguardando LLM...")
+        _atualizar_fase_agente(sessao_id, agente_id, 3, "Execução", 60)
+        _adicionar_terminal_agente(sessao_id, "# ⚡ Backend Dev: gerando implementação...", "Aguardando LLM...")
         # Sinalizar editor: código a caminho
-        _escrever_codigo_no_editor(db, sessao_id, f"// ⚡ Gerando código para: {instrucao[:100]}\n// Aguarde...", "gerando.tsx")
+        _escrever_codigo_no_editor(sessao_id, f"// ⚡ Gerando código para: {instrucao[:100]}\n// Aguarde...", "gerando.tsx")
         _chat_msg(db, sessao_id, "Sistema", "Fase de execucao — agentes gerando entregaveis.", tipo="sistema", fase="execucao")
         _chat_msg(db, sessao_id, "Tech Lead", "Plano aprovado pela equipe. Iniciando execucao.", tipo="decisao", fase="execucao")
 
@@ -578,7 +598,7 @@ def _executar_agente_mission_control(
                 eh_ultima = idx_linha == len(linhas) - 1
                 if (idx_linha + 1) % 4 == 0 or eh_ultima:
                     _escrever_codigo_no_editor(
-                        db, sessao_id,
+                        sessao_id,
                         acumulado.rstrip('\n'),
                         arquivo,
                         streaming=not eh_ultima,
@@ -595,7 +615,7 @@ def _executar_agente_mission_control(
             )
             # Terminal: verificação final
             _adicionar_terminal_agente(
-                db, sessao_id,
+                sessao_id,
                 f"# ✅ Código gerado: {arquivo}",
                 f"Linhas: {len(linhas)}\nArquivo: {arquivo}\nPor: Backend Dev",
                 True,
@@ -605,8 +625,8 @@ def _executar_agente_mission_control(
 
         # ── FASE 4: REVIEW (QA) ──
 
-        _atualizar_fase_agente(db, sessao_id, agente_id, 4, "Review QA", 85)
-        _adicionar_terminal_agente(db, sessao_id, "# 🛡️ QA Engineer: executando review...", "Analisando código e gerando checklist...")
+        _atualizar_fase_agente(sessao_id, agente_id, 4, "Review QA", 85)
+        _adicionar_terminal_agente(sessao_id, "# 🛡️ QA Engineer: executando review...", "Analisando código e gerando checklist...")
         _chat_msg(db, sessao_id, "Sistema", "Fase de review — QA analisando entregaveis.", tipo="sistema", fase="review")
 
         review_system = (
@@ -645,7 +665,7 @@ def _executar_agente_mission_control(
                     agente_nome="QA Engineer", usuario_id=usuario_id, company_id=company_id,
                 )
             _adicionar_terminal_agente(
-                db, sessao_id,
+                sessao_id,
                 f"# ✅ QA Review: {parecer.upper()}",
                 f"Checklist: {len(checklist)} itens\nParecer: {parecer}\n{obs[:200]}",
                 parecer in ("aprovado", "pendente"),
@@ -656,8 +676,8 @@ def _executar_agente_mission_control(
         # ── CONCLUSAO ──
 
         _chat_msg(db, sessao_id, "Sistema", "Tarefa concluida — todos os entregaveis gerados.", tipo="sistema", fase="conclusao")
-        _atualizar_fase_agente(db, sessao_id, agente_id, 5, "Concluído", 100)
-        _adicionar_terminal_agente(db, sessao_id, "# 🚀 Missão concluída!", f"Artifacts: Plano + Código + Checklist QA\nTarefa: {instrucao[:100]}", True)
+        _atualizar_fase_agente(sessao_id, agente_id, 5, "Concluído", 100)
+        _adicionar_terminal_agente(sessao_id, "# 🚀 Missão concluída!", f"Artifacts: Plano + Código + Checklist QA\nTarefa: {instrucao[:100]}", True)
 
         sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
         if sessao:
@@ -775,59 +795,94 @@ def _chat_msg(db: Session, sessao_id: str, agente: str, conteudo: str, tipo: str
     return msg
 
 
-def _atualizar_fase_agente(db: Session, sessao_id: str, agente_id: str, fase_num: int, fase_label: str, progresso: int):
-    """Atualiza fase e progresso do agente na sessao para o frontend ver em tempo real."""
-    sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
-    if sessao:
-        ativos = list(sessao.agentes_ativos or [])
-        for a in ativos:
-            if a.get("id") == agente_id:
-                a["fase_atual"] = fase_num
-                a["fase_label"] = fase_label
-                a["progresso"] = progresso
-        sessao.agentes_ativos = ativos
-        sessao.atualizado_em = datetime.utcnow()
-        db.commit()
+def _atualizar_fase_agente(sessao_id: str, agente_id: str, fase_num: int, fase_label: str, progresso: int):
+    """Atualiza fase e progresso do agente. Session ISOLADA por chamada — evita conflito de transacao."""
+    db = SessionLocal()
+    try:
+        sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+        if sessao:
+            # deep copy dos dicts para garantir deteccao de mudanca pelo SQLAlchemy
+            ativos = [dict(a) for a in (sessao.agentes_ativos or [])]
+            for a in ativos:
+                if a.get("id") == agente_id:
+                    a["fase_atual"] = fase_num
+                    a["fase_label"] = fase_label
+                    a["progresso"] = progresso
+            sessao.agentes_ativos = ativos
+            flag_modified(sessao, "agentes_ativos")  # forca deteccao mesmo sem mudanca de referencia
+            sessao.atualizado_em = datetime.utcnow()
+            db.commit()
+            logger.debug(f"[MISSION] Fase {fase_num} ({fase_label}) {progresso}% — sessao {sessao_id[:8]}")
+    except Exception as e:
+        logger.warning(f"[MISSION] _atualizar_fase_agente falhou: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        db.close()
 
 
-def _escrever_codigo_no_editor(db: Session, sessao_id: str, codigo: str, arquivo: str, streaming: bool = False):
-    """Escreve o codigo gerado pelo agente no painel editor da sessao.
+def _escrever_codigo_no_editor(sessao_id: str, codigo: str, arquivo: str, streaming: bool = False):
+    """Escreve o codigo gerado pelo agente no painel editor. Session ISOLADA por chamada.
 
     Args:
-        streaming: True = ainda está escrevendo (frontend mostra cursor). False = concluído.
+        streaming: True = ainda escrevendo (frontend mostra cursor). False = concluido.
     """
-    sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
-    if sessao:
-        sessao.painel_editor = {
-            "conteudo": codigo,
-            "arquivo_ativo": arquivo,
-            "fonte": "agente",
-            "streaming": streaming,
-        }
-        sessao.atualizado_em = datetime.utcnow()
-        db.commit()
+    db = SessionLocal()
+    try:
+        sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+        if sessao:
+            sessao.painel_editor = {
+                "conteudo": codigo,
+                "arquivo_ativo": arquivo,
+                "fonte": "agente",
+                "streaming": streaming,
+            }
+            flag_modified(sessao, "painel_editor")
+            sessao.atualizado_em = datetime.utcnow()
+            db.commit()
+    except Exception as e:
+        logger.warning(f"[MISSION] _escrever_codigo_no_editor falhou: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        db.close()
 
 
-def _adicionar_terminal_agente(db: Session, sessao_id: str, comando: str, saida: str, sucesso: bool = True):
-    """Adiciona entrada no terminal da sessao (gerada pelo agente, nao pelo usuario)."""
-    sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
-    if sessao:
-        terminal = dict(sessao.painel_terminal or {})
-        historico = list(terminal.get("historico", []))
-        historico.append({
-            "comando": comando,
-            "saida": saida,
-            "sucesso": sucesso,
-            "timestamp": datetime.utcnow().isoformat(),
-            "tipo": "agente",
-        })
-        if len(historico) > 50:
-            historico = historico[-50:]
-        terminal["historico"] = historico
-        sessao.painel_terminal = terminal
-        sessao.total_comandos = (sessao.total_comandos or 0) + 1
-        sessao.atualizado_em = datetime.utcnow()
-        db.commit()
+def _adicionar_terminal_agente(sessao_id: str, comando: str, saida: str, sucesso: bool = True):
+    """Adiciona entrada no terminal da sessao (gerada pelo agente). Session ISOLADA por chamada."""
+    db = SessionLocal()
+    try:
+        sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+        if sessao:
+            terminal = dict(sessao.painel_terminal or {})
+            historico = list(terminal.get("historico", []))
+            historico.append({
+                "comando": comando,
+                "saida": saida,
+                "sucesso": sucesso,
+                "timestamp": datetime.utcnow().isoformat(),
+                "tipo": "agente",
+            })
+            if len(historico) > 50:
+                historico = historico[-50:]
+            terminal["historico"] = historico
+            sessao.painel_terminal = terminal
+            flag_modified(sessao, "painel_terminal")
+            sessao.total_comandos = (sessao.total_comandos or 0) + 1
+            sessao.atualizado_em = datetime.utcnow()
+            db.commit()
+    except Exception as e:
+        logger.warning(f"[MISSION] _adicionar_terminal_agente falhou: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        db.close()
 
 
 # =====================================================================
