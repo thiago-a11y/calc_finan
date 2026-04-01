@@ -442,4 +442,34 @@ O Mission Control v0.57.2 precisava mostrar execução ao vivo: barra de progres
 
 ---
 
-> Última atualização: 2026-04-01
+## Por que typewriter a 8 chars/frame@60fps (nao linha inteira de uma vez)?
+
+O editor do Mission Control recebia linhas inteiras a cada poll — o efeito visual era "pulo" de blocos de texto, nao "digitacao". Para simular execucao ao vivo convincente, o typewriter renderiza 8 caracteres por frame a 60fps usando `requestAnimationFrame`. Alternativas avaliadas:
+
+1. **1 char/frame** — Muito lento para arquivos longos (60 chars/s = 17s para 1000 chars)
+2. **Linha inteira** — Efeito de "pulo", nao de digitacao
+3. **8 chars/frame@60fps** — **Escolhido**: 480 chars/s, velocidade de digitacao rapida mas legivel. Completa um arquivo de 2000 chars em ~4s
+
+O efeito e cancelavel (`cancelAnimationFrame`) quando novo conteudo chega do backend, evitando sobreposicao de animacoes.
+
+## Por que streaming 2 linhas/200ms (nao 4 linhas/350ms)?
+
+O streaming original (4 linhas a cada 350ms) parecia travado — o editor ficava parado por 350ms e depois "pulava" 4 linhas. Reduzir para 2 linhas/200ms dobra a frequencia de updates e reduz pela metade o volume por update. O resultado visual e mais fluido e responsivo. O trade-off e mais writes no banco por execucao (~2x), mas como cada write e um UPDATE em campos JSON (nao INSERT), o impacto em I/O e desprezivel para SQLite.
+
+## Por que CSS keyframe animations para progresso (nao JavaScript)?
+
+A barra de progresso usa 3 efeitos visuais: gradiente animado (shimmer), texto descritivo da fase, e icone pulsante do agente. Todos implementados via CSS `@keyframes`:
+
+- **Shimmer**: `background-size: 200%` com `background-position` animando de `200%` a `0%`
+- **Pulse do agente**: `scale(1)` → `scale(1.2)` → `scale(1)` com opacidade
+- **Cursor piscante**: `opacity: 1` → `opacity: 0` a cada 1s
+
+CSS keyframes sao preferidos a animacoes JavaScript porque:
+1. Rodam na GPU (compositing thread), sem bloquear a main thread
+2. Nao dependem de `setInterval`/`requestAnimationFrame` — continuam mesmo com JS ocupado
+3. Menos codigo — 3 linhas de CSS vs 15+ linhas de JS por animacao
+4. Pause automatico pelo navegador quando a aba nao esta visivel (economia de CPU)
+
+---
+
+> Ultima atualizacao: 2026-04-01
