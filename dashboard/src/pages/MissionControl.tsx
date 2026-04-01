@@ -1,13 +1,13 @@
-/* Mission Control — Code Studio 2.0 (v0.55.0 → v0.57.0)
+/* Mission Control — Code Studio 2.0 (v0.57.1)
  *
- * Painel triplo simultaneo: Editor + Terminal + Navegador
- * Agentes vivos geram artifacts tangiveis com comentarios inline
+ * Painel triplo: Editor + Terminal + Team Chat/Artifacts
+ * Multi-agente com conversa visivel, planejamento, review
  *
- * v0.57.0 — Persistencia de sessoes:
- * - Lista de sessoes recentes ao entrar
- * - Auto-save a cada 10s (editor + terminal + artifacts)
- * - URL com ID: /mission-control/{sessionId}
- * - Resume perfeito (estado exato restaurado)
+ * v0.57.1:
+ * - Team Chat: conversa em tempo real entre agentes
+ * - Artifacts em modal grande expansivel (nunca fecham sozinhos)
+ * - Planejamento visivel antes de codar
+ * - Multi-agente com 4 fases: Planejamento → Discussao → Execucao → Review
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
@@ -18,7 +18,9 @@ import {
   Rocket, Terminal, Code2, Bot, FileText, CheckSquare,
   MessageSquare, Play, Send, Loader2,
   Maximize2, Minimize2, Sparkles, Package,
-  Clock, ArrowRight, Plus, Save,
+  Clock, ArrowRight, Plus, Save, X,
+  ClipboardList, Zap, Shield, Palette, Settings2,
+  Copy, Download, ExternalLink,
 } from 'lucide-react'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -28,13 +30,9 @@ const API = import.meta.env.VITE_API_URL || ''
    ============================================================ */
 
 interface Artifact {
-  artifact_id: string
-  tipo: string
-  titulo: string
-  conteudo: string | null
-  dados: Record<string, unknown>
-  status: string
-  agente_nome: string
+  artifact_id: string; tipo: string; titulo: string
+  conteudo: string | null; dados: Record<string, unknown>
+  status: string; agente_nome: string
   comentarios_inline: Array<{
     id: string; linha: number | null; secao: string
     texto: string; autor: string; data: string; resolvido: boolean
@@ -47,22 +45,58 @@ interface AgenteAtivo {
   tarefa: string; tipo: string; inicio: string; resultado?: string; erro?: string
 }
 
-interface TerminalEntry {
-  comando: string; saida: string; sucesso: boolean; timestamp: string
+interface TerminalEntry { comando: string; saida: string; sucesso: boolean; timestamp: string }
+
+interface ChatMsg {
+  id: number; agente_nome: string; tipo: string
+  conteudo: string; fase: string; metadata: Record<string, unknown>
+  criado_em: string | null
 }
 
 interface Sessao {
   sessao_id: string; titulo: string; status: string; projeto_id: number | null
   agentes_ativos: AgenteAtivo[]; artifacts: Artifact[]
-  painel_editor: { arquivos_abertos?: string[]; arquivo_ativo?: string; conteudo?: string } | null
+  painel_editor: { conteudo?: string; arquivo_ativo?: string } | null
   painel_terminal: { historico: TerminalEntry[]; cwd: string } | null
   total_artifacts: number; total_comandos: number
 }
 
 interface SessaoResumo {
-  sessao_id: string; titulo: string; status: string; projeto_id: number | null
+  sessao_id: string; titulo: string; status: string
   agentes_ativos: AgenteAtivo[]; total_artifacts: number; total_comandos: number
   criado_em: string | null; atualizado_em: string | null
+}
+
+/* ============================================================
+   Cores e icones por agente/fase
+   ============================================================ */
+
+const AGENTE_COR: Record<string, string> = {
+  'Tech Lead': '#10b981', 'Backend Dev': '#3b82f6', 'Frontend Dev': '#8b5cf6',
+  'QA Engineer': '#ef4444', 'Sistema': '#6b7280', 'Terminal': '#f59e0b',
+  'Mission Control Agent': '#14b8a6',
+}
+
+const FASE_COR: Record<string, { bg: string; text: string; label: string }> = {
+  planejamento: { bg: 'rgba(99,102,241,0.15)', text: '#818cf8', label: 'Planejamento' },
+  discussao:    { bg: 'rgba(245,158,11,0.15)', text: '#fbbf24', label: 'Discussao' },
+  execucao:     { bg: 'rgba(16,185,129,0.15)', text: '#34d399', label: 'Execucao' },
+  review:       { bg: 'rgba(239,68,68,0.15)',  text: '#f87171', label: 'Review' },
+  conclusao:    { bg: 'rgba(107,114,128,0.15)', text: '#9ca3af', label: 'Concluido' },
+}
+
+function getAgenteCor(nome: string): string {
+  return AGENTE_COR[nome] || '#6b7280'
+}
+
+function AgenteIcon({ nome, size = 16 }: { nome: string; size?: number }) {
+  const props = { size, style: { color: getAgenteCor(nome) } }
+  if (nome === 'Tech Lead') return <Settings2 {...props} />
+  if (nome === 'Backend Dev') return <Zap {...props} />
+  if (nome === 'Frontend Dev') return <Palette {...props} />
+  if (nome === 'QA Engineer') return <Shield {...props} />
+  if (nome === 'Sistema') return <Rocket {...props} />
+  return <Bot {...props} />
 }
 
 /* ============================================================
@@ -81,11 +115,11 @@ export default function MissionControl() {
   const [criando, setCriando] = useState(false)
   const [titulo, setTitulo] = useState('')
 
-  // Painel Editor
+  // Editor
   const [editorConteudo, setEditorConteudo] = useState('// Selecione um arquivo ou peca ao agente para gerar codigo\n')
   const [editorArquivo, setEditorArquivo] = useState('novo-arquivo.tsx')
 
-  // Painel Terminal
+  // Terminal
   const [comandoTerminal, setComandoTerminal] = useState('')
   const [terminalHistorico, setTerminalHistorico] = useState<TerminalEntry[]>([])
   const [executandoCmd, setExecutandoCmd] = useState(false)
@@ -93,24 +127,25 @@ export default function MissionControl() {
 
   // Artifacts
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
-  const [artifactSelecionado, setArtifactSelecionado] = useState<Artifact | null>(null)
+  const [artifactModal, setArtifactModal] = useState<Artifact | null>(null)
   const [novoComentario, setNovoComentario] = useState('')
+
+  // Team Chat
+  const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([])
+  const chatRef = useRef<HTMLDivElement>(null)
 
   // Agente
   const [instrucaoAgente, setInstrucaoAgente] = useState('')
   const [disparandoAgente, setDisparandoAgente] = useState(false)
 
   // Layout
-  const [painelLarguras, setPainelLarguras] = useState([33, 34, 33])
+  const [painelLarguras, setPainelLarguras] = useState([30, 30, 40])
   const [painelMaximizado, setPainelMaximizado] = useState<number | null>(null)
+  const [abaDireita, setAbaDireita] = useState<'chat' | 'artifacts'>('chat')
 
   // Auto-save
-  const [ultimoSave, setUltimoSave] = useState<string>('')
+  const [ultimoSave, setUltimoSave] = useState('')
   const [salvando, setSalvando] = useState(false)
-
-  /* ============================================================
-     Headers helper
-     ============================================================ */
 
   const headers = useMemo(() => ({
     'Content-Type': 'application/json',
@@ -118,26 +153,15 @@ export default function MissionControl() {
   }), [token])
 
   /* ============================================================
-     Listar sessoes recentes
+     Listar sessoes
      ============================================================ */
 
   const carregarSessoes = useCallback(async () => {
     try {
       const res = await fetch(`${API}/api/mission-control/sessoes`, { headers })
-      if (res.ok) {
-        const data = await res.json()
-        setSessoes(data)
-      }
-    } catch (e) {
-      console.error('Erro ao carregar sessoes:', e)
-    } finally {
-      setCarregandoSessoes(false)
-    }
+      if (res.ok) setSessoes(await res.json())
+    } catch { /* */ } finally { setCarregandoSessoes(false) }
   }, [headers])
-
-  /* ============================================================
-     Criar Sessao
-     ============================================================ */
 
   const criarSessao = useCallback(async () => {
     setCriando(true)
@@ -148,39 +172,50 @@ export default function MissionControl() {
       })
       const data = await res.json()
       navigate(`/mission-control/${data.sessao_id}`, { replace: true })
-    } catch (e) {
-      console.error('Erro ao criar sessao:', e)
-    } finally {
-      setCriando(false)
-    }
+    } catch { /* */ } finally { setCriando(false) }
   }, [headers, titulo, navigate])
 
   /* ============================================================
-     Carregar Sessao (com restore de estado)
+     Carregar sessao + restore
      ============================================================ */
 
-  const carregarSessao = useCallback(async (sessaoId: string) => {
+  const carregarSessao = useCallback(async (sid: string) => {
     try {
-      const res = await fetch(`${API}/api/mission-control/sessao/${sessaoId}`, { headers })
+      const res = await fetch(`${API}/api/mission-control/sessao/${sid}`, { headers })
       if (!res.ok) return
       const data: Sessao = await res.json()
       setSessao(data)
       setArtifacts(data.artifacts || [])
       setTerminalHistorico(data.painel_terminal?.historico || [])
-      // Restaurar editor
-      if (data.painel_editor?.conteudo) {
-        setEditorConteudo(data.painel_editor.conteudo)
-      }
-      if (data.painel_editor?.arquivo_ativo) {
-        setEditorArquivo(data.painel_editor.arquivo_ativo)
-      }
-    } catch (e) {
-      console.error('Erro ao carregar sessao:', e)
-    }
+      if (data.painel_editor?.conteudo) setEditorConteudo(data.painel_editor.conteudo)
+      if (data.painel_editor?.arquivo_ativo) setEditorArquivo(data.painel_editor.arquivo_ativo)
+    } catch { /* */ }
   }, [headers])
 
   /* ============================================================
-     Auto-save a cada 10s
+     Team Chat polling (2s)
+     ============================================================ */
+
+  useEffect(() => {
+    if (!sessao?.sessao_id) return
+    let mounted = true
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/chat`, { headers })
+        if (res.ok && mounted) {
+          const msgs: ChatMsg[] = await res.json()
+          setChatMsgs(msgs)
+          setTimeout(() => chatRef.current?.scrollTo(0, chatRef.current.scrollHeight), 50)
+        }
+      } catch { /* */ }
+    }
+    poll()
+    const timer = setInterval(poll, 2000)
+    return () => { mounted = false; clearInterval(timer) }
+  }, [sessao?.sessao_id, headers])
+
+  /* ============================================================
+     Auto-save (10s)
      ============================================================ */
 
   useEffect(() => {
@@ -191,29 +226,18 @@ export default function MissionControl() {
         await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/save`, {
           method: 'PATCH', headers,
           body: JSON.stringify({
-            painel_editor: {
-              conteudo: editorConteudo,
-              arquivo_ativo: editorArquivo,
-              arquivos_abertos: [editorArquivo],
-            },
-            painel_terminal: {
-              historico: terminalHistorico.slice(-50),
-              cwd: '',
-            },
+            painel_editor: { conteudo: editorConteudo, arquivo_ativo: editorArquivo },
+            painel_terminal: { historico: terminalHistorico.slice(-50), cwd: '' },
           }),
         })
         setUltimoSave(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }))
-      } catch {
-        /* silencioso */
-      } finally {
-        setSalvando(false)
-      }
+      } catch { /* */ } finally { setSalvando(false) }
     }, 10000)
     return () => clearInterval(timer)
   }, [sessao?.sessao_id, headers, editorConteudo, editorArquivo, terminalHistorico])
 
   /* ============================================================
-     Polling (agentes e artifacts — 5s)
+     Polling sessao (artifacts + agentes — 5s)
      ============================================================ */
 
   useEffect(() => {
@@ -223,15 +247,12 @@ export default function MissionControl() {
   }, [sessao?.sessao_id, carregarSessao])
 
   /* ============================================================
-     Startup: carregar sessoes ou abrir direto por URL
+     Startup
      ============================================================ */
 
   useEffect(() => {
-    if (urlSessionId) {
-      carregarSessao(urlSessionId)
-    } else {
-      carregarSessoes()
-    }
+    if (urlSessionId) carregarSessao(urlSessionId)
+    else carregarSessoes()
   }, [urlSessionId, carregarSessao, carregarSessoes])
 
   /* ============================================================
@@ -243,23 +264,16 @@ export default function MissionControl() {
     setExecutandoCmd(true)
     try {
       const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/comando`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ comando: comandoTerminal }),
+        method: 'POST', headers, body: JSON.stringify({ comando: comandoTerminal }),
       })
       const data = await res.json()
       setTerminalHistorico(prev => [...prev, {
-        comando: comandoTerminal,
-        saida: data.saida || '',
-        sucesso: data.sucesso,
-        timestamp: new Date().toISOString(),
+        comando: comandoTerminal, saida: data.saida || '',
+        sucesso: data.sucesso, timestamp: new Date().toISOString(),
       }])
       setComandoTerminal('')
       setTimeout(() => terminalRef.current?.scrollTo(0, terminalRef.current.scrollHeight), 100)
-    } catch (e) {
-      console.error('Erro no terminal:', e)
-    } finally {
-      setExecutandoCmd(false)
-    }
+    } catch { /* */ } finally { setExecutandoCmd(false) }
   }, [sessao, comandoTerminal, headers])
 
   /* ============================================================
@@ -269,21 +283,18 @@ export default function MissionControl() {
   const dispararAgente = useCallback(async () => {
     if (!sessao || !instrucaoAgente.trim()) return
     setDisparandoAgente(true)
+    setAbaDireita('chat') // Mudar para chat para ver a conversa
     try {
       await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/agente`, {
         method: 'POST', headers,
         body: JSON.stringify({ instrucao: instrucaoAgente, tipo: 'implementacao' }),
       })
       setInstrucaoAgente('')
-    } catch (e) {
-      console.error('Erro ao disparar agente:', e)
-    } finally {
-      setDisparandoAgente(false)
-    }
+    } catch { /* */ } finally { setDisparandoAgente(false) }
   }, [sessao, instrucaoAgente, headers])
 
   /* ============================================================
-     Comentarios Inline
+     Comentarios
      ============================================================ */
 
   const adicionarComentario = useCallback(async (artifactId: string) => {
@@ -295,13 +306,24 @@ export default function MissionControl() {
       })
       setNovoComentario('')
       if (sessao) await carregarSessao(sessao.sessao_id)
-    } catch (e) {
-      console.error('Erro ao comentar:', e)
-    }
+    } catch { /* */ }
   }, [novoComentario, headers, sessao, carregarSessao])
 
   /* ============================================================
-     Helper: tempo relativo
+     Aplicar codigo do artifact no editor
+     ============================================================ */
+
+  const aplicarNoEditor = useCallback((art: Artifact) => {
+    if (art.conteudo) {
+      setEditorConteudo(art.conteudo)
+      const arq = (art.dados as Record<string, string>)?.arquivo || art.titulo.replace('Codigo: ', '')
+      setEditorArquivo(arq)
+      setArtifactModal(null)
+    }
+  }, [])
+
+  /* ============================================================
+     Helper
      ============================================================ */
 
   function tempoRelativo(iso: string | null): string {
@@ -309,109 +331,77 @@ export default function MissionControl() {
     const diff = Date.now() - new Date(iso).getTime()
     const min = Math.floor(diff / 60000)
     if (min < 1) return 'agora'
-    if (min < 60) return `${min}min atras`
+    if (min < 60) return `${min}min`
     const h = Math.floor(min / 60)
-    if (h < 24) return `${h}h atras`
-    const d = Math.floor(h / 24)
-    return `${d}d atras`
+    if (h < 24) return `${h}h`
+    return `${Math.floor(h / 24)}d`
   }
 
   /* ============================================================
-     Render: Tela de Sessoes (lista + nova sessao)
+     Render: Lista de sessoes
      ============================================================ */
 
   if (!sessao && !urlSessionId) {
     return (
       <div className="h-full overflow-auto" style={{ background: 'var(--sf-bg)' }}>
         <div className="max-w-3xl mx-auto p-8">
-          {/* Header */}
           <div className="flex items-center gap-3 mb-8">
             <Rocket className="w-8 h-8" style={{ color: 'var(--sf-accent)' }} />
             <div>
               <h1 className="text-2xl font-bold" style={{ color: 'var(--sf-text)' }}>Mission Control</h1>
-              <p className="text-sm" style={{ color: 'var(--sf-text-secondary)' }}>
-                Code Studio 2.0 — Editor + Terminal + Artifacts em painel triplo
-              </p>
+              <p className="text-sm" style={{ color: 'var(--sf-text-secondary)' }}>Multi-agente com planejamento, discussao e review visiveis</p>
             </div>
           </div>
 
-          {/* Nova sessao */}
           <div className="p-5 rounded-xl mb-8" style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
             <div className="flex items-center gap-3">
-              <input
-                type="text"
-                placeholder="Nome da sessao (ex: Feature Login SSO)"
-                value={titulo}
-                onChange={e => setTitulo(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && criarSessao()}
+              <input type="text" placeholder="Nome da sessao (ex: Feature Login SSO)" value={titulo}
+                onChange={e => setTitulo(e.target.value)} onKeyDown={e => e.key === 'Enter' && criarSessao()}
                 className="flex-1 px-4 py-2.5 rounded-lg text-sm"
-                style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }}
-              />
-              <button
-                onClick={criarSessao}
-                disabled={criando}
-                className="px-5 py-2.5 rounded-lg font-semibold text-white flex items-center gap-2 transition-transform hover:scale-105"
-                style={{ background: 'var(--sf-accent)' }}
-              >
-                {criando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                Nova Sessao
+                style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
+              <button onClick={criarSessao} disabled={criando}
+                className="px-5 py-2.5 rounded-lg font-semibold text-white flex items-center gap-2 hover:scale-105 transition-transform"
+                style={{ background: 'var(--sf-accent)' }}>
+                {criando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Nova Sessao
               </button>
             </div>
           </div>
 
-          {/* Sessoes recentes */}
           <h2 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--sf-text-secondary)' }}>
             <Clock className="w-4 h-4" /> Sessoes Recentes
           </h2>
 
           {carregandoSessoes ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--sf-accent)' }} />
-            </div>
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--sf-accent)' }} /></div>
           ) : sessoes.length === 0 ? (
             <div className="text-center py-12 rounded-xl" style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
               <Package className="w-12 h-12 mx-auto mb-3 opacity-30" style={{ color: 'var(--sf-text-secondary)' }} />
               <p className="text-sm" style={{ color: 'var(--sf-text-secondary)' }}>Nenhuma sessao anterior.</p>
-              <p className="text-xs mt-1" style={{ color: 'var(--sf-text-secondary)', opacity: 0.6 }}>Crie uma nova sessao para comecar.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {sessoes.map(s => {
-                const ultimoAgente = (s.agentes_ativos || []).filter(a => a.status === 'concluido').pop()
-                return (
-                  <div
-                    key={s.sessao_id}
-                    onClick={() => navigate(`/mission-control/${s.sessao_id}`)}
-                    className="flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-all hover:scale-[1.01]"
-                    style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}
-                  >
-                    <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center"
-                      style={{ background: s.status === 'ativa' ? 'rgba(16,185,129,0.15)' : 'rgba(107,114,128,0.15)' }}>
-                      <Rocket className="w-5 h-5" style={{ color: s.status === 'ativa' ? 'var(--sf-accent)' : '#6b7280' }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium truncate" style={{ color: 'var(--sf-text)' }}>{s.titulo}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${s.status === 'ativa' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                          {s.status}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: 'var(--sf-text-secondary)' }}>
-                        <span className="flex items-center gap-1"><Package className="w-3 h-3" /> {s.total_artifacts} artifacts</span>
-                        <span className="flex items-center gap-1"><Terminal className="w-3 h-3" /> {s.total_comandos} cmds</span>
-                        {ultimoAgente && (
-                          <span className="flex items-center gap-1"><Bot className="w-3 h-3" /> {ultimoAgente.nome}</span>
-                        )}
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {tempoRelativo(s.atualizado_em)}</span>
-                      </div>
-                    </div>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-                      style={{ background: 'var(--sf-accent)', color: 'white' }}>
-                      <ArrowRight className="w-3.5 h-3.5" /> Retomar
-                    </button>
+              {sessoes.map(s => (
+                <div key={s.sessao_id} onClick={() => navigate(`/mission-control/${s.sessao_id}`)}
+                  className="flex items-center gap-4 p-4 rounded-xl cursor-pointer hover:scale-[1.01] transition-all"
+                  style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center"
+                    style={{ background: s.status === 'ativa' ? 'rgba(16,185,129,0.15)' : 'rgba(107,114,128,0.15)' }}>
+                    <Rocket className="w-5 h-5" style={{ color: s.status === 'ativa' ? 'var(--sf-accent)' : '#6b7280' }} />
                   </div>
-                )
-              })}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium truncate block" style={{ color: 'var(--sf-text)' }}>{s.titulo}</span>
+                    <div className="flex gap-3 mt-1 text-xs" style={{ color: 'var(--sf-text-secondary)' }}>
+                      <span><Package className="w-3 h-3 inline mr-1" />{s.total_artifacts}</span>
+                      <span><Terminal className="w-3 h-3 inline mr-1" />{s.total_comandos}</span>
+                      <span><Clock className="w-3 h-3 inline mr-1" />{tempoRelativo(s.atualizado_em)}</span>
+                    </div>
+                  </div>
+                  <button className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ background: 'var(--sf-accent)', color: 'white' }}>
+                    <ArrowRight className="w-3.5 h-3.5" /> Retomar
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -419,31 +409,25 @@ export default function MissionControl() {
     )
   }
 
-  /* ============================================================
-     Loading (quando vem via URL mas sessao ainda nao carregou)
-     ============================================================ */
-
   if (!sessao && urlSessionId) {
-    return (
-      <div className="h-full flex items-center justify-center" style={{ background: 'var(--sf-bg)' }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--sf-accent)' }} />
-      </div>
-    )
+    return <div className="h-full flex items-center justify-center" style={{ background: 'var(--sf-bg)' }}>
+      <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--sf-accent)' }} />
+    </div>
   }
 
   if (!sessao) return null
+
+  const agentes = sessao.agentes_ativos || []
+  const agentesExecutando = agentes.filter(a => a.status === 'executando')
 
   /* ============================================================
      Render: Painel Triplo
      ============================================================ */
 
-  const agentes = sessao.agentes_ativos || []
-  const agentesExecutando = agentes.filter(a => a.status === 'executando')
-
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--sf-bg)' }}>
 
-      {/* === Header === */}
+      {/* Header */}
       <header className="flex items-center gap-3 px-4 py-2 flex-shrink-0"
         style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
         <button onClick={() => { setSessao(null); navigate('/mission-control') }} className="opacity-60 hover:opacity-100">
@@ -454,15 +438,12 @@ export default function MissionControl() {
           {sessao.titulo}
         </span>
 
-        {/* Agentes vivos */}
         {agentesExecutando.length > 0 && (
           <div className="flex items-center gap-2 ml-4">
             {agentesExecutando.map(a => (
               <div key={a.id} className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs animate-pulse"
                 style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' }}>
-                <Bot className="w-3.5 h-3.5" />
-                <span>{a.nome}</span>
-                <Loader2 className="w-3 h-3 animate-spin" />
+                <Bot className="w-3.5 h-3.5" /><span>{a.nome}</span><Loader2 className="w-3 h-3 animate-spin" />
               </div>
             ))}
           </div>
@@ -470,7 +451,6 @@ export default function MissionControl() {
 
         <div className="flex-1" />
 
-        {/* Auto-save indicator */}
         {ultimoSave && (
           <span className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--sf-text-secondary)', opacity: 0.6 }}>
             {salvando ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
@@ -478,35 +458,27 @@ export default function MissionControl() {
           </span>
         )}
 
-        {/* Metricas */}
         <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--sf-text-secondary)' }}>
-          <span className="flex items-center gap-1"><Package className="w-3.5 h-3.5" /> {artifacts.length} artifacts</span>
-          <span className="flex items-center gap-1"><Terminal className="w-3.5 h-3.5" /> {sessao.total_comandos} cmds</span>
-          <span className="flex items-center gap-1"><Bot className="w-3.5 h-3.5" /> {agentes.length} agentes</span>
+          <span><Package className="w-3.5 h-3.5 inline mr-1" />{artifacts.length}</span>
+          <span><Terminal className="w-3.5 h-3.5 inline mr-1" />{sessao.total_comandos}</span>
+          <span><MessageSquare className="w-3.5 h-3.5 inline mr-1" />{chatMsgs.length}</span>
         </div>
       </header>
 
-      {/* === Instrucao do Agente (barra superior) === */}
+      {/* Instrucao do Agente */}
       <div className="flex items-center gap-2 px-4 py-2 flex-shrink-0"
         style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
         <Sparkles className="w-4 h-4" style={{ color: 'var(--sf-accent)' }} />
-        <input
-          type="text"
-          placeholder="Instruir agente: 'Crie um componente de login com validacao e testes'"
-          value={instrucaoAgente}
-          onChange={e => setInstrucaoAgente(e.target.value)}
+        <input type="text" placeholder="Instruir equipe: 'Crie um componente de login com validacao e testes'"
+          value={instrucaoAgente} onChange={e => setInstrucaoAgente(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && dispararAgente()}
           className="flex-1 px-3 py-1.5 rounded text-sm"
-          style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }}
-        />
-        <button
-          onClick={dispararAgente}
-          disabled={disparandoAgente || !instrucaoAgente.trim()}
+          style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
+        <button onClick={dispararAgente} disabled={disparandoAgente || !instrucaoAgente.trim()}
           className="px-3 py-1.5 rounded text-xs font-medium text-white flex items-center gap-1"
-          style={{ background: disparandoAgente ? '#666' : 'var(--sf-accent)' }}
-        >
+          style={{ background: disparandoAgente ? '#666' : 'var(--sf-accent)' }}>
           {disparandoAgente ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-          Executar
+          Executar Equipe
         </button>
       </div>
 
@@ -515,85 +487,52 @@ export default function MissionControl() {
 
         {/* Painel 1: Editor */}
         {(painelMaximizado === null || painelMaximizado === 0) && (
-          <div className="flex flex-col overflow-hidden"
-            style={{ width: painelMaximizado === 0 ? '100%' : `${painelLarguras[0]}%` }}>
+          <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 0 ? '100%' : `${painelLarguras[0]}%` }}>
             <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
               style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
-              <Code2 className="w-3.5 h-3.5" />
-              <span className="font-medium">Editor</span>
+              <Code2 className="w-3.5 h-3.5" /><span className="font-medium">Editor</span>
               <span className="opacity-60">{editorArquivo}</span>
               <div className="flex-1" />
-              <button onClick={() => setPainelMaximizado(painelMaximizado === 0 ? null : 0)}
-                className="opacity-60 hover:opacity-100">
+              <button onClick={() => setPainelMaximizado(painelMaximizado === 0 ? null : 0)} className="opacity-60 hover:opacity-100">
                 {painelMaximizado === 0 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               </button>
             </div>
-            <textarea
-              className="flex-1 p-3 font-mono text-sm resize-none outline-none"
+            <textarea className="flex-1 p-3 font-mono text-sm resize-none outline-none" spellCheck={false}
               style={{ background: '#1e1e2e', color: '#cdd6f4', border: 'none' }}
-              value={editorConteudo}
-              onChange={e => setEditorConteudo(e.target.value)}
-              spellCheck={false}
-            />
+              value={editorConteudo} onChange={e => setEditorConteudo(e.target.value)} />
           </div>
         )}
 
         {painelMaximizado === null && <ResizableHandle onResize={(d) => {
-          setPainelLarguras(prev => {
-            const n = [...prev]
-            const delta = (d / window.innerWidth) * 100
-            n[0] = Math.max(15, Math.min(60, n[0] + delta))
-            n[1] = Math.max(15, Math.min(60, n[1] - delta))
-            return n
-          })
+          setPainelLarguras(prev => { const n = [...prev]; const delta = (d / window.innerWidth) * 100; n[0] = Math.max(15, Math.min(50, n[0] + delta)); n[1] = Math.max(15, Math.min(50, n[1] - delta)); return n })
         }} />}
 
         {/* Painel 2: Terminal */}
         {(painelMaximizado === null || painelMaximizado === 1) && (
-          <div className="flex flex-col overflow-hidden"
-            style={{ width: painelMaximizado === 1 ? '100%' : `${painelLarguras[1]}%` }}>
+          <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 1 ? '100%' : `${painelLarguras[1]}%` }}>
             <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
               style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
-              <Terminal className="w-3.5 h-3.5" />
-              <span className="font-medium">Terminal</span>
+              <Terminal className="w-3.5 h-3.5" /><span className="font-medium">Terminal</span>
               <div className="flex-1" />
-              <button onClick={() => setPainelMaximizado(painelMaximizado === 1 ? null : 1)}
-                className="opacity-60 hover:opacity-100">
+              <button onClick={() => setPainelMaximizado(painelMaximizado === 1 ? null : 1)} className="opacity-60 hover:opacity-100">
                 {painelMaximizado === 1 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               </button>
             </div>
-            <div ref={terminalRef} className="flex-1 overflow-auto p-3 font-mono text-xs"
-              style={{ background: '#0d1117', color: '#c9d1d9' }}>
+            <div ref={terminalRef} className="flex-1 overflow-auto p-3 font-mono text-xs" style={{ background: '#0d1117', color: '#c9d1d9' }}>
               {terminalHistorico.map((entry, i) => (
                 <div key={i} className="mb-3">
-                  <div className="flex items-center gap-1">
-                    <span style={{ color: '#58a6ff' }}>$</span>
-                    <span style={{ color: '#f0f6fc' }}>{entry.comando}</span>
-                  </div>
-                  <pre className="whitespace-pre-wrap mt-0.5"
-                    style={{ color: entry.sucesso ? '#8b949e' : '#f85149' }}>
-                    {entry.saida}
-                  </pre>
+                  <div className="flex items-center gap-1"><span style={{ color: '#58a6ff' }}>$</span><span style={{ color: '#f0f6fc' }}>{entry.comando}</span></div>
+                  <pre className="whitespace-pre-wrap mt-0.5" style={{ color: entry.sucesso ? '#8b949e' : '#f85149' }}>{entry.saida}</pre>
                 </div>
               ))}
-              {terminalHistorico.length === 0 && (
-                <div style={{ color: '#484f58' }}>Terminal pronto. Digite um comando abaixo.</div>
-              )}
+              {terminalHistorico.length === 0 && <div style={{ color: '#484f58' }}>Terminal pronto.</div>}
             </div>
-            <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0"
-              style={{ background: '#161b22', borderTop: '1px solid #30363d' }}>
+            <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0" style={{ background: '#161b22', borderTop: '1px solid #30363d' }}>
               <span className="text-xs" style={{ color: '#58a6ff' }}>$</span>
-              <input
-                type="text"
-                value={comandoTerminal}
-                onChange={e => setComandoTerminal(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && executarComando()}
-                placeholder="Digite comando..."
-                className="flex-1 bg-transparent text-xs outline-none font-mono"
-                style={{ color: '#f0f6fc' }}
-              />
-              <button onClick={executarComando} disabled={executandoCmd}
-                className="text-xs px-2 py-0.5 rounded"
+              <input type="text" value={comandoTerminal} onChange={e => setComandoTerminal(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && executarComando()} placeholder="Digite comando..."
+                className="flex-1 bg-transparent text-xs outline-none font-mono" style={{ color: '#f0f6fc' }} />
+              <button onClick={executarComando} disabled={executandoCmd} className="text-xs px-2 py-0.5 rounded"
                 style={{ background: '#21262d', color: '#58a6ff' }}>
                 {executandoCmd ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
               </button>
@@ -602,115 +541,206 @@ export default function MissionControl() {
         )}
 
         {painelMaximizado === null && <ResizableHandle onResize={(d) => {
-          setPainelLarguras(prev => {
-            const n = [...prev]
-            const delta = (d / window.innerWidth) * 100
-            n[1] = Math.max(15, Math.min(60, n[1] + delta))
-            n[2] = Math.max(15, Math.min(60, n[2] - delta))
-            return n
-          })
+          setPainelLarguras(prev => { const n = [...prev]; const delta = (d / window.innerWidth) * 100; n[1] = Math.max(15, Math.min(50, n[1] + delta)); n[2] = Math.max(20, Math.min(60, n[2] - delta)); return n })
         }} />}
 
-        {/* Painel 3: Artifacts/Navegador */}
+        {/* Painel 3: Team Chat + Artifacts */}
         {(painelMaximizado === null || painelMaximizado === 2) && (
-          <div className="flex flex-col overflow-hidden"
-            style={{ width: painelMaximizado === 2 ? '100%' : `${painelLarguras[2]}%` }}>
-            <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
-              style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
-              <FileText className="w-3.5 h-3.5" />
-              <span className="font-medium">Artifacts & Navegador</span>
+          <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 2 ? '100%' : `${painelLarguras[2]}%` }}>
+            {/* Tabs: Chat / Artifacts */}
+            <div className="flex items-center gap-1 px-3 py-1.5 text-xs flex-shrink-0"
+              style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+              <button onClick={() => setAbaDireita('chat')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-all ${abaDireita === 'chat' ? '' : 'opacity-50 hover:opacity-80'}`}
+                style={abaDireita === 'chat' ? { background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' } : { color: 'var(--sf-text-secondary)' }}>
+                <MessageSquare className="w-3.5 h-3.5" /> Team Chat
+                {chatMsgs.length > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px]" style={{ background: 'rgba(16,185,129,0.2)' }}>{chatMsgs.length}</span>}
+              </button>
+              <button onClick={() => setAbaDireita('artifacts')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-all ${abaDireita === 'artifacts' ? '' : 'opacity-50 hover:opacity-80'}`}
+                style={abaDireita === 'artifacts' ? { background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' } : { color: 'var(--sf-text-secondary)' }}>
+                <Package className="w-3.5 h-3.5" /> Artifacts
+                {artifacts.length > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px]" style={{ background: 'rgba(16,185,129,0.2)' }}>{artifacts.length}</span>}
+              </button>
               <div className="flex-1" />
-              <button onClick={() => setPainelMaximizado(painelMaximizado === 2 ? null : 2)}
-                className="opacity-60 hover:opacity-100">
+              <button onClick={() => setPainelMaximizado(painelMaximizado === 2 ? null : 2)} className="opacity-60 hover:opacity-100">
                 {painelMaximizado === 2 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               </button>
             </div>
 
-            <div className="flex-1 overflow-auto" style={{ background: 'var(--sf-bg)' }}>
-              {artifacts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full gap-3"
-                  style={{ color: 'var(--sf-text-secondary)' }}>
-                  <Package className="w-12 h-12 opacity-30" />
-                  <p className="text-sm">Nenhum artifact ainda.</p>
-                  <p className="text-xs opacity-60">Instrua um agente para gerar planos, checklists e codigo.</p>
-                </div>
-              ) : (
-                <div className="p-3 space-y-3">
-                  {artifacts.map(art => (
-                    <div key={art.artifact_id}
-                      onClick={() => setArtifactSelecionado(art === artifactSelecionado ? null : art)}
-                      className="rounded-lg p-3 cursor-pointer transition-all hover:scale-[1.01]"
+            {/* === TEAM CHAT === */}
+            {abaDireita === 'chat' && (
+              <div ref={chatRef} className="flex-1 overflow-auto p-3 space-y-2" style={{ background: 'var(--sf-bg)' }}>
+                {chatMsgs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color: 'var(--sf-text-secondary)' }}>
+                    <MessageSquare className="w-12 h-12 opacity-20" />
+                    <p className="text-sm">Nenhuma conversa ainda.</p>
+                    <p className="text-xs opacity-60">Instrua a equipe acima para ver os agentes conversando.</p>
+                  </div>
+                ) : chatMsgs.map(msg => {
+                  const fase = FASE_COR[msg.fase] || null
+                  const isSistema = msg.tipo === 'sistema'
+                  return (
+                    <div key={msg.id} className={`rounded-lg px-3 py-2 ${isSistema ? 'text-center' : ''}`}
                       style={{
-                        background: 'var(--sf-surface)',
-                        border: art === artifactSelecionado ? '2px solid var(--sf-accent)' : '1px solid var(--sf-border-subtle)',
+                        background: isSistema ? 'rgba(107,114,128,0.08)' : fase?.bg || 'var(--sf-surface)',
+                        border: isSistema ? 'none' : '1px solid var(--sf-border-subtle)',
                       }}>
-
-                      <div className="flex items-center gap-2 mb-2">
-                        {art.tipo === 'plano' && <FileText className="w-4 h-4" style={{ color: '#60a5fa' }} />}
-                        {art.tipo === 'checklist' && <CheckSquare className="w-4 h-4" style={{ color: '#34d399' }} />}
-                        {art.tipo === 'terminal' && <Terminal className="w-4 h-4" style={{ color: '#fbbf24' }} />}
-                        {art.tipo === 'codigo' && <Code2 className="w-4 h-4" style={{ color: '#a78bfa' }} />}
-                        <span className="text-sm font-medium" style={{ color: 'var(--sf-text)' }}>{art.titulo}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${art.status === 'aprovado' ? 'bg-green-500/20 text-green-400' : art.status === 'rejeitado' ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                          {art.status}
-                        </span>
-                        <div className="flex-1" />
-                        <span className="text-[10px] flex items-center gap-1" style={{ color: 'var(--sf-text-secondary)' }}>
-                          <Bot className="w-3 h-3" /> {art.agente_nome}
-                        </span>
-                      </div>
-
-                      {art === artifactSelecionado && (
-                        <div className="mt-2">
-                          <pre className="text-xs p-3 rounded overflow-auto max-h-60 font-mono whitespace-pre-wrap"
-                            style={{ background: 'var(--sf-bg)', color: 'var(--sf-text)' }}>
-                            {art.conteudo || JSON.stringify(art.dados, null, 2)}
-                          </pre>
-
-                          {(art.comentarios_inline || []).length > 0 && (
-                            <div className="mt-3 space-y-2">
-                              <span className="text-[10px] font-medium flex items-center gap-1" style={{ color: 'var(--sf-text-secondary)' }}>
-                                <MessageSquare className="w-3 h-3" /> Comentarios
-                              </span>
-                              {art.comentarios_inline.map((c, ci) => (
-                                <div key={ci} className="text-xs p-2 rounded"
-                                  style={{ background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.2)' }}>
-                                  <span className="font-medium" style={{ color: '#60a5fa' }}>{c.autor}</span>
-                                  <span className="opacity-60 ml-2">{c.secao || `linha ${c.linha}`}</span>
-                                  <p className="mt-1" style={{ color: 'var(--sf-text)' }}>{c.texto}</p>
-                                </div>
-                              ))}
-                            </div>
+                      {!isSistema && (
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <AgenteIcon nome={msg.agente_nome} size={14} />
+                          <span className="text-xs font-semibold" style={{ color: getAgenteCor(msg.agente_nome) }}>{msg.agente_nome}</span>
+                          {fase && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: fase.bg, color: fase.text }}>
+                              {fase.label}
+                            </span>
                           )}
-
-                          <div className="flex items-center gap-2 mt-3">
-                            <input
-                              type="text"
-                              placeholder="Adicionar comentario..."
-                              value={novoComentario}
-                              onChange={e => setNovoComentario(e.target.value)}
-                              onKeyDown={e => e.key === 'Enter' && adicionarComentario(art.artifact_id)}
-                              className="flex-1 px-2 py-1 rounded text-xs"
-                              style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }}
-                              onClick={e => e.stopPropagation()}
-                            />
-                            <button
-                              onClick={(e) => { e.stopPropagation(); adicionarComentario(art.artifact_id) }}
-                              className="px-2 py-1 rounded text-xs"
-                              style={{ background: 'var(--sf-accent)', color: 'white' }}>
-                              <Send className="w-3 h-3" />
-                            </button>
-                          </div>
+                          {msg.tipo === 'decisao' && <Zap className="w-3 h-3" style={{ color: '#fbbf24' }} />}
+                          <span className="text-[9px] ml-auto" style={{ color: 'var(--sf-text-secondary)', opacity: 0.5 }}>
+                            {msg.criado_em ? new Date(msg.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
+                          </span>
                         </div>
                       )}
+                      <p className={`text-xs whitespace-pre-wrap ${isSistema ? 'font-medium' : ''}`}
+                        style={{ color: isSistema ? 'var(--sf-text-secondary)' : 'var(--sf-text)' }}>
+                        {msg.conteudo}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* === ARTIFACTS === */}
+            {abaDireita === 'artifacts' && (
+              <div className="flex-1 overflow-auto p-3 space-y-3" style={{ background: 'var(--sf-bg)' }}>
+                {artifacts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color: 'var(--sf-text-secondary)' }}>
+                    <Package className="w-12 h-12 opacity-30" />
+                    <p className="text-sm">Nenhum artifact ainda.</p>
+                  </div>
+                ) : artifacts.map(art => (
+                  <div key={art.artifact_id} onClick={() => setArtifactModal(art)}
+                    className="rounded-lg p-3 cursor-pointer hover:scale-[1.01] transition-all"
+                    style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
+                    <div className="flex items-center gap-2">
+                      {art.tipo === 'plano' && <ClipboardList className="w-4 h-4" style={{ color: '#60a5fa' }} />}
+                      {art.tipo === 'checklist' && <CheckSquare className="w-4 h-4" style={{ color: '#34d399' }} />}
+                      {art.tipo === 'terminal' && <Terminal className="w-4 h-4" style={{ color: '#fbbf24' }} />}
+                      {art.tipo === 'codigo' && <Code2 className="w-4 h-4" style={{ color: '#a78bfa' }} />}
+                      <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--sf-text)' }}>{art.titulo}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${art.status === 'aprovado' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                        {art.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1.5 text-[10px]" style={{ color: 'var(--sf-text-secondary)' }}>
+                      <AgenteIcon nome={art.agente_nome} size={12} />
+                      <span>{art.agente_nome}</span>
+                      {(art.comentarios_inline || []).length > 0 && (
+                        <span className="flex items-center gap-0.5"><MessageSquare className="w-3 h-3" /> {art.comentarios_inline.length}</span>
+                      )}
+                      <span className="ml-auto">{tempoRelativo(art.criado_em)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* === MODAL DO ARTIFACT (grande, expansivel) === */}
+      {artifactModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}
+          onClick={() => setArtifactModal(null)}>
+          <div className="w-full max-w-4xl max-h-[85vh] flex flex-col rounded-2xl overflow-hidden"
+            style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}
+            onClick={e => e.stopPropagation()}>
+
+            {/* Modal Header */}
+            <div className="flex items-center gap-3 px-6 py-4 flex-shrink-0"
+              style={{ borderBottom: '1px solid var(--sf-border-subtle)' }}>
+              {artifactModal.tipo === 'plano' && <ClipboardList className="w-5 h-5" style={{ color: '#60a5fa' }} />}
+              {artifactModal.tipo === 'checklist' && <CheckSquare className="w-5 h-5" style={{ color: '#34d399' }} />}
+              {artifactModal.tipo === 'codigo' && <Code2 className="w-5 h-5" style={{ color: '#a78bfa' }} />}
+              {artifactModal.tipo === 'terminal' && <Terminal className="w-5 h-5" style={{ color: '#fbbf24' }} />}
+              <div className="flex-1">
+                <h3 className="text-base font-bold" style={{ color: 'var(--sf-text)' }}>{artifactModal.titulo}</h3>
+                <div className="flex items-center gap-2 mt-0.5 text-xs" style={{ color: 'var(--sf-text-secondary)' }}>
+                  <AgenteIcon nome={artifactModal.agente_nome} size={12} />
+                  <span>{artifactModal.agente_nome}</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${artifactModal.status === 'aprovado' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                    {artifactModal.status}
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setArtifactModal(null)} className="p-1 rounded hover:bg-white/10">
+                <X className="w-5 h-5" style={{ color: 'var(--sf-text-secondary)' }} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-auto p-6">
+              <pre className="text-sm p-4 rounded-xl font-mono whitespace-pre-wrap overflow-auto max-h-[50vh]"
+                style={{ background: 'var(--sf-bg)', color: 'var(--sf-text)', border: '1px solid var(--sf-border-subtle)' }}>
+                {artifactModal.conteudo || JSON.stringify(artifactModal.dados, null, 2)}
+              </pre>
+
+              {/* Comentarios */}
+              {(artifactModal.comentarios_inline || []).length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <span className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--sf-text-secondary)' }}>
+                    <MessageSquare className="w-3.5 h-3.5" /> {artifactModal.comentarios_inline.length} Comentarios
+                  </span>
+                  {artifactModal.comentarios_inline.map((c, ci) => (
+                    <div key={ci} className="text-xs p-3 rounded-lg"
+                      style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.15)' }}>
+                      <span className="font-semibold" style={{ color: '#60a5fa' }}>{c.autor}</span>
+                      <span className="opacity-50 ml-2">{c.secao || (c.linha ? `linha ${c.linha}` : '')}</span>
+                      <p className="mt-1" style={{ color: 'var(--sf-text)' }}>{c.texto}</p>
                     </div>
                   ))}
                 </div>
               )}
+
+              {/* Novo comentario */}
+              <div className="flex items-center gap-2 mt-4">
+                <input type="text" placeholder="Adicionar comentario..." value={novoComentario}
+                  onChange={e => setNovoComentario(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && adicionarComentario(artifactModal.artifact_id)}
+                  className="flex-1 px-3 py-2 rounded-lg text-sm"
+                  style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
+                <button onClick={() => adicionarComentario(artifactModal.artifact_id)}
+                  className="px-3 py-2 rounded-lg text-sm font-medium text-white"
+                  style={{ background: 'var(--sf-accent)' }}>
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center gap-3 px-6 py-4 flex-shrink-0"
+              style={{ borderTop: '1px solid var(--sf-border-subtle)', background: 'var(--sf-bg)' }}>
+              {artifactModal.tipo === 'codigo' && (
+                <button onClick={() => aplicarNoEditor(artifactModal)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
+                  style={{ background: 'var(--sf-accent)' }}>
+                  <ExternalLink className="w-4 h-4" /> Aplicar no Editor
+                </button>
+              )}
+              <button onClick={() => { navigator.clipboard.writeText(artifactModal.conteudo || '') }}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
+                style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--sf-text)', border: '1px solid var(--sf-border-subtle)' }}>
+                <Copy className="w-4 h-4" /> Copiar
+              </button>
+              <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
+                style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--sf-text)', border: '1px solid var(--sf-border-subtle)' }}>
+                <Download className="w-4 h-4" /> Download
+              </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
