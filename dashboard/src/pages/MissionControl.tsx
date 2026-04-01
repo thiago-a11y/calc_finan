@@ -15,7 +15,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useParams, useNavigate } from 'react-router-dom'
 import ResizableHandle from '../components/code-studio/ResizableHandle'
 import {
-  Rocket, Terminal, Code2, Bot, FileText, CheckSquare,
+  Rocket, Terminal, Code2, Bot, CheckSquare,
   MessageSquare, Play, Send, Loader2,
   Maximize2, Minimize2, Sparkles, Package,
   Clock, ArrowRight, Plus, Save, X,
