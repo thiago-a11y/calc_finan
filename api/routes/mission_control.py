@@ -1,8 +1,14 @@
 """
-Rotas: Mission Control — Code Studio 2.0 (v0.55.0)
+Rotas: Mission Control — Code Studio 2.0 (v0.57.6)
 
-Painel triplo (Editor + Terminal + Navegador) com artifacts inteligentes,
-agentes vivos e comentarios inline estilo Google Docs.
+Painel triplo (Editor + Terminal + Team Chat/Artifacts) com artifacts inteligentes,
+agentes vivos, True Live Typing e comentarios inline estilo Google Docs.
+
+v0.57.6 — True Live Typing:
+- True Live Typing: caractere por caractere no editor com cursor verde piscando
+- Streaming em blocos de 2 linhas com 200ms de delay para efeito fluido
+- Comandos reais no terminal (npm build, pytest, eslint)
+- Progresso granular dentro de cada fase
 
 GET  /api/mission-control/sessoes           — Lista sessoes ativas
 POST /api/mission-control/sessao             — Cria nova sessao
