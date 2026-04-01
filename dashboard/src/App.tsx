@@ -246,6 +246,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/mission-control/:sessionId"
+        element={
+          <RotaProtegida>
+            <LayoutPrincipal><MissionControl /></LayoutPrincipal>
+          </RotaProtegida>
+        }
+      />
+      <Route
         path="/luna"
         element={
           <RotaProtegida>
