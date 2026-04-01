@@ -103,4 +103,8 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 
 ---
 
-> Última atualização: 2026-04-01
+- **Bug #49** ✅ RESOLVIDO: `TeamChatDB` tinha coluna `metadata = Column(JSON)`. SQLAlchemy Declarative API reserva o nome `metadata` internamente — lançava `InvalidRequestError: Attribute name 'metadata' is reserved when using the Declarative API`. Fix: renomear para `dados_extra` no model e em todos os endpoints que usavam o campo. Lição: nunca usar `metadata`, `query`, `registry` ou `__tablename__` como nome de coluna SQLAlchemy.
+- **Bug #50** ✅ RESOLVIDO: Fases do multi-agente em `_executar_agente_mission_control()` passavam strings raw (`"SIMPLES"`, `"COMPLEXO"`, `"MEDIO"`) como parâmetro `classificacao` para `chamar_llm_com_fallback()`. A função espera um objeto `ProviderRecomendado` com atributo `.cadeia_fallback` — string não tem esse atributo, causando `AttributeError: 'str' object has no attribute 'cadeia_fallback'`. Fix: substituir todas as strings por chamadas reais `classificar_mensagem(texto)`. Lição: sempre passar o objeto retornado por `classificar_mensagem()`, nunca strings manuais.
+- **Bug #51** ✅ RESOLVIDO: `MissionControl.tsx` importava `FileText` de `lucide-react` mas não usava em nenhum JSX após refatoração. `tsc -b` reportava `TS6133: 'FileText' is declared but its value is never read`, quebrando o build. Fix: remover `FileText` dos imports. Lição: ao refatorar JSX e remover elementos, sempre verificar se os imports correspondentes ainda são usados.
+
+> Última atualização: 2026-04-01 (v0.57.1)

@@ -4,6 +4,47 @@
 
 ---
 
+## v0.57.1 — Team Chat Multi-Agente + Artifact Modal Estavel (01/Abr/2026)
+
+### Feature Principal
+Mission Control agora exibe a conversa real entre agentes em tempo real. O CEO assiste ao vivo o Tech Lead planejar, os especialistas debaterem e o QA revisar — tudo em 4 fases coordenadas. O modal de artifacts foi reescrito para nunca fechar sozinho e com botões de ação.
+
+### Backend
+- **`TeamChatDB`** — novo model: armazena cada mensagem de agente com campos `sessao_id`, `agente_nome`, `tipo` (sistema/mensagem/acao), `conteudo`, `fase` (planejamento/discussão/execução/review/conclusão), `dados_extra` (JSON), `company_id`, `criado_em`
+- **`GET /api/mission-control/sessao/{id}/chat`** — endpoint de polling incremental (param `?desde=timestamp`). Retorna apenas mensagens novas — frontend chama a cada 2s
+- **`_executar_agente_mission_control()`** reescrito para 4 fases multi-agente:
+  - **Fase 1 — Planejamento**: Tech Lead chama LLM, gera JSON de plano estruturado, cria artifact PLANO
+  - **Fase 2 — Discussão**: Backend Dev, Frontend Dev e QA Engineer dão parecer técnico via LLM
+  - **Fase 3 — Execução**: Tech Lead gera código real, cria artifact CODIGO
+  - **Fase 4 — Review**: QA Engineer gera checklist de qualidade, cria artifact CHECKLIST
+- Todos os `classificar_mensagem()` chamados corretamente — retornam `ProviderRecomendado` (não string raw)
+
+### Frontend (`MissionControl.tsx`)
+- **Painel 3 com abas**: **Team Chat** | **Artifacts** — alterna para Team Chat automaticamente ao disparar agente
+- **Team Chat em tempo real**: polling a cada 2s via GET /chat. Renderiza cada mensagem com:
+  - Ícone colorido por agente (User2, Bot, Cpu, Shield)
+  - Badge de fase colorido (planejamento=azul, discussão=amarelo, execução=verde, review=roxo, conclusão=cinza)
+  - Timestamp relativo
+  - Mensagens de sistema centralizadas em itálico
+- **Artifact modal estável**: nunca fecha sozinho. Somente via botão X ou clique fora. Tamanho máximo (`max-w-4xl`)
+- **Botões de ação no modal**: "Aplicar no Editor" (cola código no textarea), "Copiar" (clipboard), "Download" (.txt)
+- **Editor como `<textarea>`**: substituiu `<pre>` para permitir digitação real com fonte monospace
+
+### Bugs Corrigidos (nesta versão)
+- **Bug #49** — `metadata` reservado pelo SQLAlchemy → renomeado para `dados_extra` em TeamChatDB
+- **Bug #50** — `'str' object has no attribute 'cadeia_fallback'` → todas as chamadas passavam string raw, corrigidas para `classificar_mensagem(texto)`
+- **Bug #51** — TypeScript `TS6133: 'FileText' declared but never read` → removido import desnecessário
+
+### Teste de Integração (01/Abr/2026) — APROVADO ✅
+- Sessão `17f4adb17602` criada com instrução "Crie um componente de Login com validação de email..."
+- **14 mensagens** no Team Chat (Tech Lead, Backend Dev, Frontend Dev, QA Engineer)
+- **3 artifacts** gerados: PLANO, CODIGO, CHECKLIST — todos com conteúdo real
+- 4 fases executadas sem crash em sequência
+- Polling frontend 2s funcionando sem duplicações
+- Modal de artifact aberto, conteúdo copiado para editor — fluxo completo
+
+---
+
 ## v0.57.0 — Persistencia Completa de Sessoes no Mission Control (01/Abr/2026)
 
 ### Feature Principal
