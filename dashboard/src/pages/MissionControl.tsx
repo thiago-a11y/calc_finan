@@ -20,7 +20,7 @@ import {
   Maximize2, Minimize2, Sparkles, Package,
   Clock, ArrowRight, Plus, Save, X,
   ClipboardList, Zap, Shield, Palette, Settings2,
-  Copy, Download, ExternalLink,
+  Copy, Download, ExternalLink, Radio,
 } from 'lucide-react'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -57,7 +57,7 @@ interface ChatMsg {
 interface Sessao {
   sessao_id: string; titulo: string; status: string; projeto_id: number | null
   agentes_ativos: AgenteAtivo[]; artifacts: Artifact[]
-  painel_editor: { conteudo?: string; arquivo_ativo?: string; fonte?: string } | null
+  painel_editor: { conteudo?: string; arquivo_ativo?: string; fonte?: string; streaming?: boolean } | null
   painel_terminal: { historico: TerminalEntry[]; cwd: string } | null
   total_artifacts: number; total_comandos: number
 }
@@ -144,9 +144,11 @@ export default function MissionControl() {
   const [painelMaximizado, setPainelMaximizado] = useState<number | null>(null)
   const [abaDireita, setAbaDireita] = useState<'chat' | 'artifacts'>('chat')
 
-  // Visible Execution
+  // Visible Execution + LIVE Mode
   const [editorFonteAgente, setEditorFonteAgente] = useState(false)
   const [editorEditadoPeloUsuario, setEditorEditadoPeloUsuario] = useState(false)
+  const [modoLive, setModoLive] = useState(true)  // LIVE ligado por padrao
+  const [editorStreaming, setEditorStreaming] = useState(false)  // true = codigo sendo escrito
 
   // Auto-save
   const [ultimoSave, setUltimoSave] = useState('')
@@ -192,8 +194,13 @@ export default function MissionControl() {
       setSessao(data)
       setArtifacts(data.artifacts || [])
 
+      // Detectar streaming do agente
+      const isStreaming = data.painel_editor?.streaming === true
+      setEditorStreaming(isStreaming)
+
       // Se o editor tem codigo do agente, atualizar automaticamente
       if (data.painel_editor?.conteudo && data.painel_editor?.fonte === 'agente') {
+        // No modo LIVE, sempre atualizar o editor (mesmo durante streaming)
         setEditorConteudo(data.painel_editor.conteudo)
         if (data.painel_editor.arquivo_ativo) setEditorArquivo(data.painel_editor.arquivo_ativo)
         setEditorFonteAgente(true)
@@ -264,14 +271,17 @@ export default function MissionControl() {
   }, [sessao?.sessao_id, headers, editorConteudo, editorArquivo, terminalHistorico])
 
   /* ============================================================
-     Polling sessao (artifacts + agentes — 5s)
+     Polling sessao — LIVE: 1s (durante streaming) / Normal: 5s
      ============================================================ */
 
   useEffect(() => {
     if (!sessao?.sessao_id) return
-    const timer = setInterval(() => carregarSessao(sessao.sessao_id), 5000)
+    // Se LIVE + tem agentes executando: poll a cada 1s para ver codigo sendo escrito
+    const hasExecutando = (sessao.agentes_ativos || []).some(a => a.status === 'executando')
+    const intervalo = (modoLive && hasExecutando) ? 1000 : 5000
+    const timer = setInterval(() => carregarSessao(sessao.sessao_id), intervalo)
     return () => clearInterval(timer)
-  }, [sessao?.sessao_id, carregarSessao])
+  }, [sessao?.sessao_id, carregarSessao, modoLive, sessao?.agentes_ativos])
 
   /* ============================================================
      Startup
@@ -499,7 +509,7 @@ export default function MissionControl() {
 
       {/* Instrucao do Agente + Barra de Progresso */}
       <div className="flex-shrink-0" style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
-        {/* Progress bar - só aparece quando executa */}
+        {/* Progress bar + LIVE toggle - aparece quando executa */}
         {agentesExecutando.length > 0 && (
           <div className="px-4 pt-2">
             <div className="flex items-center gap-2 mb-1.5">
@@ -507,16 +517,36 @@ export default function MissionControl() {
               <span className="text-xs font-medium" style={{ color: 'var(--sf-accent)' }}>
                 {faseLabel ? `Fase ${faseAtual}/5 — ${faseLabel}` : 'Executando...'}
               </span>
-              <span className="text-[10px] ml-auto" style={{ color: 'var(--sf-text-secondary)' }}>
+              {editorStreaming && modoLive && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full animate-pulse font-bold"
+                  style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171' }}>
+                  STREAMING
+                </span>
+              )}
+              <div className="flex-1" />
+              {/* Botao LIVE toggle */}
+              <button onClick={() => setModoLive(prev => !prev)}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all"
+                style={{
+                  background: modoLive ? 'rgba(16,185,129,0.2)' : 'rgba(107,114,128,0.15)',
+                  color: modoLive ? '#10b981' : '#6b7280',
+                  border: `1px solid ${modoLive ? 'rgba(16,185,129,0.4)' : 'rgba(107,114,128,0.3)'}`,
+                }}>
+                <Radio className="w-3 h-3" style={modoLive ? { filter: 'drop-shadow(0 0 3px #10b981)' } : {}} />
+                LIVE
+              </button>
+              <span className="text-[10px]" style={{ color: 'var(--sf-text-secondary)' }}>
                 {progressoAtual || 0}%
               </span>
             </div>
-            <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--sf-bg)' }}>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--sf-bg)' }}>
               <div className="h-full rounded-full transition-all duration-1000 ease-out"
                 style={{
                   width: `${progressoAtual || 5}%`,
-                  background: 'linear-gradient(90deg, var(--sf-accent), #60a5fa)',
-                  boxShadow: '0 0 8px var(--sf-accent)',
+                  background: modoLive
+                    ? 'linear-gradient(90deg, #10b981, #60a5fa, #a78bfa)'
+                    : 'linear-gradient(90deg, var(--sf-accent), #60a5fa)',
+                  boxShadow: modoLive ? '0 0 12px rgba(16,185,129,0.5)' : '0 0 8px var(--sf-accent)',
                 }} />
             </div>
           </div>
@@ -548,16 +578,22 @@ export default function MissionControl() {
               <Code2 className="w-3.5 h-3.5" />
               <span className="font-medium">Editor</span>
               <span className="opacity-60 truncate max-w-[120px]">{editorArquivo}</span>
-              {editorFonteAgente && (
-                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full animate-pulse"
+              {editorStreaming && modoLive && (
+                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold"
+                  style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171', animation: 'pulse 1s infinite' }}>
+                  <Radio className="w-3 h-3" style={{ filter: 'drop-shadow(0 0 3px #ef4444)' }} /> LIVE
+                </span>
+              )}
+              {editorFonteAgente && !editorStreaming && (
+                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full"
                   style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' }}>
                   <Bot className="w-3 h-3" /> agente
                 </span>
               )}
-              {faseAtual === 3 && agentesExecutando.length > 0 && !editorFonteAgente && (
+              {faseAtual === 3 && agentesExecutando.length > 0 && !editorStreaming && !editorFonteAgente && (
                 <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full animate-pulse"
                   style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>
-                  <Loader2 className="w-3 h-3 animate-spin" /> gerando...
+                  <Loader2 className="w-3 h-3 animate-spin" /> aguardando...
                 </span>
               )}
               <div className="flex-1" />
@@ -566,9 +602,23 @@ export default function MissionControl() {
                 {painelMaximizado === 0 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               </button>
             </div>
-            <textarea className="flex-1 p-3 font-mono text-sm resize-none outline-none" spellCheck={false}
-              style={{ background: '#1e1e2e', color: '#cdd6f4', border: 'none' }}
-              value={editorConteudo} onChange={e => { setEditorConteudo(e.target.value); setEditorEditadoPeloUsuario(true); setEditorFonteAgente(false) }} />
+            <div className="relative flex-1 overflow-hidden">
+              <textarea className="absolute inset-0 p-3 font-mono text-sm resize-none outline-none" spellCheck={false}
+                style={{ background: '#1e1e2e', color: '#cdd6f4', border: 'none' }}
+                value={editorConteudo} onChange={e => { setEditorConteudo(e.target.value); setEditorEditadoPeloUsuario(true); setEditorFonteAgente(false) }} />
+              {/* Cursor pulsante durante streaming LIVE */}
+              {editorStreaming && modoLive && (
+                <div className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded-lg"
+                  style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+                  <span className="w-2 h-4 rounded-sm" style={{
+                    background: '#10b981',
+                    animation: 'pulse 0.6s infinite alternate',
+                    boxShadow: '0 0 8px #10b981',
+                  }} />
+                  <span className="text-[10px] font-mono" style={{ color: '#10b981' }}>escrevendo...</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

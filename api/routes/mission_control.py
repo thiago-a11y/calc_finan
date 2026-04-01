@@ -531,6 +531,25 @@ def _executar_agente_mission_control(
             arquivo = dados_code.get("arquivo", "implementacao.tsx")
             descricao = dados_code.get("descricao", "Implementacao gerada pelo agente")
 
+            # ── STREAMING PROGRESSIVO do codigo no editor ──
+            # Escreve o codigo linha a linha (blocos de 3-5 linhas)
+            # para que o frontend veja o codigo "sendo digitado" em tempo real
+            linhas = codigo.split('\n')
+            acumulado = ""
+            for idx_linha, linha in enumerate(linhas):
+                acumulado += linha + '\n'
+                # Flush a cada 4 linhas OU na ultima linha
+                eh_ultima = idx_linha == len(linhas) - 1
+                if (idx_linha + 1) % 4 == 0 or eh_ultima:
+                    _escrever_codigo_no_editor(
+                        db, sessao_id,
+                        acumulado.rstrip('\n'),
+                        arquivo,
+                        streaming=not eh_ultima,
+                    )
+                    if not eh_ultima:
+                        time.sleep(0.35)  # 350ms entre chunks — frontend pega a cada 1s
+
             _chat_msg(db, sessao_id, "Backend Dev", f"Codigo gerado: {arquivo} — {descricao[:200]}", tipo="mensagem", fase="execucao")
 
             _criar_artifact(
@@ -538,13 +557,11 @@ def _executar_agente_mission_control(
                 codigo, dados={"arquivo": arquivo, "linguagem": dados_code.get("linguagem", ""), "descricao": descricao},
                 agente_nome="Backend Dev", usuario_id=usuario_id, company_id=company_id,
             )
-            # Escrever codigo no editor — frontend vai detectar e exibir
-            _escrever_codigo_no_editor(db, sessao_id, codigo, arquivo)
-            # Terminal: simular verificação de sintaxe
+            # Terminal: verificação final
             _adicionar_terminal_agente(
                 db, sessao_id,
                 f"# ✅ Código gerado: {arquivo}",
-                f"Linhas: {len(codigo.splitlines())}\nArquivo: {arquivo}\nPor: Backend Dev",
+                f"Linhas: {len(linhas)}\nArquivo: {arquivo}\nPor: Backend Dev",
                 True,
             )
         except Exception as e_code:
@@ -737,14 +754,19 @@ def _atualizar_fase_agente(db: Session, sessao_id: str, agente_id: str, fase_num
         db.commit()
 
 
-def _escrever_codigo_no_editor(db: Session, sessao_id: str, codigo: str, arquivo: str):
-    """Escreve o codigo gerado pelo agente no painel editor da sessao."""
+def _escrever_codigo_no_editor(db: Session, sessao_id: str, codigo: str, arquivo: str, streaming: bool = False):
+    """Escreve o codigo gerado pelo agente no painel editor da sessao.
+
+    Args:
+        streaming: True = ainda está escrevendo (frontend mostra cursor). False = concluído.
+    """
     sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
     if sessao:
         sessao.painel_editor = {
             "conteudo": codigo,
             "arquivo_ativo": arquivo,
-            "fonte": "agente",  # flag para o frontend saber que veio do agente
+            "fonte": "agente",
+            "streaming": streaming,
         }
         sessao.atualizado_em = datetime.utcnow()
         db.commit()
