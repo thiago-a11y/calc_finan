@@ -16,6 +16,7 @@ const links = [
   { to: '/atribuicoes', label: 'Atribuições', Icon: UserCog },
   { to: '/escritorio', label: 'Escritorio', Icon: Building2 },
   { to: '/code-studio', label: 'Code Studio', Icon: Code2 },
+  { to: '/mission-control', label: 'Mission Control', Icon: Rocket },
   { to: '/projetos', label: 'Projetos', Icon: FolderKanban },
   { to: '/rag', label: 'Base de Conhecimento', Icon: BookOpen },
   { to: '/standup', label: 'Standup Diario', Icon: ClipboardList },

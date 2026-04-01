@@ -488,6 +488,88 @@ class LunaComentarioDB(Base):
         return f"<LunaComentario {self.id}: {self.usuario_nome} em {self.artefato_id}>"
 
 
+class ArtifactDB(Base):
+    """
+    Artifacts gerados por agentes no Mission Control (v0.55.0).
+
+    Entregaveis tangiveis: planos de tarefas, screenshots, checklists,
+    trechos de codigo, diagramas, logs de terminal, etc.
+    Suportam comentarios inline estilo Google Docs.
+    """
+    __tablename__ = "artifacts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    artifact_id = Column(String(20), nullable=False, unique=True, index=True)
+
+    # Contexto
+    sessao_id = Column(String(20), nullable=False, index=True)  # Sessao Mission Control
+    workflow_id = Column(String(20), nullable=True)             # Workflow autonomo associado
+    agente_nome = Column(String(255), default="")               # Agente que gerou
+
+    # Conteudo
+    tipo = Column(String(50), nullable=False)  # plano, screenshot, checklist, codigo, terminal, navegacao, markdown
+    titulo = Column(String(500), nullable=False)
+    conteudo = Column(Text, nullable=True)          # Texto/markdown/codigo
+    dados = Column(JSON, default=dict)              # Metadados estruturados (checklist items, etc)
+    arquivo_path = Column(String(500), nullable=True)  # Caminho do arquivo (screenshots, etc)
+
+    # Status
+    status = Column(String(50), default="gerado")  # gerado, revisado, aprovado, rejeitado
+    revisado_por = Column(String(100), nullable=True)
+
+    # Comentarios inline (JSON array de {linha, texto, autor, data})
+    comentarios_inline = Column(JSON, default=list)
+
+    # Metadata
+    usuario_id = Column(Integer, nullable=True)
+    company_id = Column(Integer, default=1)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Artifact {self.artifact_id}: {self.tipo} — {self.titulo[:50]}>"
+
+
+class MissionControlSessaoDB(Base):
+    """
+    Sessao do Mission Control (v0.55.0).
+
+    Cada sessao representa uma instancia do dev trabalhando com agentes
+    no painel triplo (editor + terminal + navegador).
+    """
+    __tablename__ = "mission_control_sessoes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sessao_id = Column(String(20), nullable=False, unique=True, index=True)
+
+    # Estado
+    titulo = Column(String(500), default="Nova Sessão")
+    status = Column(String(50), default="ativa")  # ativa, pausada, concluida
+    projeto_id = Column(Integer, nullable=True)    # ProjetoDB associado
+
+    # Paineis ativos
+    painel_editor = Column(JSON, default=dict)     # {arquivo_aberto, cursor_pos, etc}
+    painel_terminal = Column(JSON, default=dict)   # {ultimo_comando, historico}
+    painel_navegador = Column(JSON, default=dict)  # {url_atual, screenshots}
+
+    # Agentes ativos na sessao
+    agentes_ativos = Column(JSON, default=list)    # [{nome, status, tarefa_atual}]
+
+    # Metricas
+    total_artifacts = Column(Integer, default=0)
+    total_comandos = Column(Integer, default=0)
+    total_arquivos_editados = Column(Integer, default=0)
+
+    # Metadata
+    usuario_id = Column(Integer, nullable=False)
+    company_id = Column(Integer, default=1)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<MissionControl {self.sessao_id}: {self.titulo} [{self.status}]>"
+
+
 class SolicitacaoAgenteDB(Base):
     """
     Solicitações de agentes por usuários.
