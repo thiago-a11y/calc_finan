@@ -3,6 +3,20 @@
 > Atualizado em 02/Abr/2026 (sessao 43 — v0.58.8)
 > Sessao 43: Correcao FINAL crash Mission Control ao criar sessao (v0.58.8).
 
+## Sessao 44 (02/Abr/2026) — Guard de Loading Mission Control (v0.58.9)
+
+### O que foi feito
+
+#### v0.58.9 — Guard de Loading Mission Control
+- [x] Guard carregando no topo do MissionControl
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.9** commitada (deploy pendente)
+
+---
+
 ## Sessao 43 (02/Abr/2026) — Correcao FINAL Crash Mission Control v0.58.8
 
 ### O que foi feito

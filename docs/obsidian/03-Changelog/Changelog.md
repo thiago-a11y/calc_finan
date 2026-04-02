@@ -4,6 +4,29 @@
 
 ---
 
+## v0.58.9 — Guard de Loading no Mission Control (02/Abr/2026)
+
+### Problema
+Mission Control crashava ao criar sessao. useEffects executavam antes da autenticacao estar pronta.
+
+### Solucao
+Guard simples no topo do componente:
+```tsx
+if (carregando) {
+  return (
+    <div className="h-full flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin" />
+    </div>
+  )
+}
+```
+Isso impede que qualquer useEffect execute ate que `carregando` seja `false`.
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx` — guard carregando no topo
+
+---
+
 ## v0.58.8 — Correção FINAL do Crash Mission Control ao Criar Sessão (02/Abr/2026)
 
 ### Problema
