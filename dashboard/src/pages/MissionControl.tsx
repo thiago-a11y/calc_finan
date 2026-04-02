@@ -435,13 +435,15 @@ export default function MissionControl() {
   }, [sessao?.sessao_id, carregarSessao])
 
   /* ============================================================
-     Startup
+     Startup — so carrega quando token estiver confirmado
      ============================================================ */
 
   useEffect(() => {
+    // NAO faz nada enquanto token nao estiver pronto
+    if (isInitializing) return
     if (urlSessionId) carregarSessao(urlSessionId)
     else carregarSessoes()
-  }, [urlSessionId, carregarSessao, carregarSessoes])
+  }, [urlSessionId, isInitializing, carregarSessao, carregarSessoes])
 
   /* ============================================================
      Terminal
