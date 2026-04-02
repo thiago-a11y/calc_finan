@@ -123,17 +123,17 @@ export default function MissionControl() {
   }
   const tokenSeguro = token || getStoredToken() || ''
 
-  // Guard de inicializacao: enquanto token nao existe, mostra spinner
+  // Guard de inicializacao: marca como nao-inicializando QUANDO auth terminar de carregar
   const [isInitializing, setIsInitializing] = useState(true)
 
-  // Marcar como pronto quando token estiver disponivel
+  // Marcamos como pronto QUANDO a autenticacao terminar de carregar (nao depende do token)
   useEffect(() => {
-    if (tokenSeguro && tokenSeguro.length > 0) {
+    if (!carregando) {
       setIsInitializing(false)
     }
-  }, [tokenSeguro])
+  }, [carregando])
 
-  // Guard: se autenticacao carregando ou token nao disponivel, mostra loading
+  // Guard: se autenticacao carregando ou ainda inicializando, mostra loading
   if (carregando || isInitializing) {
     return (
       <div className="h-full flex items-center justify-center" style={{ background: 'var(--sf-bg-primary)' }}>
