@@ -758,6 +758,9 @@ export default function MissionControl() {
       {/* === Painel de Ações Recomendadas (quando 100% concluído) === */}
       {isCompleto ? (
         <MissionCompleteActions
+          token={token || ''}
+          sessaoId={sessao.sessao_id}
+          papel={useAuth().usuario?.papeis?.[0] || 'membro'}
           sessaoTitulo={sessao.titulo}
           totalArtifacts={artifacts.length}
           totalComandos={sessao.total_comandos}

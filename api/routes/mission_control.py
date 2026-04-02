@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 
 from api.dependencias import obter_usuario_atual
 from database.models import (
-    UsuarioDB, ArtifactDB, MissionControlSessaoDB, ProjetoDB, TeamChatDB,
+    UsuarioDB, ArtifactDB, MissionControlSessaoDB, ProjetoDB, TeamChatDB, ProjetoVCSDB, AuditLogDB,
 )
 from database.session import get_db, SessionLocal
 from sqlalchemy.orm.attributes import flag_modified
@@ -80,6 +80,21 @@ class AutoSaveRequest(BaseModel):
     painel_editor: dict | None = None
     painel_terminal: dict | None = None
     painel_navegador: dict | None = None
+
+
+class GitCommitRequest(BaseModel):
+    """Commit apenas (sem push)."""
+    mensagem: str = ""
+
+
+class GitPushRequest(BaseModel):
+    """Push + criação de PR."""
+    titulo_pr: str = ""
+
+
+class GitMergeRequest(BaseModel):
+    """Merge de PR existente."""
+    pr_number: int
 
 
 # =====================================================================
@@ -302,6 +317,338 @@ def auto_save_sessao(
     db.commit()
 
     return {"salvo": True, "sessao_id": sessao_id}
+
+
+# =====================================================================
+# GIT — Status, Commit, Push+PR, Merge
+# =====================================================================
+
+def _obter_cwd_sessao(sessao: MissionControlSessaoDB, db: Session) -> tuple[str, ProjetoDB | None]:
+    """Retorna o cwd do projeto da sessao e o projeto."""
+    cwd = "/opt/synerium-factory"
+    projeto = None
+    if sessao.projeto_id:
+        projeto = db.query(ProjetoDB).filter_by(id=sessao.projeto_id).first()
+        if projeto:
+            cwd = getattr(projeto, "caminho_local", cwd) or cwd
+    return cwd, projeto
+
+
+@router.get("/sessao/{sessao_id}/git-info")
+def git_info(
+    sessao_id: str,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Retorna status do repositório Git (branch, commits pendentes, VCS config)."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    cwd, projeto = _obter_cwd_sessao(sessao, db)
+
+    # Verificar se e repo git
+    git_dir = os.path.join(cwd, ".git")
+    if not os.path.isdir(git_dir):
+        return {
+            "eh_git": False,
+            "mensagem": "Diretorio nao e um repositorio git",
+            "cwd": cwd,
+            "projeto_nome": projeto.nome if projeto else None,
+            "vcs_configurado": False,
+        }
+
+    # Branch atual
+    branch_result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=cwd, capture_output=True, text=True, timeout=10,
+    )
+    branch = branch_result.stdout.strip() if branch_result.returncode == 0 else "?"
+
+    # Commits pendentes ( Ahead / Behind )
+    try:
+        status_result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=cwd, capture_output=True, text=True, timeout=10,
+        )
+        pendentes = len(status_result.stdout.strip().split("\n")) if status_result.stdout.strip() else 0
+    except Exception:
+        pendentes = 0
+
+    # Buscar config VCS
+    vcs = None
+    vcs_configurado = False
+    if sessao.projeto_id:
+        vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=sessao.projeto_id, ativo=True).first()
+        vcs_configurado = vcs is not None
+
+    # Ultimo commit
+    try:
+        log_result = subprocess.run(
+            ["git", "log", "--oneline", "-1"],
+            cwd=cwd, capture_output=True, text=True, timeout=10,
+        )
+        ultimo_commit = log_result.stdout.strip() if log_result.returncode == 0 else ""
+    except Exception:
+        ultimo_commit = ""
+
+    return {
+        "eh_git": True,
+        "cwd": cwd,
+        "projeto_nome": projeto.nome if projeto else None,
+        "projeto_id": sessao.projeto_id,
+        "branch": branch,
+        "commits_pendentes": pendentes,
+        "ultimo_commit": ultimo_commit,
+        "vcs_configurado": vcs_configurado,
+        "vcs_tipo": vcs.vcs_tipo if vcs else None,
+        "repo_url": vcs.repo_url if vcs else None,
+        "branch_padrao": vcs.branch_padrao if vcs else "main",
+    }
+
+
+@router.post("/sessao/{sessao_id}/git-commit")
+def git_commit(
+    sessao_id: str,
+    req: GitCommitRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Faz commit das alteracoes (sem push)."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    cwd, projeto = _obter_cwd_sessao(sessao, db)
+
+    # Verificar se e repo git
+    git_dir = os.path.join(cwd, ".git")
+    if not os.path.isdir(git_dir):
+        raise HTTPException(status_code=400, detail="Diretorio nao e um repositorio git")
+
+    # Verificar se ha alteracoes
+    status_result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=cwd, capture_output=True, text=True, timeout=10,
+    )
+    if not status_result.stdout.strip():
+        return {"sucesso": True, "mensagem": "Nenhuma alteracao para commitar", "commit_hash": ""}
+
+    # Commit
+    mensagem = req.mensagem or f"Alteracoes via Mission Control — {usuario.nome}"
+    result = subprocess.run(
+        ["git", "-c", f"user.name={usuario.nome}", "-c", f"user.email={usuario.email}"],
+        cwd=cwd, capture_output=True, text=True, timeout=30,
+    )
+
+    commit_result = subprocess.run(
+        ["git", "commit", "-m", mensagem],
+        cwd=cwd, capture_output=True, text=True, timeout=30,
+    )
+
+    if commit_result.returncode != 0:
+        raise HTTPException(status_code=400, detail=f"Erro no commit: {commit_result.stderr[:200]}")
+
+    # Extrair hash
+    hash_result = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=cwd, capture_output=True, text=True, timeout=10,
+    )
+    commit_hash = hash_result.stdout.strip() if hash_result.returncode == 0 else "?"
+
+    # Audit log
+    try:
+        db.add(AuditLogDB(
+            user_id=usuario.id, email=usuario.email,
+            acao="mission_control_git_commit",
+            descricao=f"[{projeto.nome if projeto else 'MC'}] Commit {commit_hash}: {mensagem[:100]}",
+            ip="api",
+        ))
+        db.commit()
+    except Exception:
+        pass
+
+    logger.info(f"[MISSION/GitCommit] {usuario.email} commit {commit_hash}")
+
+    return {
+        "sucesso": True,
+        "mensagem": f"Commit {commit_hash} criado",
+        "commit_hash": commit_hash,
+        "branch": subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=cwd, capture_output=True, text=True, timeout=10).stdout.strip(),
+    }
+
+
+@router.post("/sessao/{sessao_id}/git-push")
+async def git_push(
+    sessao_id: str,
+    req: GitPushRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Faz push e cria PR (usa VCS do projeto se configurado)."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    cwd, projeto = _obter_cwd_sessao(sessao, db)
+
+    # Verificar VCS configurado
+    vcs = None
+    if sessao.projeto_id:
+        vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=sessao.projeto_id, ativo=True).first()
+
+    if not vcs:
+        raise HTTPException(status_code=400, detail="Projeto sem VCS configurado. Configure em Projetos > VCS.")
+
+    try:
+        from core.vcs_service import descriptografar_token, VCSService
+
+        token = descriptografar_token(vcs.api_token_encrypted)
+        service = VCSService(vcs.vcs_tipo, vcs.repo_url, token, vcs.branch_padrao or "main")
+
+        # Branch atual
+        branch_r = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=cwd, capture_output=True, text=True, timeout=10,
+        )
+        branch_atual = branch_r.stdout.strip() if branch_r.returncode == 0 else "main"
+
+        # Criar branch para push
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        branch_push = f"mc/push-{ts}"
+
+        subprocess.run(["git", "checkout", "-b", branch_push], cwd=cwd, capture_output=True, timeout=10)
+
+        # Push
+        push_result = service.push_branch(cwd, branch_push)
+        if not push_result.sucesso:
+            subprocess.run(["git", "checkout", branch_atual], cwd=cwd, capture_output=True, timeout=10)
+            subprocess.run(["git", "branch", "-D", branch_push], cwd=cwd, capture_output=True, timeout=10)
+            raise HTTPException(status_code=500, detail=f"Push falhou: {push_result.mensagem}")
+
+        # Criar PR
+        titulo = req.titulo_pr or f"[Mission Control] Push de {usuario.nome} — {ts}"
+        descricao = (
+            f"## Mission Control Push\n\n"
+            f"- **Usuario:** {usuario.nome} ({usuario.email})\n"
+            f"- **Sessao:** `{sessao_id}`\n"
+            f"- **Projeto:** {projeto.nome if projeto else 'N/A'}\n\n"
+            f"🤖 Gerado pelo [Synerium Factory](https://synerium-factory.objetivasolucao.com.br)"
+        )
+
+        pr_result = await service.criar_pr(titulo, descricao, branch_push, vcs.branch_padrao or "main")
+
+        # Voltar para branch original
+        subprocess.run(["git", "checkout", branch_atual], cwd=cwd, capture_output=True, timeout=10)
+
+        # Audit log
+        try:
+            db.add(AuditLogDB(
+                user_id=usuario.id, email=usuario.email,
+                acao="mission_control_git_push",
+                descricao=f"[{projeto.nome if projeto else 'MC'}] Push + PR {pr_result.get('pr_url', '')}",
+                ip="api",
+            ))
+            db.commit()
+        except Exception:
+            pass
+
+        logger.info(f"[MISSION/GitPush] {usuario.email} PR: {pr_result.get('pr_url', '')}")
+
+        return {
+            "sucesso": pr_result.get("sucesso", False),
+            "pr_url": pr_result.get("pr_url", ""),
+            "pr_number": pr_result.get("pr_number", 0),
+            "branch": branch_push,
+            "mensagem": pr_result.get("mensagem", ""),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[MISSION/GitPush] Erro: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro no push: {str(e)[:200]}")
+
+
+@router.post("/sessao/{sessao_id}/git-merge")
+async def git_merge(
+    sessao_id: str,
+    req: GitMergeRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Faz merge de uma PR existente."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    vcs = None
+    if sessao.projeto_id:
+        vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=sessao.projeto_id, ativo=True).first()
+
+    if not vcs:
+        raise HTTPException(status_code=400, detail="Projeto sem VCS configurado")
+
+    try:
+        from core.vcs_service import descriptografar_token, VCSService
+        import httpx
+
+        token = descriptografar_token(vcs.api_token_encrypted)
+        service = VCSService(vcs.vcs_tipo, vcs.repo_url, token, vcs.branch_padrao or "main")
+        owner_repo = service._extrair_owner_repo()
+
+        if not owner_repo:
+            raise HTTPException(status_code=400, detail="URL do repositorio invalida")
+
+        _, projeto = _obter_cwd_sessao(sessao, db)
+
+        if vcs.vcs_tipo == "github":
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.put(
+                    f"https://api.github.com/repos/{owner_repo}/pulls/{req.pr_number}/merge",
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                    },
+                    json={
+                        "merge_method": "squash",
+                        "commit_title": f"Merge PR #{req.pr_number} via Mission Control",
+                    },
+                )
+
+            if resp.status_code == 200:
+                data = resp.json()
+                try:
+                    db.add(AuditLogDB(
+                        user_id=usuario.id, email=usuario.email,
+                        acao="mission_control_git_merge",
+                        descricao=f"[{projeto.nome if projeto else 'MC'}] Merge PR #{req.pr_number}",
+                        ip="api",
+                    ))
+                    db.commit()
+                except Exception:
+                    pass
+                logger.info(f"[MISSION/GitMerge] PR #{req.pr_number} merged por {usuario.email}")
+                return {"sucesso": True, "mensagem": f"PR #{req.pr_number} mergeada", "sha": data.get("sha", "")}
+            else:
+                raise HTTPException(status_code=400, detail=f"GitHub API {resp.status_code}: {resp.text[:200]}")
+
+        else:
+            raise HTTPException(status_code=400, detail=f"VCS {vcs.vcs_tipo} nao suportado para merge")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[MISSION/GitMerge] Erro: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro no merge: {str(e)[:200]}")
 
 
 # =====================================================================
