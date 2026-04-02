@@ -3,6 +3,15 @@
 > Atualizado em 02/Abr/2026 (sessao 43 — v0.58.8)
 > Sessao 43: Correcao FINAL crash Mission Control ao criar sessao (v0.58.8).
 
+## Sessao 45 (02/Abr/2026) — isInitializing Guard (v0.58.10)
+
+### v0.58.10 — isInitializing Guard
+- [x] isInitializing state + useEffect que aguarda token
+- [x] Guardif (carregando || isInitializing) no topo
+- [x] Build OK, Commit + push OK
+
+---
+
 ## Sessao 44 (02/Abr/2026) — Guard de Loading Mission Control (v0.58.9)
 
 ### O que foi feito

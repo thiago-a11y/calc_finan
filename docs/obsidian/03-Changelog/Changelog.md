@@ -4,6 +4,32 @@
 
 ---
 
+## v0.58.10 — Guard isInitializing no Mission Control (02/Abr/2026)
+
+### Problema
+React error #310 ao criar nova missao. useEffects podiam executar antes do token estar disponivel.
+
+### Solucao
+Adicionado `isInitializing` state que so vira `false` quando `tokenSeguro` estiver disponivel:
+```tsx
+const [isInitializing, setIsInitializing] = useState(true)
+
+useEffect(() => {
+  if (tokenSeguro && tokenSeguro.length > 0) {
+    setIsInitializing(false)
+  }
+}, [tokenSeguro])
+
+if (carregando || isInitializing) {
+  return <Spinner />
+}
+```
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx` — guard isInitializing
+
+---
+
 ## v0.58.9 — Guard de Loading no Mission Control (02/Abr/2026)
 
 ### Problema
