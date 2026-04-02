@@ -1,27 +1,19 @@
-/* PhaseDecisionControls — v0.58.2
+/* PhaseDecisionControls — v0.58.3
  *
  * Painel de controles de decisao em tempo real durante cada fase do BMAD.
+ * Recebe estado via props (NAO tem polling proprio — polling fica no pai).
  * Exibe 4 botoes: Aprovar, Revisar, Regenerar, Rejeitar.
  *
- * v0.58.2 — Phase Decision Controls: human-in-the-loop no Mission Control
+ * v0.58.3 — Corrige polling redundante que causava re-render loop
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import {
   CheckCircle2, Eye, RotateCcw, XCircle,
   Loader2, Bot, Pause,
 } from 'lucide-react'
 
 const API = import.meta.env.VITE_API_URL || ''
-
-interface FaseStatus {
-  status: string
-  fase_atual: number
-  progresso: number
-  waiting_decision: boolean
-  fase_decisao: { fase: number; acao: string; decidido_por: string; timestamp: string } | null
-  agente_nome: string | null
-}
 
 interface PhaseDecisionControlsProps {
   token: string
@@ -31,6 +23,7 @@ interface PhaseDecisionControlsProps {
   progresso: number
   agenteNome?: string
   onRevisar?: (fase: number) => void  // abre detalhamento
+  onDecisao?: (fase: number, acao: string) => void  // callback para o pai executar a acao
 }
 
 type AcaoDecisao = 'aprovar' | 'revisar' | 'regenerar' | 'rejeitar'
@@ -43,29 +36,15 @@ export default function PhaseDecisionControls({
   progresso,
   agenteNome = 'Agente',
   onRevisar,
+  onDecisao,
 }: PhaseDecisionControlsProps) {
   const [loading, setLoading] = useState<AcaoDecisao | null>(null)
-  const [faseStatus, setFaseStatus] = useState<FaseStatus | null>(null)
   const [toast, setToast] = useState<{ tipo: 'success' | 'error' | 'info'; mensagem: string } | null>(null)
 
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
   }
-
-  // Polling do status da fase (2s)
-  useEffect(() => {
-    const timer = setInterval(async () => {
-      try {
-        const res = await fetch(`${API}/api/mission-control/sessao/${sessaoId}/fase-status`, { headers })
-        if (res.ok) {
-          const data: FaseStatus = await res.json()
-          setFaseStatus(data)
-        }
-      } catch { /* silencioso */ }
-    }, 2000)
-    return () => clearInterval(timer)
-  }, [sessaoId, headers])
 
   const showToast = useCallback((tipo: 'success' | 'error' | 'info', mensagem: string) => {
     setToast({ tipo, mensagem })
@@ -78,6 +57,12 @@ export default function PhaseDecisionControls({
       return
     }
 
+    if (onDecisao) {
+      onDecisao(fase, acao)
+      return
+    }
+
+    // Fallback: chamada direta se callback nao fornecido
     setLoading(acao)
     try {
       const res = await fetch(`${API}/api/mission-control/sessao/${sessaoId}/fase-decisao`, {
@@ -101,7 +86,6 @@ export default function PhaseDecisionControls({
     }
   }
 
-  // Nome amigavel da fase
   const faseNomes: Record<number, string> = {
     1: 'Planejamento',
     2: 'Discussao',
@@ -110,7 +94,6 @@ export default function PhaseDecisionControls({
     5: 'Conclusao',
   }
 
-  // Botoes de decisao
   const botoes = [
     {
       id: 'aprovar' as AcaoDecisao,
@@ -119,8 +102,6 @@ export default function PhaseDecisionControls({
       icone: <CheckCircle2 className="w-5 h-5" />,
       cor: 'from-emerald-500 to-emerald-600',
       hoverCor: 'hover:from-emerald-600 hover:to-emerald-700',
-      corTexto: 'text-emerald-400',
-      ativo: loading === null,
     },
     {
       id: 'revisar' as AcaoDecisao,
@@ -129,8 +110,6 @@ export default function PhaseDecisionControls({
       icone: <Eye className="w-5 h-5" />,
       cor: 'from-blue-500 to-blue-600',
       hoverCor: 'hover:from-blue-600 hover:to-blue-700',
-      corTexto: 'text-blue-400',
-      ativo: loading === null,
     },
     {
       id: 'regenerar' as AcaoDecisao,
@@ -139,8 +118,6 @@ export default function PhaseDecisionControls({
       icone: <RotateCcw className="w-5 h-5" />,
       cor: 'from-amber-500 to-amber-600',
       hoverCor: 'hover:from-amber-600 hover:to-amber-700',
-      corTexto: 'text-amber-400',
-      ativo: loading === null,
     },
     {
       id: 'rejeitar' as AcaoDecisao,
@@ -149,13 +126,11 @@ export default function PhaseDecisionControls({
       icone: <XCircle className="w-5 h-5" />,
       cor: 'from-red-500 to-red-600',
       hoverCor: 'hover:from-red-600 hover:to-red-700',
-      corTexto: 'text-red-400',
-      ativo: loading === null,
     },
   ]
 
   return (
-    <div className="flex flex-col items-center gap-4 p-4">
+    <div className="flex flex-col items-center gap-4 p-4 h-full">
       {/* Toast */}
       {toast && (
         <div className={`
@@ -222,13 +197,13 @@ export default function PhaseDecisionControls({
           <button
             key={botao.id}
             onClick={() => handleDecisao(botao.id)}
-            disabled={!botao.ativo || loading !== null}
+            disabled={loading !== null}
             className={`
               relative flex items-start gap-3 p-3 rounded-xl text-left transition-all
               bg-gradient-to-br ${botao.cor}
-              ${botao.ativo ? botao.hoverCor + ' hover:scale-[1.02]' : 'opacity-50 cursor-not-allowed'}
+              ${loading === null ? botao.hoverCor + ' hover:scale-[1.02]' : 'opacity-50 cursor-not-allowed'}
             `}
-            style={{ boxShadow: botao.ativo ? '0 4px 20px rgba(0,0,0,0.3)' : 'none' }}
+            style={{ boxShadow: loading === null ? '0 4px 20px rgba(0,0,0,0.3)' : 'none' }}
           >
             <div className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center bg-white/20">
               {loading === botao.id ? (
@@ -244,14 +219,6 @@ export default function PhaseDecisionControls({
           </button>
         ))}
       </div>
-
-      {/* Info de status */}
-      {faseStatus?.fase_decisao && (
-        <div className="text-xs text-center" style={{ color: 'var(--sf-text-secondary)' }}>
-          Ultima decisao: <span className="font-semibold">{faseStatus.fase_decisao.acao}</span>
-          {' '}por {faseStatus.fase_decisao.decidido_por}
-        </div>
-      )}
 
       {/* Indicador de "aguarde" */}
       <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--sf-text-secondary)' }}>

@@ -109,7 +109,7 @@ function AgenteIcon({ nome, size = 16 }: { nome: string; size?: number }) {
    ============================================================ */
 
 export default function MissionControl() {
-  const { token } = useAuth()
+  const { token, usuario } = useAuth()
   const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>()
   const navigate = useNavigate()
 
@@ -477,6 +477,24 @@ export default function MissionControl() {
   }, [])
 
   /* ============================================================
+     Phase Decision Handler — callback para PhaseDecisionControls
+     ============================================================ */
+
+  const handleFaseDecisao = useCallback(async (fase: number, acao: string) => {
+    try {
+      const res = await fetch(`${API}/api/mission-control/sessao/${sessao?.sessao_id}/fase-decisao`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ fase, acao }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Erro ao enviar decisao')
+    } catch (e) {
+      console.error('[MissionControl] Erro fase-decisao:', e)
+    }
+  }, [sessao, headers])
+
+  /* ============================================================
      Helper
      ============================================================ */
 
@@ -797,7 +815,7 @@ export default function MissionControl() {
         <MissionCompleteActions
           token={token || ''}
           sessaoId={sessao.sessao_id}
-          papel={useAuth().usuario?.papeis?.[0] || 'membro'}
+          papel={usuario?.papeis?.[0] || 'membro'}
           sessaoTitulo={sessao.titulo}
           totalArtifacts={artifacts.length}
           totalComandos={sessao.total_comandos}
@@ -993,6 +1011,7 @@ export default function MissionControl() {
                 faseLabel={faseLabel || ''}
                 progresso={faseStatus.progresso || progressoAtual || 0}
                 agenteNome={faseStatus.agente_nome || agente_exec?.nome || 'Agente'}
+                onDecisao={handleFaseDecisao}
                 onRevisar={(f) => {
                   // Abre o artifact da fase correspondente para review
                   const tipoArtifact = ['plano', 'discussao', 'codigo', 'checklist', 'conclusao'][f - 1] || 'codigo'
