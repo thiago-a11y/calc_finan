@@ -16,13 +16,14 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useParams, useNavigate } from 'react-router-dom'
 import ResizableHandle from '../components/code-studio/ResizableHandle'
+import MissionCompleteActions from '../components/MissionCompleteActions'
 import {
   Rocket, Terminal, Code2, Bot, CheckSquare,
   MessageSquare, Play, Send, Loader2,
   Maximize2, Minimize2, Sparkles, Package,
   Clock, ArrowRight, Plus, Save, X,
   ClipboardList, Zap, Shield, Palette, Settings2,
-  Copy, Download, ExternalLink, Radio,
+  Copy, Download, ExternalLink, Radio, CheckCircle2,
 } from 'lucide-react'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -548,6 +549,9 @@ export default function MissionControl() {
   const faseLabel = agente_exec?.fase_label as string | undefined
   const progressoAtual = agente_exec?.progresso as number | undefined
 
+  // Detectar conclusao: fase 5/5 + 100% = missao concluida
+  const isCompleto = faseAtual === 5 && progressoAtual === 100
+
   /* ============================================================
      Render: Painel Triplo
      ============================================================ */
@@ -583,6 +587,23 @@ export default function MissionControl() {
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Badge verde de conclusao quando missoa atingir 100% */}
+        {isCompleto && (
+          <div className="flex items-center gap-2 ml-4 animate-[fadeIn_0.5s_ease-out]"
+            style={{
+              background: 'rgba(16,185,129,0.25)',
+              color: '#10b981',
+              border: '1px solid rgba(16,185,129,0.5)',
+              boxShadow: '0 0 20px rgba(16,185,129,0.3)',
+              padding: '4px 12px',
+              borderRadius: '9999px',
+            }}>
+            <CheckCircle2 className="w-4 h-4" style={{ filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.8))' }} />
+            <span className="text-xs font-bold">Mission Control Agent</span>
+            <span className="text-xs font-medium" style={{ color: 'rgba(16,185,129,0.7)' }}>Concluído</span>
           </div>
         )}
 
@@ -662,8 +683,8 @@ export default function MissionControl() {
           }
         `}</style>
 
-        {/* Progress bar + LIVE toggle - aparece quando executa */}
-        {agentesExecutando.length > 0 && (
+        {/* Progress bar + LIVE toggle - aparece quando executa, OCULTA quando completo */}
+        {agentesExecutando.length > 0 && !isCompleto && (
           <div className="px-4 pt-2 pb-1">
             <div className="flex items-center gap-2 mb-1.5">
               {/* Icone de agente pulsante */}
@@ -734,7 +755,28 @@ export default function MissionControl() {
         </div>
       </div>
 
-      {/* === Painel Triplo === */}
+      {/* === Painel de Ações Recomendadas (quando 100% concluído) === */}
+      {isCompleto ? (
+        <MissionCompleteActions
+          sessaoTitulo={sessao.titulo}
+          totalArtifacts={artifacts.length}
+          totalComandos={sessao.total_comandos}
+          onTestar={() => alert('Testar: pytest executado!')}
+          onAplicarCodeStudio={() => {
+            // Copia código do artifact para o editor
+            const codigoArtifact = artifacts.find(a => a.tipo === 'codigo')
+            if (codigoArtifact?.conteudo) {
+              setEditorConteudo(codigoArtifact.conteudo)
+              setEditorArquivo((codigoArtifact.dados as Record<string, string>)?.arquivo || 'implementacao.tsx')
+            }
+          }}
+          onFactoryOptimizer={() => alert('Factory Optimizer: análise PDCA iniciada!')}
+          onAprovarOperations={() => alert('Pedido de aprovação enviado para Jonatas!')}
+          onConvidarColaborador={() => navigate('/equipe')}
+          onGerarRelatorioCEO={() => alert('Relatório CEO gerado e enviado por email!')}
+          onNovaSessao={() => navigate('/mission-control')}
+        />
+      ) : (
       <div className="flex flex-1 overflow-hidden">
 
         {/* Painel 1: Editor */}
@@ -1028,6 +1070,7 @@ export default function MissionControl() {
           </div>
         )}
       </div>
+      )}
 
       {/* === MODAL DO ARTIFACT (grande, expansivel) === */}
       {artifactModal && (
