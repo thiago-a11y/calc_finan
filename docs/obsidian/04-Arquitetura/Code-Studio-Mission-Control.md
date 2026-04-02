@@ -106,17 +106,32 @@ O Mission Control oferece experiência visual completa de execução ao vivo:
 ### Visão geral
 O Painel 3 do Mission Control agora tem duas abas: **Team Chat** e **Artifacts**. O Team Chat exibe em tempo real a conversa entre os agentes enquanto trabalham — o CEO assiste ao vivo ao planejamento, debate e execução.
 
-### Fluxo de 4 Fases
+### Fluxo de 5 Fases com Decision Controls (v0.58.2)
 ```
-Instrução do CEO → Tech Lead (plano) → Discussão (Backend+Frontend+QA) → Execução (código) → Review (checklist)
+Instrução → Planejamento → Discussão → Execução → Review QA → Conclusão
+              ↓              ↓           ↓          ↓
+           [Decisão]     [Decisão]   [Decisão]  [Decisão]
+           Aprovar/       Aprovar/    Aprovar/   Aprovar/
+           Regenerar/     Regenerar/  Regenerar/ Regenerar/
+           Rejeitar/      Rejeitar/   Rejeitar/  Rejeitar/
+           Revisar        Revisar     Revisar    Revisar
 ```
 
-| Fase | Agente | Output | Artifact |
-|------|--------|--------|---------|
-| Planejamento | Tech Lead | JSON com etapas e riscos | PLANO |
-| Discussão | Backend Dev, Frontend Dev, QA | Parecer técnico individual | — |
-| Execução | Tech Lead | Código gerado | CODIGO |
-| Review | QA Engineer | Checklist de qualidade | CHECKLIST |
+| Fase | Agente | Output | Artifact | Decisão? |
+|------|--------|--------|---------|---------|
+| 1. Planejamento | Tech Lead | JSON com etapas e riscos | PLANO | ✅ |
+| 2. Discussão | Backend Dev, Frontend Dev, QA | Parecer técnico individual | — | ✅ |
+| 3. Execução | Backend Dev | Código gerado | CODIGO | ✅ |
+| 4. Review QA | QA Engineer | Checklist de qualidade | CHECKLIST | ✅ |
+| 5. Conclusão | Sistema | Missão completa | — | — |
+
+### Phase Decision Engine (v0.58.2)
+- `FaseDecisionEngine` em `mission_control.py`: motor com `threading.Event` para bloqueio entre fases
+- `POST /sessao/{id}/fase-decisao`: aprovar | regenerar | rejeitar | revisar
+- `GET /sessao/{id}/fase-status`: polling do frontend (2s)
+- Agente thread bloqueia entre fases via `wait_decision()` e desbloqueia via `resolve()`
+- Somente após as 5 fases APROVADAS a tela "Concluído com Sucesso!" é mostrada
+- "Voltar para Revisão" preserva todo o histórico (artifacts, código, terminal)
 
 ### Model: TeamChatDB
 ```python

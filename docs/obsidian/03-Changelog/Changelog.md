@@ -4,6 +4,46 @@
 
 ---
 
+## v0.58.2 — Phase Decision Controls — Human-in-the-Loop (02/Abr/2026)
+
+### Problema
+O Mission Control executava as 5 fases do BMAD automaticamente, sem intervenção humana em tempo real. Não havia como aprovar, regerar, rejeitar ou revisar cada fase individualmente antes de prosseguir.
+
+### Solução: Phase Decision Controls — Human-in-the-Loop
+
+**Backend — `FaseDecisionEngine` + 2 novos endpoints em `mission_control.py`:**
+
+- `FaseDecisionEngine`: motor de decisões por fase com `threading.Event` para bloqueio/desbloqueio
+- `POST /sessao/{id}/fase-decisao`: registra decisão do usuário (aprovar/regenerar/rejeitar/revisar) e desbloqueia o agente
+- `GET /sessao/{id}/fase-status`: polling do frontend para detectar se agente está esperando decisão
+- `_executar_agente_mission_control()`: ponto de decisão entre cada fase (1→2, 2→3, 3→4, 4→5)
+- Regerar refaz a fase atual; Rejeitar encerra a sessão; Aprovar prossegue; Revisar abre detalhamento
+
+**Frontend — `PhaseDecisionControls.tsx` (novo componente):**
+- Painel lateral com 4 botões coloridos durante cada fase:
+  - 🟢 **Aprovar** (verde): prossegue para próxima fase
+  - 🔵 **Revisar** (azul): pausa e abre detalhamento completo da fase
+  - 🟡 **Regenerar** (amber): manda agentes refazerem aquela fase
+  - 🔴 **Rejeitar** (vermelho): cancela e volta para fase anterior
+- Indicador visual de progresso das 5 fases (setapas numeradas)
+- Polling 2s do `/fase-status` para detectar quando agente aguarda decisão
+
+**Frontend — `MissionControl.tsx` atualizado:**
+- Nuevo estado `mostrarConclusao`: mostra `MissionCompleteActions` após 5 fases aprovadas
+- `PhaseDecisionControls` aparece no painel lateral quando `waiting_decision === true`
+- **"Voltar para Revisão"** (primeiro botão em MissionCompleteActions): retorna à tela de execução sem perder histórico, artifacts ou código gerado
+- Tela de conclusão só aparece APÓS todas as 5 fases aprovadas (não automaticamente ao atingir 100%)
+
+**Arquitetura de decisão:**
+```
+Fase 1 completa → Agente bloqueia (set_pending + wait_decision)
+→ Frontend detecta waiting_decision → Mostra PhaseDecisionControls
+→ Usuário clica botão → POST /fase-decisao → Agente desbloqueia
+→ Resposta: 'aprovar' (próxima fase), 'regenerar' (refaz fase), 'rejeitar' (encerra)
+```
+
+---
+
 ## v0.57.8 — Git Actions Funcionais no Mission Control (02/Abr/2026)
 
 ### Problema

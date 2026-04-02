@@ -1,7 +1,32 @@
 # Pendencias do Ultimo Chat — 02/Abr/2026
 
-> Atualizado em 02/Abr/2026 (sessao 36 — v0.57.8)
-> Sessao 36: Git actions funcionais no Mission Control (v0.57.8). Sessao anterior: Tela de conclusao (v0.57.7).
+> Atualizado em 02/Abr/2026 (sessao 37 — v0.58.2)
+> Sessao 37: Phase Decision Controls — human-in-the-loop no Mission Control (v0.58.2).
+
+## Sessao 37 (02/Abr/2026) — Phase Decision Controls (v0.58.2)
+
+### O que foi feito
+
+#### v0.58.2 — Phase Decision Controls — Human-in-the-Loop
+- [x] Backend: FaseDecisionEngine com threading.Event (bloqueio entre fases)
+- [x] Backend: POST /sessao/{id}/fase-decisao (aprovar/regenerar/rejeitar/revisar)
+- [x] Backend: GET /sessao/{id}/fase-status (polling do frontend)
+- [x] Backend: ponto de decisao entre cada fase (1→2, 2→3, 3→4, 4→5)
+- [x] Frontend: PhaseDecisionControls.tsx (novo componente com 4 botoes)
+- [x] Frontend: painel lateral de decisoes com indicador de progresso
+- [x] Frontend: MissionCompleteActions com "Voltar para Revisao"
+- [x] Frontend: mostrarConclusao state (so mostra conclusao apos 5 fases)
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+- [ ] Deploy em produção (SSH indisponivel — fazer git pull manualmente)
+
+### Status atual
+- Versão: **v0.58.2** commitada (deploy pendente)
+- Phase Decision Controls: 4 botoes por fase (Aprovar/Revisar/Regenerar/Rejeitar)
+- Human-in-the-loop: agente pausa entre cada fase aguardando decisao
+- "Voltar para Revisao" na tela de conclusao preserva todo o historico
+
+---
 
 ## Sessao 36 (02/Abr/2026) — Git Actions Funcionais (v0.57.8)
 
