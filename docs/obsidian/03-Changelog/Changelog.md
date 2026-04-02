@@ -4,6 +4,29 @@
 
 ---
 
+## v0.58.14 — isInitializing Depende de Carregando (02/Abr/2026)
+
+### Problema
+Loading spinner travado permanentemente. isInitializing so virava false se token existisse.
+
+### Solucao
+```
+// ANTES (travava se token nao existisse)
+useEffect(() => {
+  if (tokenSeguro && tokenSeguro.length > 0) setIsInitializing(false)
+}, [tokenSeguro])
+
+// DEPOIS (sempre libera quando auth terminar)
+useEffect(() => {
+  if (!carregando) setIsInitializing(false)
+}, [carregando])
+```
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx`
+
+---
+
 ## v0.58.13 — TaskTray com getStoredToken Seguro (02/Abr/2026)
 
 ### Problema

@@ -3,6 +3,14 @@
 > Atualizado em 02/Abr/2026 (sessao 43 — v0.58.8)
 > Sessao 43: Correcao FINAL crash Mission Control ao criar sessao (v0.58.8).
 
+## Sessao 49 (02/Abr/2026) — isInitializing Correto (v0.58.14)
+
+### v0.58.14 — isInitializing Depende de Carregando
+- [x] isInitializing setado false quando carregando=false
+- [x] Build OK, Commit + push OK
+
+---
+
 ## Sessao 48 (02/Abr/2026) — TaskTray getStoredToken (v0.58.13)
 
 ### v0.58.13 — TaskTray getStoredToken
