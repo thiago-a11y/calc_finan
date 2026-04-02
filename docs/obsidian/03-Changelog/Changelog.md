@@ -4,6 +4,42 @@
 
 ---
 
+## v0.58.4 — Sidebar Fixo e Colapsável (02/Abr/2026)
+
+### Problema
+Menu lateral anterior rolava junto com o conteudo da pagina. Usuario precisava rolar ate o final para ver nome/email e botao Sair. Sem opcao de colapsar para modo mini.
+
+### O que foi feito
+
+**Sidebar fixo (desktop):**
+- `position: fixed` com `height: 100vh` e `overflow-y: auto`
+- Card do usuario + botao Sair SEMPRE visiveis na parte inferior
+- Scroll interno quando navegacao exceder altura da tela
+- Animacao suave de 300ms ao colapsar/expandir
+- Toggle via botao ChevronLeft/Right
+- Modo expandido: 240px (labels visiveis) | Modo mini: 64px (icons only)
+
+**Mobile:**
+- Overlay com backdrop escuro
+- Botao hamburger flutuante (Menu icon) no canto superior esquerdo
+- Sidebar 280px em overlay
+- Fecha ao clicar fora ou no X
+
+**Redux Toolkit:**
+- `sidebarSlice`: estado `collapsed` com persistencia em `localStorage`
+- `useAppSelector` / `useAppDispatch` hooks
+- Provider em `App.tsx`
+
+### Arquivos alterados
+- `dashboard/src/components/Sidebar.tsx` — rewrite completo com fixed sidebar
+- `dashboard/src/App.tsx` — Redux Provider + LayoutComSidebar wrapper
+- `dashboard/src/store/sidebarSlice.ts` — **NOVO** — slice com localStorage
+- `dashboard/src/store/index.ts` — **NOVO** — store
+- `dashboard/src/store/hooks.ts` — **NOVO** — hooks tipados
+- `dashboard/package.json` — @reduxjs/toolkit + react-redux
+
+---
+
 ## v0.58.3 — Correção de Regressão no Mission Control (02/Abr/2026)
 
 ### Problema
