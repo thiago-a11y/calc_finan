@@ -1,7 +1,24 @@
 # Pendencias do Ultimo Chat — 02/Abr/2026
 
-> Atualizado em 02/Abr/2026 (sessao 40 — v0.58.5)
-> Sessao 40: Correcao de regressao — Mission Control em branco (v0.58.5).
+> Atualizado em 02/Abr/2026 (sessao 41 — v0.58.6)
+> Sessao 41: Correcao FINAL Mission Control blank page (v0.58.6).
+
+## Sessao 41 (02/Abr/2026) — Correcao FINAL Mission Control blank (v0.58.6)
+
+### O que foi feito
+
+#### v0.58.6 — Correcao FINAL Mission Control em Branco
+- [x] TaskTray: sf_access_token -> sf_token (localStorage key correto)
+- [x] App.tsx: remove h-screen overflow-hidden, usa flex-1 min-h-screen
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.6** commitada (deploy pendente)
+- Mission Control: deve funcionar normalmente
+- Causa: TaskTray com token key errada (401) + conflito h-screen no body scroll container
+
+---
 
 ## Sessao 40 (02/Abr/2026) — Correcao de Regressao Mission Control (v0.58.5)
 
@@ -18,7 +35,7 @@
 
 ### Status atual
 - Versão: **v0.58.5** commitada (deploy pendente)
-- Mission Control: CSS corrigido, deve voltar a renderizar normalmente
+- Mission Control: CSS corrigido
 - Causa: variaveis CSS undefined fazem backgrounds ficarem transparentes
 
 ---

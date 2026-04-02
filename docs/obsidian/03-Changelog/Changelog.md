@@ -4,6 +4,27 @@
 
 ---
 
+## v0.58.6 — Correção FINAL Mission Control em Branco (02/Abr/2026)
+
+### Problema
+Mission Control continuava em branco apos v0.58.4/v0.58.5. Console mostrava:
+- React error #310 (Invalid element type)
+- 401 Unauthorized em /api/tarefas/historico
+
+### Causas Identificadas
+1. **TaskTray**: usava `sf_access_token` como chave de localStorage, mas AuthContext usa `sf_token`. Resultado: polling sempre retornava 401.
+2. **App.tsx Layout**: `h-screen overflow-hidden` no main div dentro de body com `min-h-screen` causava conflito de altura quando body vira scroll container.
+
+### O que foi feito
+- TaskTray: `sf_access_token` → `sf_token` (localStorage key correto)
+- App.tsx: remove `h-screen overflow-hidden`, usa `flex-1 min-h-screen` no main
+
+### Arquivos alterados
+- `dashboard/src/components/TaskTray.tsx` — corrige localStorage key
+- `dashboard/src/App.tsx` — corrige layout conflict
+
+---
+
 ## v0.58.5 — Correção de Regressão Mission Control (02/Abr/2026)
 
 ### Problema
