@@ -4,6 +4,36 @@
 
 ---
 
+## v0.58.7 — Correção FINAL do Crash Mission Control ao Criar Sessão (02/Abr/2026)
+
+### Problema
+Mission Control carregava a pagina inicial, mas crashava (tela preta) ao criar nova missao. Console mostrava React error #310 + 401 Unauthorized em /api/tarefas/historico.
+
+### Causas Identificadas
+1. **401 Unauthorized**: TaskTray e MissionControl podiam receber token null da context antes de estar disponivel
+2. **React error #310**: Componente recebia response invalida apos criacao de sessao sem verificar res.ok
+3. **Falha catastrófica**: Nenhum Error Boundary para proteger a rota — qualquer erro causava tela preta total
+
+### O que foi feito
+1. **ErrorBoundary.tsx** (NOVO): Componente que captura erros React e mostra mensagem amigavel com botao recarregar
+2. **App.tsx**: MissionControl envolvido com ErrorBoundary em ambas rotas (/mission-control e /mission-control/:sessionId)
+3. **tokenSeguro**: Token usa localStorage como fallback se context token ainda nao disponivel
+4. **criarSessao**: Adicionado check `res.ok` e throw se `sessao_id` ausente
+5. **Prop token**: Substituido `token || ''` por `tokenSeguro` em todos os lugares
+
+### Protecoes Adicionadas
+- Error Boundary protege contra qualquer erro de renderizacao
+- Token sempre disponivel via localStorage fallback
+- Sessao s6o criada apenas com response valida (res.ok check)
+- Log de erros facilita debug
+
+### Arquivos alterados
+- `dashboard/src/components/ErrorBoundary.tsx` — **NOVO**
+- `dashboard/src/App.tsx` — ErrorBoundary wrapper
+- `dashboard/src/pages/MissionControl.tsx` — tokenSeguro + res.ok check
+
+---
+
 ## v0.58.6 — Correção FINAL Mission Control em Branco (02/Abr/2026)
 
 ### Problema

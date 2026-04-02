@@ -1,7 +1,26 @@
 # Pendencias do Ultimo Chat — 02/Abr/2026
 
-> Atualizado em 02/Abr/2026 (sessao 41 — v0.58.6)
-> Sessao 41: Correcao FINAL Mission Control blank page (v0.58.6).
+> Atualizado em 02/Abr/2026 (sessao 42 — v0.58.7)
+> Sessao 42: Correcao FINAL crash Mission Control ao criar sessao (v0.58.7).
+
+## Sessao 42 (02/Abr/2026) — Correcao FINAL Crash Mission Control (v0.58.7)
+
+### O que foi feito
+
+#### v0.58.7 — Correcao FINAL do Crash Mission Control ao Criar Sessao
+- [x] ErrorBoundary.tsx: novo componente protecao contra crashes
+- [x] App.tsx: MissionControl com ErrorBoundary wrapper
+- [x] MissionControl: token fallback via localStorage (tokenSeguro)
+- [x] MissionControl: res.ok check em criarSessao
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.7** commitada (deploy pendente)
+- Mission Control: protegido por Error Boundary
+- Causa: token null + response sem validacao causavam crash
+
+---
 
 ## Sessao 41 (02/Abr/2026) — Correcao FINAL Mission Control blank (v0.58.6)
 
