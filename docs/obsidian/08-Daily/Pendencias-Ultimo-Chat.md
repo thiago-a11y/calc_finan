@@ -1,7 +1,27 @@
 # Pendencias do Ultimo Chat — 02/Abr/2026
 
-> Atualizado em 02/Abr/2026 (sessao 42 — v0.58.7)
-> Sessao 42: Correcao FINAL crash Mission Control ao criar sessao (v0.58.7).
+> Atualizado em 02/Abr/2026 (sessao 43 — v0.58.8)
+> Sessao 43: Correcao FINAL crash Mission Control ao criar sessao (v0.58.8).
+
+## Sessao 43 (02/Abr/2026) — Correcao FINAL Crash Mission Control v0.58.8
+
+### O que foi feito
+
+#### v0.58.8 — Correcao FINAL do Crash Mission Control ao Criar Sessao
+- [x] hasToken guard: todas as chamadas API verificam token antes de executar
+- [x] criarSessao: reset estado antes de navegar + JSON parse defensivo
+- [x] dispararAgente: guard hasToken + reset mostrarConclusao
+- [x] carregarSessao: guard hasToken + JSON parse defensivo + null checks
+- [x] Polling useEffects: hasToken em todas as dependencias
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.8** commitada (deploy pendente)
+- Mission Control: todas as API calls com guard de token
+- Causa: token null + JSON invalido causavam crash
+
+---
 
 ## Sessao 42 (02/Abr/2026) — Correcao FINAL Crash Mission Control (v0.58.7)
 

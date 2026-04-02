@@ -4,6 +4,36 @@
 
 ---
 
+## v0.58.8 — Correção FINAL do Crash Mission Control ao Criar Sessão (02/Abr/2026)
+
+### Problema
+Mission Control crashava (React error #310) ao criar nova missao. Console mostrava 401 Unauthorized em /api/tarefas/historico e erros de render.
+
+### Causas Identificadas
+1. **Token null**: chamadas API podiam ser feitas sem token valido
+2. **JSON parse errors**: responses invalidas causavam crashes
+3. **Race conditions**: re-render loop ao criar sessao sem reset de estado
+4. **Missing guards**: efeitos acessavam APIs sem verificar token
+
+### O que foi feito
+1. **hasToken guard**: todas as chamadas API verificam token antes de executar
+2. **criarSessao**: reset completo de estado antes de navegar (sessao, artifacts, chat, terminal, conclusao, faseStatus)
+3. **dispararAgente**: guard hasToken + reset mostrarConclusao
+4. **carregarSessao**: guard hasToken + JSON parse defensivo + null checks em todas propriedades
+5. **Polling useEffects**: hasToken adicionado em todas as dependencias
+6. **Team Chat + Fase Status**: JSON parse com try/catch
+
+### Protecoes
+- Se token vazio, nenhuma API e chamada
+- Responses JSON invalidas nao causam crash
+- Estado sempre resetado corretamente ao criar nova sessao
+- Todas as propriedades acessadas com null checks
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx` — todas as protecoes acima
+
+---
+
 ## v0.58.7 — Correção FINAL do Crash Mission Control ao Criar Sessão (02/Abr/2026)
 
 ### Problema
