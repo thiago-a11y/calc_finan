@@ -114,7 +114,14 @@ export default function MissionControl() {
   const navigate = useNavigate()
 
   // Token seguro: usa localStorage como fallback se token do context ainda nao esta disponivel
-  const tokenSeguro = token || localStorage.getItem('sf_token') || ''
+  const getStoredToken = (): string => {
+    try {
+      return localStorage.getItem('sf_token') || ''
+    } catch {
+      return ''
+    }
+  }
+  const tokenSeguro = token || getStoredToken() || ''
 
   // Guard de inicializacao: enquanto token nao existe, mostra spinner
   const [isInitializing, setIsInitializing] = useState(true)
