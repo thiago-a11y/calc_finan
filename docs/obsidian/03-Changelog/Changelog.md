@@ -4,6 +4,29 @@
 
 ---
 
+## v0.58.12 — Protecao localStorage no Mission Control (02/Abr/2026)
+
+### Problema
+TaskTray dava 401, possivel erro em localStorage.getItem() se storage nao disponivel.
+
+### Solucao
+localStorage access envolvido em try-catch:
+```tsx
+const getStoredToken = (): string => {
+  try {
+    return localStorage.getItem('sf_token') || ''
+  } catch {
+    return ''
+  }
+}
+const tokenSeguro = token || getStoredToken() || ''
+```
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx`
+
+---
+
 ## v0.58.11 — Guard isInitializing no Startup UseEffect (02/Abr/2026)
 
 ### Problema

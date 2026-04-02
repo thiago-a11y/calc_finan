@@ -3,6 +3,14 @@
 > Atualizado em 02/Abr/2026 (sessao 43 — v0.58.8)
 > Sessao 43: Correcao FINAL crash Mission Control ao criar sessao (v0.58.8).
 
+## Sessao 47 (02/Abr/2026) — Protecao localStorage (v0.58.12)
+
+### v0.58.12 — Protecao localStorage
+- [x] getStoredToken com try-catch
+- [x] Build OK, Commit + push OK
+
+---
+
 ## Sessao 46 (02/Abr/2026) — isInitializing no Startup (v0.58.11)
 
 ### v0.58.11 — Guard isInitializing no Startup UseEffect
