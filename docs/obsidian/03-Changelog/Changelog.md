@@ -11,36 +11,45 @@ O Mission Control executava as 5 fases do BMAD automaticamente, sem intervençã
 
 ### Solução: Phase Decision Controls — Human-in-the-Loop
 
-**Backend — `FaseDecisionEngine` + 2 novos endpoints em `mission_control.py`:**
-
-- `FaseDecisionEngine`: motor de decisões por fase com `threading.Event` para bloqueio/desbloqueio
+**O que foi feito:**
+- `FaseDecisionEngine`: motor de decisões por fase com `threading.Event` para bloqueio/desbloqueio entre fases
 - `POST /sessao/{id}/fase-decisao`: registra decisão do usuário (aprovar/regenerar/rejeitar/revisar) e desbloqueia o agente
 - `GET /sessao/{id}/fase-status`: polling do frontend para detectar se agente está esperando decisão
 - `_executar_agente_mission_control()`: ponto de decisão entre cada fase (1→2, 2→3, 3→4, 4→5)
 - Regerar refaz a fase atual; Rejeitar encerra a sessão; Aprovar prossegue; Revisar abre detalhamento
 
-**Frontend — `PhaseDecisionControls.tsx` (novo componente):**
-- Painel lateral com 4 botões coloridos durante cada fase:
-  - 🟢 **Aprovar** (verde): prossegue para próxima fase
-  - 🔵 **Revisar** (azul): pausa e abre detalhamento completo da fase
-  - 🟡 **Regenerar** (amber): manda agentes refazerem aquela fase
-  - 🔴 **Rejeitar** (vermelho): cancela e volta para fase anterior
-- Indicador visual de progresso das 5 fases (setapas numeradas)
-- Polling 2s do `/fase-status` para detectar quando agente aguarda decisão
+**Melhorias aplicadas:**
+- Novo componente `PhaseDecisionControls.tsx`: painel lateral com 4 botões coloridos
+- Indicador visual de progresso das 5 fases (setas numeradas)
+- Estado `mostrarConclusao`: tela "Concluído" só após 5 fases aprovadas
+- **"Voltar para Revisão"** preserva todo o histórico (artifacts, código, terminal)
 
-**Frontend — `MissionControl.tsx` atualizado:**
-- Nuevo estado `mostrarConclusao`: mostra `MissionCompleteActions` após 5 fases aprovadas
-- `PhaseDecisionControls` aparece no painel lateral quando `waiting_decision === true`
-- **"Voltar para Revisão"** (primeiro botão em MissionCompleteActions): retorna à tela de execução sem perder histórico, artifacts ou código gerado
-- Tela de conclusão só aparece APÓS todas as 5 fases aprovadas (não automaticamente ao atingir 100%)
+**Erros corrigidos durante implementação:**
+- `ArrowRight` import não utilizado → removido
+- `onConcluido` prop não utilizado → removido da interface
+- `ultimaFase` variável não utilizada → removida
+- `isCompleto` usado antes da declaração → useEffect movido para após `const isCompleto`
+- `setModoRevisao` não existia → substituído por `setMostrarConclusao`
+- `PhaseDecisionControls` usava polling próprio redundante → usa `faseStatus` do MissionControl
 
 **Arquitetura de decisão:**
 ```
-Fase 1 completa → Agente bloqueia (set_pending + wait_decision)
+Fase N completa → Agente bloqueia (set_pending + wait_decision)
 → Frontend detecta waiting_decision → Mostra PhaseDecisionControls
-→ Usuário clica botão → POST /fase-decisao → Agente desbloqueia
-→ Resposta: 'aprovar' (próxima fase), 'regenerar' (refaz fase), 'rejeitar' (encerra)
+→ Usuário clica → POST /fase-decisao → Agente desbloqueia
+→ Aprovar: próxima fase | Regenerar: refaz fase | Rejeitar: encerra
 ```
+
+**Arquivos alterados:**
+- `api/routes/mission_control.py` — FaseDecisionEngine + 2 endpoints + pontos de decisão
+- `dashboard/src/components/PhaseDecisionControls.tsx` — novo componente
+- `dashboard/src/pages/MissionControl.tsx` — integração + estado mostrarConclusao
+- `dashboard/src/components/MissionCompleteActions.tsx` — botão "Voltar para Revisão"
+
+**Próximos passos:**
+- Testar fluxo completo no browser (deploy pendente via SSH)
+- Adicionar feedback visual de qual fase foi rejeitada/regenerada
+- Persistir histórico de decisões no banco (audit log por fase)
 
 ---
 

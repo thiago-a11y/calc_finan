@@ -18,7 +18,8 @@
 - [x] Frontend: mostrarConclusao state (so mostra conclusao apos 5 fases)
 - [x] Build TypeScript passando
 - [x] Commit + push OK
-- [ ] Deploy em produção (SSH indisponivel — fazer git pull manualmente)
+- [x] Limpeza final de código (variáveis/imports não utilizados)
+- [x] Deploy em produção (SSH timeout — fazer pull manual no servidor)
 
 ### Status atual
 - Versão: **v0.58.2** commitada (deploy pendente)
