@@ -4,6 +4,28 @@
 
 ---
 
+## v0.58.13 — TaskTray com getStoredToken Seguro (02/Abr/2026)
+
+### Problema
+TaskTray causando 401. localStorage.getItem() sem try-catch.
+
+### Solucao
+Mesma protecao aplicada ao TaskTray:
+```tsx
+function getStoredToken(): string {
+  try {
+    return localStorage.getItem('sf_token') || ''
+  } catch {
+    return ''
+  }
+}
+```
+
+### Arquivos alterados
+- `dashboard/src/components/TaskTray.tsx`
+
+---
+
 ## v0.58.12 — Protecao localStorage no Mission Control (02/Abr/2026)
 
 ### Problema
