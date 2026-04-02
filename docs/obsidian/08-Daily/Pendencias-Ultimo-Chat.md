@@ -1,7 +1,28 @@
 # Pendencias do Ultimo Chat — 02/Abr/2026
 
-> Atualizado em 02/Abr/2026 (sessao 37 — v0.58.2)
-> Sessao 37: Phase Decision Controls — human-in-the-loop no Mission Control (v0.58.2).
+> Atualizado em 02/Abr/2026 (sessao 38 — v0.58.3)
+> Sessao 38: Correcao de regressao — Mission Control em branco (v0.58.3).
+
+## Sessao 38 (02/Abr/2026) — Correção de Regressão (v0.58.3)
+
+### O que foi feito
+
+#### v0.58.3 — Correção de Regressão no Mission Control
+- [x] PhaseDecisionControls: polling proprio REMOVIDO (causava re-render loop)
+- [x] PhaseDecisionControls: componente agora stateless — recebe tudo via props
+- [x] useAuth() duplicado: consolidado para const { token, usuario } = useAuth()
+- [x] waitingDecision prop: removida (nao utilizada)
+- [x] FaseStatus interface redundante: removida
+- [x] MissionControl: handleFaseDecisao callback adicionado
+- [x] Build TypeScript: zero erros
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.3** commitada (deploy pendente)
+- Phase Decision Controls: 4 botoes por fase funcionando
+- Crash da pagina em branco CORRIGIDO
+
+---
 
 ## Sessao 37 (02/Abr/2026) — Phase Decision Controls (v0.58.2)
 

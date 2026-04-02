@@ -4,6 +4,30 @@
 
 ---
 
+## v0.58.3 — Correção de Regressão no Mission Control (02/Abr/2026)
+
+### Problema
+Após implementar a v0.58.2 (Phase Decision Controls), a página do Mission Control ficava em branco/preta. Console mostrava React error #310 (render error) e 401 Unauthorized em `/api/tarefas/historico`.
+
+### O que foi feito
+
+**Erros corrigidos:**
+- **Polling redundante**: `PhaseDecisionControls` tinha seu próprio polling de `/fase-status` que conflituava com o polling do componente pai, causando re-render loop infinito → **REMOVIDO** (componente agora é stateless)
+- **useAuth() duplicado**: `useAuth()` era chamado duas vezes (topo do componente e inline no JSX) → consolidado para `const { token, usuario } = useAuth()` no topo
+- **waitingDecision prop não utilizada**: removida da interface e do componente
+- **FaseStatus interface redundante**: removida (não usada no componente leve)
+
+**Melhorias aplicadas:**
+- `handleFaseDecisao` callback no `MissionControl` para tratar decisões
+- `PhaseDecisionControls` agora só renderiza via props — polling centralizado no pai
+- Componente mais simples, mais rápido, sem loops de render
+
+### Arquivos alterados
+- `dashboard/src/components/PhaseDecisionControls.tsx` — polling proprio removido, componente leve
+- `dashboard/src/pages/MissionControl.tsx` — callback handleFaseDecisao, usoAuth consolidado
+
+---
+
 ## v0.58.2 — Phase Decision Controls — Human-in-the-Loop (02/Abr/2026)
 
 ### Problema
