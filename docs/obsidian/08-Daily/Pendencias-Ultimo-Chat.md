@@ -1,7 +1,27 @@
 # Pendencias do Ultimo Chat — 02/Abr/2026
 
-> Atualizado em 02/Abr/2026 (sessao 39 — v0.58.4)
-> Sessao 39: Sidebar Fixo e Colapsavel com Redux Toolkit.
+> Atualizado em 02/Abr/2026 (sessao 40 — v0.58.5)
+> Sessao 40: Correcao de regressao — Mission Control em branco (v0.58.5).
+
+## Sessao 40 (02/Abr/2026) — Correcao de Regressao Mission Control (v0.58.5)
+
+### O que foi feito
+
+#### v0.58.5 — Correcao de Regressao Mission Control
+- [x] Identificado: var(--sf-bg) NAO existe no design system
+- [x] Identificado: var(--sf-surface) NAO existe no design system
+- [x] MissionControl.tsx era o UNICO arquivo usando var(--sf-bg) em todo o projeto
+- [x] Substituido var(--sf-bg) -> var(--sf-bg-primary) em 14 lugares
+- [x] Substituido var(--sf-surface) -> var(--sf-bg-card) em 17 lugares
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.5** commitada (deploy pendente)
+- Mission Control: CSS corrigido, deve voltar a renderizar normalmente
+- Causa: variaveis CSS undefined fazem backgrounds ficarem transparentes
+
+---
 
 ## Sessao 39 (02/Abr/2026) — Sidebar Fixo e Colapsavel (v0.58.4)
 

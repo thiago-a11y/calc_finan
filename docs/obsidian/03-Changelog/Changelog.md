@@ -4,6 +4,26 @@
 
 ---
 
+## v0.58.5 — Correção de Regressão Mission Control (02/Abr/2026)
+
+### Problema
+Após v0.58.4, pagina do Mission Control ficou completamente em branco/preta. Console sem erros. Build TypeScript passava.
+
+### Causa Raiz
+`MissionControl.tsx` usava `var(--sf-bg)` e `var(--sf-surface)` que NAO existem no design system. Variaveis CSS indefinidas fazem o valor da propriedade ficar UNSET (transparente para background). Quando v0.58.4 removeu o background explicito do parent (`min-h-screen` sem `background` vs `h-screen` sem `background`), os backgrounds transparentes de MissionControl passaram a herdar do body (default branco) — escondendo todo o conteudo.
+
+MissionControl era o UNICO arquivo em todo o projeto que usava `--sf-bg`. Todas as outras paginas usam `--sf-bg-primary` (alias correto).
+
+### O que foi feito
+- `var(--sf-bg)` → `var(--sf-bg-primary)` em 14 lugares
+- `var(--sf-surface)` → `var(--sf-bg-card)` em 17 lugares
+- Build TypeScript: zero erros
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx` — corrige CSS undefined
+
+---
+
 ## v0.58.4 — Sidebar Fixo e Colapsável (02/Abr/2026)
 
 ### Problema
