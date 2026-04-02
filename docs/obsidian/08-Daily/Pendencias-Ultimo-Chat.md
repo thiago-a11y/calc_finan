@@ -1,7 +1,31 @@
 # Pendencias do Ultimo Chat — 02/Abr/2026
 
-> Atualizado em 02/Abr/2026 (sessao 38 — v0.58.3)
-> Sessao 38: Correcao de regressao — Mission Control em branco (v0.58.3).
+> Atualizado em 02/Abr/2026 (sessao 39 — v0.58.4)
+> Sessao 39: Sidebar Fixo e Colapsavel com Redux Toolkit.
+
+## Sessao 39 (02/Abr/2026) — Sidebar Fixo e Colapsavel (v0.58.4)
+
+### O que foi feito
+
+#### v0.58.4 — Sidebar Fixo e Colapsavel
+- [x] Redux Toolkit: sidebarSlice com estado collapsed + localStorage
+- [x] Store Redux: configureStore com sidebarReducer
+- [x] Hooks Redux: useAppDispatch + useAppSelector tipados
+- [x] Sidebar.tsx: posicao fixed, height 100vh, overflow-y auto
+- [x] Sidebar colapsavel: 240px expandido / 64px mini (icons only)
+- [x] Card usuario + Sair sempre visiveis no bottom (flex-shrink-0)
+- [x] Animacao suave 300ms no colapso/expansao
+- [x] Mobile: overlay com backdrop + hamburger button
+- [x] SidebarContent extraido para reuse em desktop + mobile
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.4** commitada (deploy pendente)
+- Sidebar: fixo na lateral, colapsavel para mini mode
+- Mobile: overlay com backdrop e menu hamburger
+
+---
 
 ## Sessao 38 (02/Abr/2026) — Correção de Regressão (v0.58.3)
 
