@@ -184,6 +184,9 @@ export default function MissionControl() {
     Authorization: `Bearer ${tokenSeguro}`,
   }), [tokenSeguro])
 
+  // Guard: se token vazio, nao faz nada
+  const hasToken = tokenSeguro && tokenSeguro.length > 0
+
   /* ============================================================
      Listar sessoes
      ============================================================ */
@@ -196,60 +199,72 @@ export default function MissionControl() {
   }, [headers])
 
   const criarSessao = useCallback(async () => {
+    if (!hasToken) {
+      console.warn('[MissionControl] Token nao disponivel para criar sessao')
+      return
+    }
     setCriando(true)
     try {
       const res = await fetch(`${API}/api/mission-control/sessao`, {
         method: 'POST', headers,
         body: JSON.stringify({ titulo: titulo || 'Nova Sessao Mission Control' }),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      if (!res.ok) throw new Error(`HTTP ${res.status} ao criar sessao`)
+      const text = await res.text()
+      let data
+      try { data = JSON.parse(text) } catch { throw new Error('Response nao e JSON valido') }
       if (!data.sessao_id) throw new Error('sessao_id missing from response')
-      navigate(`/mission-control/${data.sessao_id}`, { replace: true })
+      const novoId = String(data.sessao_id)
+      // Resetar estado antes de navegar
+      setSessao(null)
+      setArtifacts([])
+      setChatMsgs([])
+      setTerminalHistorico([])
+      setMostrarConclusao(false)
+      setFaseStatus(null)
+      navigate(`/mission-control/${novoId}`, { replace: true })
     } catch (e) {
       console.error('[MissionControl] Erro ao criar sessao:', e)
     } finally { setCriando(false) }
-  }, [headers, titulo, navigate])
+  }, [headers, titulo, navigate, hasToken])
 
   /* ============================================================
      Carregar sessao + restore
      ============================================================ */
 
   const carregarSessao = useCallback(async (sid: string) => {
+    if (!hasToken || !sid) return
     try {
       const res = await fetch(`${API}/api/mission-control/sessao/${sid}`, { headers })
       if (!res.ok) return
-      const data: Sessao = await res.json()
+      const text = await res.text()
+      let data: Sessao
+      try { data = JSON.parse(text) } catch { return }
       setSessao(data)
-      setArtifacts(data.artifacts || [])
+      setArtifacts(data?.artifacts || [])
 
       // Detectar se agente esta ativo (para auto-save e polling)
-      const temAgente = (data.agentes_ativos || []).some(a => a.status === 'executando')
+      const temAgente = (data?.agentes_ativos || []).some((a: AgenteAtivo) => a?.status === 'executando')
       agentExecutandoRef.current = temAgente
 
       // Detectar streaming
-      const isStreaming = data.painel_editor?.streaming === true
+      const isStreaming = data?.painel_editor?.streaming === true
       setEditorStreaming(isStreaming)
 
       // Atualizar editor com conteudo do agente
-      // Regra: se fonte === 'agente' OU se o usuario nao editou manualmente, atualizar
-      const editorData = data.painel_editor
+      const editorData = data?.painel_editor
       if (editorData?.conteudo) {
         const isFromAgent = editorData.fonte === 'agente'
         if (isFromAgent) {
-          // Agente escreveu codigo — usar typewriter effect
           if (editorData.arquivo_ativo) setEditorArquivo(editorData.arquivo_ativo)
           setEditorFonteAgente(true)
           setEditorEditadoPeloUsuario(false)
           editorEditadoRef.current = false
-
-          // Se conteudo mudou, atualizar alvo do typewriter
           if (editorData.conteudo !== editorAlvoRef.current) {
             editorAlvoRef.current = editorData.conteudo
             setEditorAlvo(editorData.conteudo)
           }
         } else if (!editorEditadoRef.current) {
-          // Conteudo normal (auto-save ou inicial) — atualiza direto
           setEditorConteudo(editorData.conteudo)
           setEditorDisplay(editorData.conteudo)
           editorAlvoRef.current = editorData.conteudo
@@ -264,22 +279,26 @@ export default function MissionControl() {
       if (histBanco.length > 0) {
         setTimeout(() => terminalRef.current?.scrollTo(0, terminalRef.current.scrollHeight), 100)
       }
-    } catch { /* */ }
-  }, [headers])
+    } catch (e) {
+      console.error('[MissionControl] Erro ao carregar sessao:', e)
+    }
+  }, [headers, hasToken])
 
   /* ============================================================
      Team Chat polling (2s)
      ============================================================ */
 
   useEffect(() => {
-    if (!sessao?.sessao_id) return
+    if (!hasToken || !sessao?.sessao_id) return
     let mounted = true
     const poll = async () => {
       try {
         const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/chat`, { headers })
         if (res.ok && mounted) {
-          const msgs: ChatMsg[] = await res.json()
-          setChatMsgs(msgs)
+          const text = await res.text()
+          let msgs: ChatMsg[] = []
+          try { msgs = JSON.parse(text) } catch { /* ignore */ }
+          setChatMsgs(msgs || [])
           setTimeout(() => chatRef.current?.scrollTo(0, chatRef.current.scrollHeight), 50)
         }
       } catch { /* */ }
@@ -287,17 +306,15 @@ export default function MissionControl() {
     poll()
     const timer = setInterval(poll, 2000)
     return () => { mounted = false; clearInterval(timer) }
-  }, [sessao?.sessao_id, headers])
+  }, [sessao?.sessao_id, headers, hasToken])
 
   /* ============================================================
      Auto-save (10s)
      ============================================================ */
 
   useEffect(() => {
-    if (!sessao?.sessao_id) return
+    if (!hasToken || !sessao?.sessao_id) return
     const timer = setInterval(async () => {
-      // Nao salvar enquanto agente esta executando — evita sobrescrever conteudo do agente
-      // O backend tambem protege, mas melhor prevenir no frontend
       if (agentExecutandoRef.current) return
       try {
         setSalvando(true)
@@ -312,7 +329,7 @@ export default function MissionControl() {
       } catch { /* */ } finally { setSalvando(false) }
     }, 10000)
     return () => clearInterval(timer)
-  }, [sessao?.sessao_id, headers, editorConteudo, editorArquivo, terminalHistorico])
+  }, [sessao?.sessao_id, headers, editorConteudo, editorArquivo, terminalHistorico, hasToken])
 
   /* ============================================================
      True Live Typing — caractere por caractere como digitacao real
@@ -378,13 +395,13 @@ export default function MissionControl() {
       try {
         const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/fase-status`, { headers })
         if (res.ok) {
-          const data = await res.json()
-          setFaseStatus(data)
+          const text = await res.text()
+          try { setFaseStatus(JSON.parse(text)) } catch { /* ignore */ }
         }
       } catch { /* */ }
     }, 2000)
     return () => clearInterval(timer)
-  }, [sessao?.sessao_id, headers])
+  }, [sessao?.sessao_id, headers, hasToken])
 
   /* ============================================================
      Polling sessao — sempre 2s para nao perder atualizacoes do agente
@@ -392,7 +409,7 @@ export default function MissionControl() {
      ============================================================ */
 
   useEffect(() => {
-    if (!sessao?.sessao_id) return
+    if (!hasToken || !sessao?.sessao_id) return
     // Polling fixo em 2s — rapido o suficiente para ver streaming sem causar instabilidade
     const timer = setInterval(() => carregarSessao(sessao.sessao_id), 2000)
     return () => clearInterval(timer)
@@ -433,9 +450,13 @@ export default function MissionControl() {
      ============================================================ */
 
   const dispararAgente = useCallback(async () => {
-    if (!sessao || !instrucaoAgente.trim()) return
+    if (!hasToken) {
+      console.warn('[MissionControl] Token nao disponivel para disparar agente')
+      return
+    }
+    if (!sessao?.sessao_id || !instrucaoAgente.trim()) return
     setDisparandoAgente(true)
-    setAbaDireita('chat') // Mudar para chat para ver a conversa
+    setAbaDireita('chat')
     // Resetar estado do editor para receber conteudo do agente (typewriter)
     setEditorEditadoPeloUsuario(false)
     editorEditadoRef.current = false
@@ -443,16 +464,21 @@ export default function MissionControl() {
     setEditorAlvo('')
     setEditorDisplay('')
     editorAlvoRef.current = ''
+    setMostrarConclusao(false) // Reset conclusao se estava ativa
     try {
-      await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/agente`, {
+      const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/agente`, {
         method: 'POST', headers,
         body: JSON.stringify({ instrucao: instrucaoAgente, tipo: 'implementacao' }),
       })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const text = await res.text()
+      try { JSON.parse(text) } catch { /* ignore non-JSON */ }
       setInstrucaoAgente('')
-      // Recarregar imediatamente para exibir agente em execucao e barra de progresso
       await carregarSessao(sessao.sessao_id)
-    } catch { /* */ } finally { setDisparandoAgente(false) }
-  }, [sessao, instrucaoAgente, headers, carregarSessao])
+    } catch (e) {
+      console.error('[MissionControl] Erro ao disparar agente:', e)
+    } finally { setDisparandoAgente(false) }
+  }, [sessao, instrucaoAgente, headers, carregarSessao, hasToken])
 
   /* ============================================================
      Comentarios
