@@ -47,12 +47,13 @@ interface MissionCompleteActionsProps {
   onConvidarColaborador?: () => void
   onGerarRelatorioCEO?: () => void
   onNovaSessao?: () => void
+  onVoltarRevisao?: () => void  // volta para tela de execucao completa
   sessaoTitulo?: string
   totalArtifacts?: number
   totalComandos?: number
 }
 
-type GitAction = 'commit' | 'push' | 'pr' | 'merge' | 'testar' | 'codeStudio' | 'optimizer' | 'aprovar' | 'convidar' | 'relatorio' | 'novaSessao' | null
+type GitAction = 'commit' | 'push' | 'pr' | 'merge' | 'testar' | 'codeStudio' | 'optimizer' | 'aprovar' | 'convidar' | 'relatorio' | 'novaSessao' | 'voltarRevisao' | null
 
 export default function MissionCompleteActions({
   token,
@@ -65,6 +66,7 @@ export default function MissionCompleteActions({
   onConvidarColaborador,
   onGerarRelatorioCEO,
   onNovaSessao,
+  onVoltarRevisao,
   sessaoTitulo = 'Missao',
   totalArtifacts = 0,
   totalComandos = 0,
@@ -143,6 +145,16 @@ export default function MissionCompleteActions({
 
   // Botões de ações gerais
   const botoesAcoes = [
+    {
+      id: 'voltarRevisao' as GitAction,
+      titulo: 'Voltar para Revisao',
+      descricao: 'Revisar sessoes, codigo e artefatos gerados',
+      icone: <FileText className="w-6 h-6" />,
+      cor: 'from-indigo-500 to-indigo-600',
+      hoverCor: 'hover:from-indigo-600 hover:to-indigo-700',
+      ativo: !!onVoltarRevisao,
+      fn: onVoltarRevisao,
+    },
     {
       id: 'testar' as GitAction,
       titulo: 'Testar Agora',

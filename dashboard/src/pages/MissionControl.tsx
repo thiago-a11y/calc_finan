@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useParams, useNavigate } from 'react-router-dom'
 import ResizableHandle from '../components/code-studio/ResizableHandle'
 import MissionCompleteActions from '../components/MissionCompleteActions'
+import PhaseDecisionControls from '../components/PhaseDecisionControls'
 import {
   Rocket, Terminal, Code2, Bot, CheckSquare,
   MessageSquare, Play, Send, Loader2,
@@ -159,6 +160,17 @@ export default function MissionControl() {
   const [editorAlvo, setEditorAlvo] = useState('')  // conteudo alvo (o que chegou do backend)
   const [editorDisplay, setEditorDisplay] = useState('')  // conteudo exibido (digitando...)
   const editorAlvoRef = useRef('')  // ref para evitar stale closure no rAF
+
+  // Phase Decision (human-in-the-loop)
+  const [faseStatus, setFaseStatus] = useState<{
+    status: string
+    fase_atual: number
+    progresso: number
+    waiting_decision: boolean
+    fase_decisao: { fase: number; acao: string; decidido_por: string; timestamp: string } | null
+    agente_nome: string | null
+  } | null>(null)
+  const [mostrarConclusao, setMostrarConclusao] = useState(false)  // tela de conclusao vs execucao
 
   // Auto-save
   const [ultimoSave, setUltimoSave] = useState('')
@@ -348,6 +360,24 @@ export default function MissionControl() {
     timeoutId = setTimeout(typeNext, 20)
     return () => clearTimeout(timeoutId)
   }, [editorAlvo, editorDisplay])
+
+  /* ============================================================
+     Polling fase-status (2s) — detecta se agente espera decisao
+     ============================================================ */
+
+  useEffect(() => {
+    if (!sessao?.sessao_id) return
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/fase-status`, { headers })
+        if (res.ok) {
+          const data = await res.json()
+          setFaseStatus(data)
+        }
+      } catch { /* */ }
+    }, 2000)
+    return () => clearInterval(timer)
+  }, [sessao?.sessao_id, headers])
 
   /* ============================================================
      Polling sessao — sempre 2s para nao perder atualizacoes do agente
@@ -551,6 +581,13 @@ export default function MissionControl() {
 
   // Detectar conclusao: fase 5/5 + 100% = missao concluida
   const isCompleto = faseAtual === 5 && progressoAtual === 100
+
+  // Quando todas as 5 fases aprovadas -> mostrar tela de conclusao
+  useEffect(() => {
+    if (isCompleto && !mostrarConclusao) {
+      setMostrarConclusao(true)
+    }
+  }, [isCompleto, mostrarConclusao])
 
   /* ============================================================
      Render: Painel Triplo
@@ -756,7 +793,7 @@ export default function MissionControl() {
       </div>
 
       {/* === Painel de Ações Recomendadas (quando 100% concluído) === */}
-      {isCompleto ? (
+      {mostrarConclusao ? (
         <MissionCompleteActions
           token={token || ''}
           sessaoId={sessao.sessao_id}
@@ -764,6 +801,10 @@ export default function MissionControl() {
           sessaoTitulo={sessao.titulo}
           totalArtifacts={artifacts.length}
           totalComandos={sessao.total_comandos}
+          onVoltarRevisao={() => {
+            // Volta para a tela de execucao sem perder estado
+            setMostrarConclusao(false)
+          }}
           onTestar={() => alert('Testar: pytest executado!')}
           onAplicarCodeStudio={() => {
             // Copia código do artifact para o editor
@@ -779,6 +820,189 @@ export default function MissionControl() {
           onGerarRelatorioCEO={() => alert('Relatório CEO gerado e enviado por email!')}
           onNovaSessao={() => navigate('/mission-control')}
         />
+      ) : faseStatus?.waiting_decision ? (
+        /* === Phase Decision Controls (human-in-the-loop) === */
+        <div className="flex flex-col h-full">
+          {/* Barra superior com mini-info */}
+          <div className="flex items-center gap-3 px-4 py-2 flex-shrink-0"
+            style={{ background: 'rgba(251,191,36,0.1)', borderBottom: '1px solid rgba(251,191,36,0.3)' }}>
+            <Bot className="w-5 h-5" style={{ color: '#fbbf24' }} />
+            <span className="text-sm font-bold" style={{ color: '#fbbf24' }}>
+              {faseStatus.agente_nome || 'Agente'} — Aguardando sua decisao
+            </span>
+            <div className="flex-1" />
+            <span className="text-xs" style={{ color: 'var(--sf-text-secondary)' }}>
+              Fase {faseStatus.fase_atual}/5 • {faseStatus.progresso}%
+            </span>
+          </div>
+          {/* Painel triplo abaixo + controles de decisao na lateral */}
+          <div className="flex flex-1 overflow-hidden">
+            {/* Painel Triplo (缩放) */}
+            <div className="flex flex-1 overflow-hidden">
+              <div className="flex flex-1 overflow-hidden">
+                {/* Editor */}
+                {(painelMaximizado === null || painelMaximizado === 0) && (
+                  <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 0 ? '100%' : `${painelLarguras[0]}%` }}>
+                    <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
+                      style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
+                      <Code2 className="w-3.5 h-3.5" />
+                      <span className="font-medium">Editor</span>
+                      <span className="opacity-60 truncate max-w-[120px]">{editorArquivo}</span>
+                      <div className="flex-1" />
+                      <button onClick={() => setPainelMaximizado(painelMaximizado === 0 ? null : 0)} className="opacity-60 hover:opacity-100">
+                        {painelMaximizado === 0 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <div className="relative flex-1 overflow-hidden">
+                      <div className="absolute inset-0 p-3 overflow-auto font-mono text-sm"
+                        style={{ background: '#1e1e2e', color: '#cdd6f4', lineHeight: '1.6', fontSize: '13px' }}>
+                        {editorConteudo.split('\n').map((linha, i) => (
+                          <div key={i} className="whitespace-pre" style={{ minHeight: '1.6em' }}>{linha}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {painelMaximizado === null && <div className="w-1 flex-shrink-0 cursor-col-resize" style={{ background: 'var(--sf-border-subtle)' }} />}
+                {/* Terminal */}
+                {(painelMaximizado === null || painelMaximizado === 1) && (
+                  <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 1 ? '100%' : `${painelLarguras[1]}%` }}>
+                    <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
+                      style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
+                      <Terminal className="w-3.5 h-3.5" /><span className="font-medium">Terminal</span>
+                      <div className="flex-1" />
+                      <button onClick={() => setPainelMaximizado(painelMaximizado === 1 ? null : 1)} className="opacity-60 hover:opacity-100">
+                        {painelMaximizado === 1 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <div ref={terminalRef} className="flex-1 overflow-auto p-3 font-mono text-xs" style={{ background: '#0d1117', color: '#c9d1d9' }}>
+                      {terminalHistorico.map((entry, i) => (
+                        <div key={i} className="mb-3">
+                          <div className="flex items-center gap-1">
+                            {entry.tipo === 'agente'
+                              ? <Bot className="w-3 h-3 flex-shrink-0" style={{ color: '#10b981' }} />
+                              : <span style={{ color: '#58a6ff' }}>$</span>
+                            }
+                            <span style={{ color: entry.tipo === 'agente' ? '#10b981' : '#f0f6fc' }}>{entry.comando}</span>
+                          </div>
+                          {entry.saida && (
+                            <pre className="whitespace-pre-wrap mt-0.5 pl-4" style={{ color: entry.sucesso ? '#8b949e' : '#f85149' }}>{entry.saida}</pre>
+                          )}
+                        </div>
+                      ))}
+                      {terminalHistorico.length === 0 && (
+                        <div style={{ color: '#484f58' }}>Terminal pausado aguardando decisao...</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {painelMaximizado === null && <div className="w-1 flex-shrink-0 cursor-col-resize" style={{ background: 'var(--sf-border-subtle)' }} />}
+                {/* Team Chat + Artifacts */}
+                {(painelMaximizado === null || painelMaximizado === 2) && (
+                  <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 2 ? '100%' : `${painelLarguras[2]}%` }}>
+                    <div className="flex items-center gap-1 px-3 py-1.5 text-xs flex-shrink-0"
+                      style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+                      <button onClick={() => setAbaDireita('chat')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-all ${abaDireita === 'chat' ? '' : 'opacity-50 hover:opacity-80'}`}
+                        style={abaDireita === 'chat' ? { background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' } : { color: 'var(--sf-text-secondary)' }}>
+                        <MessageSquare className="w-3.5 h-3.5" /> Team Chat
+                      </button>
+                      <button onClick={() => setAbaDireita('artifacts')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-all ${abaDireita === 'artifacts' ? '' : 'opacity-50 hover:opacity-80'}`}
+                        style={abaDireita === 'artifacts' ? { background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' } : { color: 'var(--sf-text-secondary)' }}>
+                        <Package className="w-3.5 h-3.5" /> Artifacts
+                      </button>
+                      <div className="flex-1" />
+                      <button onClick={() => setPainelMaximizado(painelMaximizado === 2 ? null : 2)} className="opacity-60 hover:opacity-100">
+                        {painelMaximizado === 2 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    {abaDireita === 'chat' && (
+                      <div ref={chatRef} className="flex-1 overflow-auto p-3 space-y-2" style={{ background: 'var(--sf-bg)' }}>
+                        {chatMsgs.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color: 'var(--sf-text-secondary)' }}>
+                            <MessageSquare className="w-12 h-12 opacity-20" />
+                            <p className="text-sm">Aguardando conversa...</p>
+                          </div>
+                        ) : chatMsgs.map(msg => {
+                          const fase = FASE_COR[msg.fase] || null
+                          const isSistema = msg.tipo === 'sistema'
+                          return (
+                            <div key={msg.id} className={`rounded-lg px-3 py-2 ${isSistema ? 'text-center' : ''}`}
+                              style={{
+                                background: isSistema ? 'rgba(107,114,128,0.08)' : fase?.bg || 'var(--sf-surface)',
+                                border: isSistema ? 'none' : `1px solid var(--sf-border-subtle)'`,
+                              }}>
+                              {!isSistema && (
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <AgenteIcon nome={msg.agente_nome} size={14} />
+                                  <span className="text-xs font-semibold" style={{ color: getAgenteCor(msg.agente_nome) }}>{msg.agente_nome}</span>
+                                  {fase && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: fase.bg, color: fase.text }}>{fase.label}</span>
+                                  )}
+                                  <span className="text-[9px] ml-auto" style={{ color: 'var(--sf-text-secondary)', opacity: 0.5 }}>
+                                    {msg.criado_em ? new Date(msg.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
+                                  </span>
+                                </div>
+                              )}
+                              <p className={`text-xs whitespace-pre-wrap ${isSistema ? 'font-medium' : ''}`}
+                                style={{ color: isSistema ? 'var(--sf-text-secondary)' : 'var(--sf-text)' }}>
+                                {msg.conteudo}
+                              </p>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {abaDireita === 'artifacts' && (
+                      <div className="flex-1 overflow-auto p-3 space-y-3" style={{ background: 'var(--sf-bg)' }}>
+                        {artifacts.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color: 'var(--sf-text-secondary)' }}>
+                            <Package className="w-12 h-12 opacity-30" />
+                            <p className="text-sm">Nenhum artifact ainda.</p>
+                          </div>
+                        ) : artifacts.map(art => (
+                          <div key={art.artifact_id} onClick={() => setArtifactModal(art)}
+                            className="rounded-lg p-3 cursor-pointer hover:scale-[1.01] transition-all"
+                            style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
+                            <div className="flex items-center gap-2">
+                              {art.tipo === 'plano' && <ClipboardList className="w-4 h-4" style={{ color: '#60a5fa' }} />}
+                              {art.tipo === 'checklist' && <CheckSquare className="w-4 h-4" style={{ color: '#34d399' }} />}
+                              {art.tipo === 'terminal' && <Terminal className="w-4 h-4" style={{ color: '#fbbf24' }} />}
+                              {art.tipo === 'codigo' && <Code2 className="w-4 h-4" style={{ color: '#a78bfa' }} />}
+                              <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--sf-text)' }}>{art.titulo}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${art.status === 'aprovado' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                                {art.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Lateral: Phase Decision Controls */}
+            <div className="w-80 flex-shrink-0 overflow-auto"
+              style={{ background: 'var(--sf-surface)', borderLeft: '2px solid rgba(251,191,36,0.4)' }}>
+              <PhaseDecisionControls
+                token={token || ''}
+                sessaoId={sessao.sessao_id}
+                fase={faseStatus.fase_atual || faseAtual || 1}
+                faseLabel={faseLabel || ''}
+                progresso={faseStatus.progresso || progressoAtual || 0}
+                agenteNome={faseStatus.agente_nome || agente_exec?.nome || 'Agente'}
+                onRevisar={(f) => {
+                  // Abre o artifact da fase correspondente para review
+                  const tipoArtifact = ['plano', 'discussao', 'codigo', 'checklist', 'conclusao'][f - 1] || 'codigo'
+                  const art = artifacts.find(a => a.tipo === tipoArtifact)
+                  if (art) setArtifactModal(art)
+                }}
+              />
+            </div>
+          </div>
+        </div>
       ) : (
       <div className="flex flex-1 overflow-hidden">
 
