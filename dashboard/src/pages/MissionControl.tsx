@@ -109,9 +109,18 @@ function AgenteIcon({ nome, size = 16 }: { nome: string; size?: number }) {
    ============================================================ */
 
 export default function MissionControl() {
-  const { token, usuario } = useAuth()
+  const { token, usuario, carregando } = useAuth()
   const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>()
   const navigate = useNavigate()
+
+  // Guard: se autenticacao ainda carregando, mostra loading e NAO executa nenhum useEffect
+  if (carregando) {
+    return (
+      <div className="h-full flex items-center justify-center" style={{ background: 'var(--sf-bg-primary)' }}>
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--sf-accent)' }} />
+      </div>
+    )
+  }
 
   // Token seguro: usa localStorage como fallback se token do context ainda nao esta disponivel
   const tokenSeguro = token || localStorage.getItem('sf_token') || ''
