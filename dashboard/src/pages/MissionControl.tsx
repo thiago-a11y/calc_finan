@@ -113,6 +113,9 @@ export default function MissionControl() {
   const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>()
   const navigate = useNavigate()
 
+  // Token seguro: usa localStorage como fallback se token do context ainda nao esta disponivel
+  const tokenSeguro = token || localStorage.getItem('sf_token') || ''
+
   // Sessao
   const [sessao, setSessao] = useState<Sessao | null>(null)
   const [sessoes, setSessoes] = useState<SessaoResumo[]>([])
@@ -178,8 +181,8 @@ export default function MissionControl() {
 
   const headers = useMemo(() => ({
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  }), [token])
+    Authorization: `Bearer ${tokenSeguro}`,
+  }), [tokenSeguro])
 
   /* ============================================================
      Listar sessoes
@@ -199,9 +202,13 @@ export default function MissionControl() {
         method: 'POST', headers,
         body: JSON.stringify({ titulo: titulo || 'Nova Sessao Mission Control' }),
       })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
+      if (!data.sessao_id) throw new Error('sessao_id missing from response')
       navigate(`/mission-control/${data.sessao_id}`, { replace: true })
-    } catch { /* */ } finally { setCriando(false) }
+    } catch (e) {
+      console.error('[MissionControl] Erro ao criar sessao:', e)
+    } finally { setCriando(false) }
   }, [headers, titulo, navigate])
 
   /* ============================================================
@@ -813,7 +820,7 @@ export default function MissionControl() {
       {/* === Painel de Ações Recomendadas (quando 100% concluído) === */}
       {mostrarConclusao ? (
         <MissionCompleteActions
-          token={token || ''}
+          token={tokenSeguro}
           sessaoId={sessao.sessao_id}
           papel={usuario?.papeis?.[0] || 'membro'}
           sessaoTitulo={sessao.titulo}
@@ -1005,7 +1012,7 @@ export default function MissionControl() {
             <div className="w-80 flex-shrink-0 overflow-auto"
               style={{ background: 'var(--sf-bg-card)', borderLeft: '2px solid rgba(251,191,36,0.4)' }}>
               <PhaseDecisionControls
-                token={token || ''}
+                token={tokenSeguro}
                 sessaoId={sessao.sessao_id}
                 fase={faseStatus.fase_atual || faseAtual || 1}
                 faseLabel={faseLabel || ''}

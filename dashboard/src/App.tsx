@@ -18,6 +18,7 @@ import Configuracoes from './pages/Configuracoes'
 import Agente from './pages/Agente'
 import Registrar from './pages/Registrar'
 import ThemeToggle from './components/ThemeToggle'
+import ErrorBoundary from './components/ErrorBoundary'
 import { ChatProvider } from './components/ChatManager'
 import TaskTray from './components/TaskTray'
 import Relatorios from './pages/Relatorios'
@@ -252,7 +253,9 @@ function AppRoutes() {
         path="/mission-control"
         element={
           <RotaProtegida>
-            <LayoutPrincipal><MissionControl /></LayoutPrincipal>
+            <ErrorBoundary>
+              <LayoutPrincipal><MissionControl /></LayoutPrincipal>
+            </ErrorBoundary>
           </RotaProtegida>
         }
       />
@@ -260,7 +263,9 @@ function AppRoutes() {
         path="/mission-control/:sessionId"
         element={
           <RotaProtegida>
-            <LayoutPrincipal><MissionControl /></LayoutPrincipal>
+            <ErrorBoundary>
+              <LayoutPrincipal><MissionControl /></LayoutPrincipal>
+            </ErrorBoundary>
           </RotaProtegida>
         }
       />
