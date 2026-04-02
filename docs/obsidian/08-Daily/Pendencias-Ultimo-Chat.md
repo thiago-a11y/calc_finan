@@ -1,7 +1,27 @@
 # Pendencias do Ultimo Chat — 02/Abr/2026
 
-> Atualizado em 02/Abr/2026 (sessao 35 — v0.57.7)
-> Sessao 35: Tela de conclusão com ações recomendadas (v0.57.7). Sessao anterior: True Live Typing (v0.57.6).
+> Atualizado em 02/Abr/2026 (sessao 36 — v0.57.8)
+> Sessao 36: Git actions funcionais no Mission Control (v0.57.8). Sessao anterior: Tela de conclusao (v0.57.7).
+
+## Sessao 36 (02/Abr/2026) — Git Actions Funcionais (v0.57.8)
+
+### O que foi feito
+
+#### v0.57.8 — Git Actions Funcionais
+- [x] Backend: 4 endpoints de Git (git-info, git-commit, git-push, git-merge)
+- [x] Frontend: Git Status Bar com branch e pendências
+- [x] Botão Commit (laranja) funcional
+- [x] Botão Push + PR (verde) funcional
+- [x] Toast de feedback (sucesso/error)
+- [x] Permissões: só mostra para ceo/diretor/ops/lider
+- [x] Build TypeScript passando
+- [x] Deploy em produção OK
+
+### Status atual
+- Versão: **v0.57.8** em produção
+- Git actions: Commit, Push+PR funcionais com toast feedback
+
+---
 
 ## Sessao 35 (02/Abr/2026) — Tela de Conclusão com Ações Recomendadas (v0.57.7)
 
@@ -18,7 +38,6 @@
 ### Status atual
 - Versão: **v0.57.7** em produção
 - Tela de conclusão: 7 ações recomendadas com botões grandes
-- Feedback visual claro de missão concluída
 
 ---
 

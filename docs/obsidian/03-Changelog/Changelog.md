@@ -4,6 +4,29 @@
 
 ---
 
+## v0.57.8 — Git Actions Funcionais no Mission Control (02/Abr/2026)
+
+### Problema
+Botões de Git (Commit, Push, PR, Merge) eram placeholders com `alert()`. Não executavam ações reais.
+
+### Solução: Git Actions Funcionais
+
+**Backend — 4 novos endpoints em `mission_control.py`:**
+- `GET /sessao/{id}/git-info`: branch atual, commits pendentes, se tem VCS configurado
+- `POST /sessao/{id}/git-commit`: commit local (sem push) com audit log
+- `POST /sessao/{id}/git-push`: push + criação automática de PR via API GitHub/GitBucket
+- `POST /sessao/{id}/git-merge`: merge de PR existente via API
+
+**Frontend — `MissionCompleteActions.tsx` atualizado:**
+- **Git Status Bar**: mostra branch, número de pendências, tipo de VCS
+- **Botão Commit** (laranja): commita alterações locais
+- **Botão Push + PR** (verde): push para remote + cria PR automaticamente
+- **Toast de feedback**: verde (sucesso) ou vermelho (erro) com mensagem clara
+- **Permissões**: Git actions só aparecem para ceo/diretor_tecnico/operations_lead/pm_central/lider
+- Auto-refresh do git-info após cada operação
+
+---
+
 ## v0.57.7 — Tela de Conclusão com Ações Recomendadas (02/Abr/2026)
 
 ### Problema
