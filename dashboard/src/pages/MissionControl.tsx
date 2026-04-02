@@ -113,17 +113,27 @@ export default function MissionControl() {
   const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>()
   const navigate = useNavigate()
 
-  // Guard: se autenticacao ainda carregando, mostra loading e NAO executa nenhum useEffect
-  if (carregando) {
+  // Token seguro: usa localStorage como fallback se token do context ainda nao esta disponivel
+  const tokenSeguro = token || localStorage.getItem('sf_token') || ''
+
+  // Guard de inicializacao: enquanto token nao existe, mostra spinner
+  const [isInitializing, setIsInitializing] = useState(true)
+
+  // Marcar como pronto quando token estiver disponivel
+  useEffect(() => {
+    if (tokenSeguro && tokenSeguro.length > 0) {
+      setIsInitializing(false)
+    }
+  }, [tokenSeguro])
+
+  // Guard: se autenticacao carregando ou token nao disponivel, mostra loading
+  if (carregando || isInitializing) {
     return (
       <div className="h-full flex items-center justify-center" style={{ background: 'var(--sf-bg-primary)' }}>
         <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--sf-accent)' }} />
       </div>
     )
   }
-
-  // Token seguro: usa localStorage como fallback se token do context ainda nao esta disponivel
-  const tokenSeguro = token || localStorage.getItem('sf_token') || ''
 
   // Sessao
   const [sessao, setSessao] = useState<Sessao | null>(null)
