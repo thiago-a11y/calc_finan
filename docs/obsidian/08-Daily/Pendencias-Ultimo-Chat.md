@@ -3,6 +3,14 @@
 > Atualizado em 02/Abr/2026 (sessao 43 — v0.58.8)
 > Sessao 43: Correcao FINAL crash Mission Control ao criar sessao (v0.58.8).
 
+## Sessao 46 (02/Abr/2026) — isInitializing no Startup (v0.58.11)
+
+### v0.58.11 — Guard isInitializing no Startup UseEffect
+- [x] Startup useEffect com guard isInitializing
+- [x] Build OK, Commit + push OK
+
+---
+
 ## Sessao 45 (02/Abr/2026) — isInitializing Guard (v0.58.10)
 
 ### v0.58.10 — isInitializing Guard

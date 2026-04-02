@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.58.10 (02/Abr/2026)
+**Versão Atual:** v0.58.11 (02/Abr/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -475,6 +475,7 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.58.1** — **Vision Real para Agentes de Squad** — Pré-processamento de imagens com GPT-4o-mini vision (`_analisar_imagens_com_vision()`), ChatFloating envia URLs reais de upload, Luna Engine com path resolution absoluto e fallback não-silencioso
 - **v0.58.0** — **Agentes Multimodais (Vision)** — Flag `vision` em todos os providers, novo parâmetro `tem_imagem` no classificador, roteamento SIMPLES/MEDIO→GPT-4o-mini e COMPLEXO→GPT-4o quando imagem presente, fallback chain filtra providers sem vision, `_mensagens_tem_imagem()` no LLM Fallback
 - **v0.57.6** — **True Live Typing & Execution Feeling** — True character-by-character typing no editor com cursor verde piscando e highlight de linha, badge STREAMING com glow vermelho, badge "Em execução" com glow verde forte, barra de progresso com glow intenso, texto descritivo "Fase X/5" com emoji, agent-pulse mais forte (scale 1.3x), terminal com cursor verde e texto "agente executando..."
+- **v0.58.11** — **Guard isInitializing no Startup UseEffect** — startup useEffect agora tem guard isInitializing, impedindo carregamento de sessao antes do token estar confirmado
 - **v0.58.10** — **Guard isInitializing no Mission Control** — isInitializing state que so vira false quando token disponivel, bloqueando todo o render e useEffects ate confirmacao de token
 - **v0.58.9** — **Guard de Loading no Mission Control** — guard `carregando` no topo do componente que mostra spinner ate autenticacao estar pronta
 - **v0.58.8** — **Correção FINAL Crash Mission Control ao Criar Sessão** — hasToken guard em todas API calls; reset estado completo antes de navegar em criarSessao; JSON parse defensivo; null checks em todas propriedades

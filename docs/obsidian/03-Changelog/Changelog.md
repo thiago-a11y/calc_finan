@@ -4,6 +4,26 @@
 
 ---
 
+## v0.58.11 — Guard isInitializing no Startup UseEffect (02/Abr/2026)
+
+### Problema
+Crash ao carregar sessao (clicar em Nova Sessao ou Retomar). Startup useEffect rodava antes do token estar confirmado.
+
+### Solucao
+Guard `isInitializing` no startup useEffect:
+```tsx
+useEffect(() => {
+  if (isInitializing) return  // NAO faz nada enquanto token nao estiver pronto
+  if (urlSessionId) carregarSessao(urlSessionId)
+  else carregarSessoes()
+}, [urlSessionId, isInitializing, carregarSessao, carregarSessoes])
+```
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx`
+
+---
+
 ## v0.58.10 — Guard isInitializing no Mission Control (02/Abr/2026)
 
 ### Problema
