@@ -20,7 +20,7 @@ interface TarefaAtiva {
 const API = ''
 
 function headers() {
-  const t = localStorage.getItem('sf_access_token')
+  const t = localStorage.getItem('sf_token')
   return { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' }
 }
 

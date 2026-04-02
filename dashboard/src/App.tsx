@@ -58,7 +58,10 @@ function LayoutComSidebar({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar />
-      <div className="flex flex-col h-screen overflow-hidden" style={{ color: 'var(--sf-text-primary)' }}>
+      <div
+        className="flex flex-col flex-1 min-h-screen"
+        style={{ color: 'var(--sf-text-primary)' }}
+      >
         {/* Header com ThemeToggle */}
         <header
           className="flex items-center justify-end px-6 py-3 shrink-0"
@@ -78,7 +81,7 @@ function LayoutComSidebar({ children }: { children: React.ReactNode }) {
 /* Layout principal — wrapper */
 function LayoutPrincipal({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen" style={{ background: 'var(--sf-bg-primary)' }}>
+    <div className="flex" style={{ background: 'var(--sf-bg-primary)' }}>
       <LayoutComSidebar>{children}</LayoutComSidebar>
     </div>
   )
