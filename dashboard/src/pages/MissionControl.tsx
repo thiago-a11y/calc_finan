@@ -211,7 +211,7 @@ export default function MissionControl() {
   }), [tokenSeguro])
 
   // Guard: se token vazio, nao faz nada
-  const hasToken = tokenSeguro && tokenSeguro.length > 0
+  const hasToken = Boolean(tokenSeguro && tokenSeguro.length > 0)
 
   /* ============================================================
      Listar sessoes
@@ -262,10 +262,17 @@ export default function MissionControl() {
     if (!hasToken || !sid) return
     try {
       const res = await fetch(`${API}/api/mission-control/sessao/${sid}`, { headers })
-      if (!res.ok) return
+      if (!res.ok) {
+        console.warn('[MissionControl] Sessao nao encontrada ou erro na API:', res.status)
+        return
+      }
       const text = await res.text()
-      let data: Sessao
-      try { data = JSON.parse(text) } catch { return }
+      let data: Sessao | null
+      try { data = JSON.parse(text) } catch { data = null }
+      if (!data) {
+        console.warn('[MissionControl] Dados da sessao invalidos (null ou parse falhou)')
+        return
+      }
       setSessao(data)
       setArtifacts(data?.artifacts || [])
 
@@ -648,7 +655,22 @@ export default function MissionControl() {
     </div>
   }
 
-  if (!sessao) return null
+  if (!sessao) {
+    // Sessao null = algo deu errado no carregamento
+    return (
+      <div className="h-full flex items-center justify-center" style={{ background: 'var(--sf-bg-primary)' }}>
+        <div className="text-center p-8 rounded-xl" style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
+          <Rocket className="w-12 h-12 mx-auto mb-4 opacity-40" style={{ color: 'var(--sf-text-secondary)' }} />
+          <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--sf-text)' }}>Sessao nao encontrada</h3>
+          <p className="text-sm mb-4" style={{ color: 'var(--sf-text-secondary)' }}>Esta sessao pode ter sido removida ou nao existe.</p>
+          <button onClick={() => navigate('/mission-control')}
+            className="px-4 py-2 rounded-lg font-medium text-white" style={{ background: 'var(--sf-accent)' }}>
+            Voltar para lista
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const agentes = sessao.agentes_ativos || []
   const agentesExecutando = agentes.filter(a => a.status === 'executando')
