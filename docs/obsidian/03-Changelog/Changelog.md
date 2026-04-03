@@ -4,6 +4,29 @@
 
 ---
 
+## v0.58.19 — Phase Decision Controls + ChromaDB Fix (03/Abr/2026)
+
+### Funcionalidade
+Mission Control agora exibe os controles de decisão de fase quando o agente aguarda aprovação humana após cada etapa do BMAD.
+
+### Novidades
+- `PhaseDecisionControls` importado e integrado ao MissionControl
+- Polling para `/fase-status` a cada 2s
+- Botões **Aprovar**, **Regenerar**, **Rejeitar**, **Revisar** funcionais
+- Exibidos automaticamente quando `waiting_decision: true`
+
+### ChromaDB Fix (Servidor)
+ChromaDB 1.1.1 crashava com `range start index 10 out of range for slice of length 9` no Ubuntu 22.04.
+- Patch: usar `EphemeralClient` ao invés de `PersistentClient` no crewai
+- Skills desabilitadas temporariamente (`inicializar_skills` comentado)
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx` — integração PhaseDecisionControls
+- `dashboard/src/components/PhaseDecisionControls.tsx` — controles de decisão
+- `api/dependencias.py` — skills desabilitadas
+
+---
+
 ## v0.58.14 — isInitializing Depende de Carregando (02/Abr/2026)
 
 ### Problema
