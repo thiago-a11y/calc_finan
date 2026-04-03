@@ -109,38 +109,9 @@ function AgenteIcon({ nome, size = 16 }: { nome: string; size?: number }) {
    ============================================================ */
 
 export default function MissionControl() {
-  const { token, usuario, carregando } = useAuth()
+  const { token, usuario } = useAuth()
   const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>()
   const navigate = useNavigate()
-
-  // Token seguro: usa localStorage como fallback se token do context ainda nao esta disponivel
-  const getStoredToken = (): string => {
-    try {
-      return localStorage.getItem('sf_token') || ''
-    } catch {
-      return ''
-    }
-  }
-  const tokenSeguro = token || getStoredToken() || ''
-
-  // Guard de inicializacao: marca como nao-inicializando QUANDO auth terminar de carregar
-  const [isInitializing, setIsInitializing] = useState(true)
-
-  // Marcamos como pronto QUANDO a autenticacao terminar de carregar (nao depende do token)
-  useEffect(() => {
-    if (!carregando) {
-      setIsInitializing(false)
-    }
-  }, [carregando])
-
-  // Guard: se autenticacao carregando ou ainda inicializando, mostra loading
-  if (carregando || isInitializing) {
-    return (
-      <div className="h-full flex items-center justify-center" style={{ background: 'var(--sf-bg-primary)' }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--sf-accent)' }} />
-      </div>
-    )
-  }
 
   // Sessao
   const [sessao, setSessao] = useState<Sessao | null>(null)
@@ -207,11 +178,8 @@ export default function MissionControl() {
 
   const headers = useMemo(() => ({
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${tokenSeguro}`,
-  }), [tokenSeguro])
-
-  // Guard: se token vazio, nao faz nada
-  const hasToken = Boolean(tokenSeguro && tokenSeguro.length > 0)
+    Authorization: `Bearer ${token}`,
+  }), [token])
 
   /* ============================================================
      Listar sessoes
@@ -225,79 +193,56 @@ export default function MissionControl() {
   }, [headers])
 
   const criarSessao = useCallback(async () => {
-    if (!hasToken) {
-      console.warn('[MissionControl] Token nao disponivel para criar sessao')
-      return
-    }
     setCriando(true)
     try {
       const res = await fetch(`${API}/api/mission-control/sessao`, {
         method: 'POST', headers,
         body: JSON.stringify({ titulo: titulo || 'Nova Sessao Mission Control' }),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status} ao criar sessao`)
-      const text = await res.text()
-      let data
-      try { data = JSON.parse(text) } catch { throw new Error('Response nao e JSON valido') }
-      if (!data.sessao_id) throw new Error('sessao_id missing from response')
-      const novoId = String(data.sessao_id)
-      // Resetar estado antes de navegar
-      setSessao(null)
-      setArtifacts([])
-      setChatMsgs([])
-      setTerminalHistorico([])
-      setMostrarConclusao(false)
-      setFaseStatus(null)
-      navigate(`/mission-control/${novoId}`, { replace: true })
-    } catch (e) {
-      console.error('[MissionControl] Erro ao criar sessao:', e)
-    } finally { setCriando(false) }
-  }, [headers, titulo, navigate, hasToken])
+      const data = await res.json()
+      navigate(`/mission-control/${data.sessao_id}`, { replace: true })
+    } catch { /* */ } finally { setCriando(false) }
+  }, [headers, titulo, navigate])
 
   /* ============================================================
      Carregar sessao + restore
      ============================================================ */
 
   const carregarSessao = useCallback(async (sid: string) => {
-    if (!hasToken || !sid) return
     try {
       const res = await fetch(`${API}/api/mission-control/sessao/${sid}`, { headers })
-      if (!res.ok) {
-        console.warn('[MissionControl] Sessao nao encontrada ou erro na API:', res.status)
-        return
-      }
-      const text = await res.text()
-      let data: Sessao | null
-      try { data = JSON.parse(text) } catch { data = null }
-      if (!data) {
-        console.warn('[MissionControl] Dados da sessao invalidos (null ou parse falhou)')
-        return
-      }
+      if (!res.ok) return
+      const data: Sessao = await res.json()
       setSessao(data)
-      setArtifacts(data?.artifacts || [])
+      setArtifacts(data.artifacts || [])
 
       // Detectar se agente esta ativo (para auto-save e polling)
-      const temAgente = (data?.agentes_ativos || []).some((a: AgenteAtivo) => a?.status === 'executando')
+      const temAgente = (data.agentes_ativos || []).some(a => a.status === 'executando')
       agentExecutandoRef.current = temAgente
 
       // Detectar streaming
-      const isStreaming = data?.painel_editor?.streaming === true
+      const isStreaming = data.painel_editor?.streaming === true
       setEditorStreaming(isStreaming)
 
       // Atualizar editor com conteudo do agente
-      const editorData = data?.painel_editor
+      // Regra: se fonte === 'agente' OU se o usuario nao editou manualmente, atualizar
+      const editorData = data.painel_editor
       if (editorData?.conteudo) {
         const isFromAgent = editorData.fonte === 'agente'
         if (isFromAgent) {
+          // Agente escreveu codigo — usar typewriter effect
           if (editorData.arquivo_ativo) setEditorArquivo(editorData.arquivo_ativo)
           setEditorFonteAgente(true)
           setEditorEditadoPeloUsuario(false)
           editorEditadoRef.current = false
+
+          // Se conteudo mudou, atualizar alvo do typewriter
           if (editorData.conteudo !== editorAlvoRef.current) {
             editorAlvoRef.current = editorData.conteudo
             setEditorAlvo(editorData.conteudo)
           }
         } else if (!editorEditadoRef.current) {
+          // Conteudo normal (auto-save ou inicial) — atualiza direto
           setEditorConteudo(editorData.conteudo)
           setEditorDisplay(editorData.conteudo)
           editorAlvoRef.current = editorData.conteudo
@@ -312,26 +257,22 @@ export default function MissionControl() {
       if (histBanco.length > 0) {
         setTimeout(() => terminalRef.current?.scrollTo(0, terminalRef.current.scrollHeight), 100)
       }
-    } catch (e) {
-      console.error('[MissionControl] Erro ao carregar sessao:', e)
-    }
-  }, [headers, hasToken])
+    } catch { /* */ }
+  }, [headers])
 
   /* ============================================================
      Team Chat polling (2s)
      ============================================================ */
 
   useEffect(() => {
-    if (!hasToken || !sessao?.sessao_id) return
+    if (!sessao?.sessao_id) return
     let mounted = true
     const poll = async () => {
       try {
         const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/chat`, { headers })
         if (res.ok && mounted) {
-          const text = await res.text()
-          let msgs: ChatMsg[] = []
-          try { msgs = JSON.parse(text) } catch { /* ignore */ }
-          setChatMsgs(msgs || [])
+          const msgs: ChatMsg[] = await res.json()
+          setChatMsgs(msgs)
           setTimeout(() => chatRef.current?.scrollTo(0, chatRef.current.scrollHeight), 50)
         }
       } catch { /* */ }
@@ -339,15 +280,17 @@ export default function MissionControl() {
     poll()
     const timer = setInterval(poll, 2000)
     return () => { mounted = false; clearInterval(timer) }
-  }, [sessao?.sessao_id, headers, hasToken])
+  }, [sessao?.sessao_id, headers])
 
   /* ============================================================
      Auto-save (10s)
      ============================================================ */
 
   useEffect(() => {
-    if (!hasToken || !sessao?.sessao_id) return
+    if (!sessao?.sessao_id) return
     const timer = setInterval(async () => {
+      // Nao salvar enquanto agente esta executando — evita sobrescrever conteudo do agente
+      // O backend tambem protege, mas melhor prevenir no frontend
       if (agentExecutandoRef.current) return
       try {
         setSalvando(true)
@@ -362,7 +305,7 @@ export default function MissionControl() {
       } catch { /* */ } finally { setSalvando(false) }
     }, 10000)
     return () => clearInterval(timer)
-  }, [sessao?.sessao_id, headers, editorConteudo, editorArquivo, terminalHistorico, hasToken])
+  }, [sessao?.sessao_id, headers, editorConteudo, editorArquivo, terminalHistorico])
 
   /* ============================================================
      True Live Typing — caractere por caractere como digitacao real
@@ -428,13 +371,13 @@ export default function MissionControl() {
       try {
         const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/fase-status`, { headers })
         if (res.ok) {
-          const text = await res.text()
-          try { setFaseStatus(JSON.parse(text)) } catch { /* ignore */ }
+          const data = await res.json()
+          setFaseStatus(data)
         }
       } catch { /* */ }
     }, 2000)
     return () => clearInterval(timer)
-  }, [sessao?.sessao_id, headers, hasToken])
+  }, [sessao?.sessao_id, headers])
 
   /* ============================================================
      Polling sessao — sempre 2s para nao perder atualizacoes do agente
@@ -442,22 +385,20 @@ export default function MissionControl() {
      ============================================================ */
 
   useEffect(() => {
-    if (!hasToken || !sessao?.sessao_id) return
+    if (!sessao?.sessao_id) return
     // Polling fixo em 2s — rapido o suficiente para ver streaming sem causar instabilidade
     const timer = setInterval(() => carregarSessao(sessao.sessao_id), 2000)
     return () => clearInterval(timer)
   }, [sessao?.sessao_id, carregarSessao])
 
   /* ============================================================
-     Startup — so carrega quando token estiver confirmado
+     Startup
      ============================================================ */
 
   useEffect(() => {
-    // NAO faz nada enquanto token nao estiver pronto
-    if (isInitializing) return
     if (urlSessionId) carregarSessao(urlSessionId)
     else carregarSessoes()
-  }, [urlSessionId, isInitializing, carregarSessao, carregarSessoes])
+  }, [urlSessionId, carregarSessao, carregarSessoes])
 
   /* ============================================================
      Terminal
@@ -485,13 +426,9 @@ export default function MissionControl() {
      ============================================================ */
 
   const dispararAgente = useCallback(async () => {
-    if (!hasToken) {
-      console.warn('[MissionControl] Token nao disponivel para disparar agente')
-      return
-    }
-    if (!sessao?.sessao_id || !instrucaoAgente.trim()) return
+    if (!sessao || !instrucaoAgente.trim()) return
     setDisparandoAgente(true)
-    setAbaDireita('chat')
+    setAbaDireita('chat') // Mudar para chat para ver a conversa
     // Resetar estado do editor para receber conteudo do agente (typewriter)
     setEditorEditadoPeloUsuario(false)
     editorEditadoRef.current = false
@@ -499,21 +436,16 @@ export default function MissionControl() {
     setEditorAlvo('')
     setEditorDisplay('')
     editorAlvoRef.current = ''
-    setMostrarConclusao(false) // Reset conclusao se estava ativa
     try {
-      const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/agente`, {
+      await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/agente`, {
         method: 'POST', headers,
         body: JSON.stringify({ instrucao: instrucaoAgente, tipo: 'implementacao' }),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const text = await res.text()
-      try { JSON.parse(text) } catch { /* ignore non-JSON */ }
       setInstrucaoAgente('')
+      // Recarregar imediatamente para exibir agente em execucao e barra de progresso
       await carregarSessao(sessao.sessao_id)
-    } catch (e) {
-      console.error('[MissionControl] Erro ao disparar agente:', e)
-    } finally { setDisparandoAgente(false) }
-  }, [sessao, instrucaoAgente, headers, carregarSessao, hasToken])
+    } catch { /* */ } finally { setDisparandoAgente(false) }
+  }, [sessao, instrucaoAgente, headers, carregarSessao])
 
   /* ============================================================
      Comentarios
@@ -583,7 +515,7 @@ export default function MissionControl() {
 
   if (!sessao && !urlSessionId) {
     return (
-      <div className="h-full overflow-auto" style={{ background: 'var(--sf-bg-primary)' }}>
+      <div className="h-full overflow-auto" style={{ background: 'var(--sf-bg)' }}>
         <div className="max-w-3xl mx-auto p-8">
           <div className="flex items-center gap-3 mb-8">
             <Rocket className="w-8 h-8" style={{ color: 'var(--sf-accent)' }} />
@@ -593,12 +525,12 @@ export default function MissionControl() {
             </div>
           </div>
 
-          <div className="p-5 rounded-xl mb-8" style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
+          <div className="p-5 rounded-xl mb-8" style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
             <div className="flex items-center gap-3">
               <input type="text" placeholder="Nome da sessao (ex: Feature Login SSO)" value={titulo}
                 onChange={e => setTitulo(e.target.value)} onKeyDown={e => e.key === 'Enter' && criarSessao()}
                 className="flex-1 px-4 py-2.5 rounded-lg text-sm"
-                style={{ background: 'var(--sf-bg-primary)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
+                style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
               <button onClick={criarSessao} disabled={criando}
                 className="px-5 py-2.5 rounded-lg font-semibold text-white flex items-center gap-2 hover:scale-105 transition-transform"
                 style={{ background: 'var(--sf-accent)' }}>
@@ -614,7 +546,7 @@ export default function MissionControl() {
           {carregandoSessoes ? (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--sf-accent)' }} /></div>
           ) : sessoes.length === 0 ? (
-            <div className="text-center py-12 rounded-xl" style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
+            <div className="text-center py-12 rounded-xl" style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
               <Package className="w-12 h-12 mx-auto mb-3 opacity-30" style={{ color: 'var(--sf-text-secondary)' }} />
               <p className="text-sm" style={{ color: 'var(--sf-text-secondary)' }}>Nenhuma sessao anterior.</p>
             </div>
@@ -623,7 +555,7 @@ export default function MissionControl() {
               {sessoes.map(s => (
                 <div key={s.sessao_id} onClick={() => navigate(`/mission-control/${s.sessao_id}`)}
                   className="flex items-center gap-4 p-4 rounded-xl cursor-pointer hover:scale-[1.01] transition-all"
-                  style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
+                  style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center"
                     style={{ background: s.status === 'ativa' ? 'rgba(16,185,129,0.15)' : 'rgba(107,114,128,0.15)' }}>
                     <Rocket className="w-5 h-5" style={{ color: s.status === 'ativa' ? 'var(--sf-accent)' : '#6b7280' }} />
@@ -650,27 +582,12 @@ export default function MissionControl() {
   }
 
   if (!sessao && urlSessionId) {
-    return <div className="h-full flex items-center justify-center" style={{ background: 'var(--sf-bg-primary)' }}>
+    return <div className="h-full flex items-center justify-center" style={{ background: 'var(--sf-bg)' }}>
       <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--sf-accent)' }} />
     </div>
   }
 
-  if (!sessao) {
-    // Sessao null = algo deu errado no carregamento
-    return (
-      <div className="h-full flex items-center justify-center" style={{ background: 'var(--sf-bg-primary)' }}>
-        <div className="text-center p-8 rounded-xl" style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
-          <Rocket className="w-12 h-12 mx-auto mb-4 opacity-40" style={{ color: 'var(--sf-text-secondary)' }} />
-          <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--sf-text)' }}>Sessao nao encontrada</h3>
-          <p className="text-sm mb-4" style={{ color: 'var(--sf-text-secondary)' }}>Esta sessao pode ter sido removida ou nao existe.</p>
-          <button onClick={() => navigate('/mission-control')}
-            className="px-4 py-2 rounded-lg font-medium text-white" style={{ background: 'var(--sf-accent)' }}>
-            Voltar para lista
-          </button>
-        </div>
-      </div>
-    )
-  }
+  if (!sessao) return null
 
   const agentes = sessao.agentes_ativos || []
   const agentesExecutando = agentes.filter(a => a.status === 'executando')
@@ -695,16 +612,16 @@ export default function MissionControl() {
      ============================================================ */
 
   return (
-    <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--sf-bg-primary)' }}>
+    <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--sf-bg)' }}>
 
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-2 flex-shrink-0"
-        style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+        style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
         <button onClick={() => { setSessao(null); navigate('/mission-control') }} className="opacity-60 hover:opacity-100">
           <Rocket className="w-5 h-5" style={{ color: 'var(--sf-accent)' }} />
         </button>
         <span className="font-bold text-sm" style={{ color: 'var(--sf-text)' }}>Mission Control</span>
-        <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--sf-bg-primary)', color: 'var(--sf-text-secondary)' }}>
+        <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--sf-bg)', color: 'var(--sf-text-secondary)' }}>
           {sessao.titulo}
         </span>
 
@@ -762,7 +679,7 @@ export default function MissionControl() {
       </header>
 
       {/* Instrucao do Agente + Barra de Progresso */}
-      <div className="flex-shrink-0" style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+      <div className="flex-shrink-0" style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
         {/* CSS para animacoes */}
         <style>{`
           @keyframes progressShimmer {
@@ -864,7 +781,7 @@ export default function MissionControl() {
               </span>
             </div>
             {/* Barra de progresso grossa + shimmer + glow forte quando LIVE */}
-            <div className="h-3 rounded-full overflow-hidden" style={{ background: 'var(--sf-bg-primary)', boxShadow: modoLive ? '0 0 20px rgba(16,185,129,0.15)' : 'none' }}>
+            <div className="h-3 rounded-full overflow-hidden" style={{ background: 'var(--sf-bg)', boxShadow: modoLive ? '0 0 20px rgba(16,185,129,0.15)' : 'none' }}>
               <div className="h-full rounded-full transition-all duration-500 ease-out progress-shimmer"
                 style={{
                   width: `${progressoAtual || 5}%`,
@@ -883,7 +800,7 @@ export default function MissionControl() {
             value={instrucaoAgente} onChange={e => setInstrucaoAgente(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && dispararAgente()}
             className="flex-1 px-3 py-1.5 rounded text-sm"
-            style={{ background: 'var(--sf-bg-primary)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
+            style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
           <button onClick={dispararAgente} disabled={disparandoAgente || !instrucaoAgente.trim()}
             className="px-3 py-1.5 rounded text-xs font-medium text-white flex items-center gap-1"
             style={{ background: disparandoAgente ? '#666' : 'var(--sf-accent)' }}>
@@ -896,7 +813,7 @@ export default function MissionControl() {
       {/* === Painel de Ações Recomendadas (quando 100% concluído) === */}
       {mostrarConclusao ? (
         <MissionCompleteActions
-          token={tokenSeguro}
+          token={token || ''}
           sessaoId={sessao.sessao_id}
           papel={usuario?.papeis?.[0] || 'membro'}
           sessaoTitulo={sessao.titulo}
@@ -945,7 +862,7 @@ export default function MissionControl() {
                 {(painelMaximizado === null || painelMaximizado === 0) && (
                   <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 0 ? '100%' : `${painelLarguras[0]}%` }}>
                     <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
-                      style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
+                      style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
                       <Code2 className="w-3.5 h-3.5" />
                       <span className="font-medium">Editor</span>
                       <span className="opacity-60 truncate max-w-[120px]">{editorArquivo}</span>
@@ -969,7 +886,7 @@ export default function MissionControl() {
                 {(painelMaximizado === null || painelMaximizado === 1) && (
                   <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 1 ? '100%' : `${painelLarguras[1]}%` }}>
                     <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
-                      style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
+                      style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
                       <Terminal className="w-3.5 h-3.5" /><span className="font-medium">Terminal</span>
                       <div className="flex-1" />
                       <button onClick={() => setPainelMaximizado(painelMaximizado === 1 ? null : 1)} className="opacity-60 hover:opacity-100">
@@ -1002,7 +919,7 @@ export default function MissionControl() {
                 {(painelMaximizado === null || painelMaximizado === 2) && (
                   <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 2 ? '100%' : `${painelLarguras[2]}%` }}>
                     <div className="flex items-center gap-1 px-3 py-1.5 text-xs flex-shrink-0"
-                      style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+                      style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
                       <button onClick={() => setAbaDireita('chat')}
                         className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-all ${abaDireita === 'chat' ? '' : 'opacity-50 hover:opacity-80'}`}
                         style={abaDireita === 'chat' ? { background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' } : { color: 'var(--sf-text-secondary)' }}>
@@ -1019,7 +936,7 @@ export default function MissionControl() {
                       </button>
                     </div>
                     {abaDireita === 'chat' && (
-                      <div ref={chatRef} className="flex-1 overflow-auto p-3 space-y-2" style={{ background: 'var(--sf-bg-primary)' }}>
+                      <div ref={chatRef} className="flex-1 overflow-auto p-3 space-y-2" style={{ background: 'var(--sf-bg)' }}>
                         {chatMsgs.length === 0 ? (
                           <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color: 'var(--sf-text-secondary)' }}>
                             <MessageSquare className="w-12 h-12 opacity-20" />
@@ -1031,7 +948,7 @@ export default function MissionControl() {
                           return (
                             <div key={msg.id} className={`rounded-lg px-3 py-2 ${isSistema ? 'text-center' : ''}`}
                               style={{
-                                background: isSistema ? 'rgba(107,114,128,0.08)' : fase?.bg || 'var(--sf-bg-card)',
+                                background: isSistema ? 'rgba(107,114,128,0.08)' : fase?.bg || 'var(--sf-surface)',
                                 border: isSistema ? 'none' : `1px solid var(--sf-border-subtle)'`,
                               }}>
                               {!isSistema && (
@@ -1056,7 +973,7 @@ export default function MissionControl() {
                       </div>
                     )}
                     {abaDireita === 'artifacts' && (
-                      <div className="flex-1 overflow-auto p-3 space-y-3" style={{ background: 'var(--sf-bg-primary)' }}>
+                      <div className="flex-1 overflow-auto p-3 space-y-3" style={{ background: 'var(--sf-bg)' }}>
                         {artifacts.length === 0 ? (
                           <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color: 'var(--sf-text-secondary)' }}>
                             <Package className="w-12 h-12 opacity-30" />
@@ -1065,7 +982,7 @@ export default function MissionControl() {
                         ) : artifacts.map(art => (
                           <div key={art.artifact_id} onClick={() => setArtifactModal(art)}
                             className="rounded-lg p-3 cursor-pointer hover:scale-[1.01] transition-all"
-                            style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
+                            style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
                             <div className="flex items-center gap-2">
                               {art.tipo === 'plano' && <ClipboardList className="w-4 h-4" style={{ color: '#60a5fa' }} />}
                               {art.tipo === 'checklist' && <CheckSquare className="w-4 h-4" style={{ color: '#34d399' }} />}
@@ -1086,9 +1003,9 @@ export default function MissionControl() {
             </div>
             {/* Lateral: Phase Decision Controls */}
             <div className="w-80 flex-shrink-0 overflow-auto"
-              style={{ background: 'var(--sf-bg-card)', borderLeft: '2px solid rgba(251,191,36,0.4)' }}>
+              style={{ background: 'var(--sf-surface)', borderLeft: '2px solid rgba(251,191,36,0.4)' }}>
               <PhaseDecisionControls
-                token={tokenSeguro}
+                token={token || ''}
                 sessaoId={sessao.sessao_id}
                 fase={faseStatus.fase_atual || faseAtual || 1}
                 faseLabel={faseLabel || ''}
@@ -1112,7 +1029,7 @@ export default function MissionControl() {
         {(painelMaximizado === null || painelMaximizado === 0) && (
           <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 0 ? '100%' : `${painelLarguras[0]}%` }}>
             <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
-              style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
+              style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
               <Code2 className="w-3.5 h-3.5" />
               <span className="font-medium">Editor</span>
               <span className="opacity-60 truncate max-w-[120px]">{editorArquivo}</span>
@@ -1222,7 +1139,7 @@ export default function MissionControl() {
         {(painelMaximizado === null || painelMaximizado === 1) && (
           <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 1 ? '100%' : `${painelLarguras[1]}%` }}>
             <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
-              style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
+              style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
               <Terminal className="w-3.5 h-3.5" /><span className="font-medium">Terminal</span>
               {agentesExecutando.length > 0 && (
                 <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full animate-pulse"
@@ -1290,7 +1207,7 @@ export default function MissionControl() {
           <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 2 ? '100%' : `${painelLarguras[2]}%` }}>
             {/* Tabs: Chat / Artifacts */}
             <div className="flex items-center gap-1 px-3 py-1.5 text-xs flex-shrink-0"
-              style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+              style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
               <button onClick={() => setAbaDireita('chat')}
                 className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-all ${abaDireita === 'chat' ? '' : 'opacity-50 hover:opacity-80'}`}
                 style={abaDireita === 'chat' ? { background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' } : { color: 'var(--sf-text-secondary)' }}>
@@ -1311,7 +1228,7 @@ export default function MissionControl() {
 
             {/* === TEAM CHAT === */}
             {abaDireita === 'chat' && (
-              <div ref={chatRef} className="flex-1 overflow-auto p-3 space-y-2" style={{ background: 'var(--sf-bg-primary)' }}>
+              <div ref={chatRef} className="flex-1 overflow-auto p-3 space-y-2" style={{ background: 'var(--sf-bg)' }}>
                 {chatMsgs.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color: 'var(--sf-text-secondary)' }}>
                     <MessageSquare className="w-12 h-12 opacity-20" />
@@ -1326,7 +1243,7 @@ export default function MissionControl() {
                   return (
                     <div key={msg.id} className={`rounded-lg px-3 py-2 ${isSistema ? 'text-center' : ''}`}
                       style={{
-                        background: isSistema ? 'rgba(107,114,128,0.08)' : fase?.bg || 'var(--sf-bg-card)',
+                        background: isSistema ? 'rgba(107,114,128,0.08)' : fase?.bg || 'var(--sf-surface)',
                         border: isSistema ? 'none' : `1px solid ${agenteAtivo ? 'rgba(16,185,129,0.3)' : 'var(--sf-border-subtle)'}`,
                         ...(agenteAtivo ? { boxShadow: '0 0 8px rgba(16,185,129,0.1)' } : {}),
                       }}>
@@ -1364,7 +1281,7 @@ export default function MissionControl() {
 
             {/* === ARTIFACTS === */}
             {abaDireita === 'artifacts' && (
-              <div className="flex-1 overflow-auto p-3 space-y-3" style={{ background: 'var(--sf-bg-primary)' }}>
+              <div className="flex-1 overflow-auto p-3 space-y-3" style={{ background: 'var(--sf-bg)' }}>
                 {artifacts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color: 'var(--sf-text-secondary)' }}>
                     <Package className="w-12 h-12 opacity-30" />
@@ -1373,7 +1290,7 @@ export default function MissionControl() {
                 ) : artifacts.map(art => (
                   <div key={art.artifact_id} onClick={() => setArtifactModal(art)}
                     className="rounded-lg p-3 cursor-pointer hover:scale-[1.01] transition-all"
-                    style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
+                    style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
                     <div className="flex items-center gap-2">
                       {art.tipo === 'plano' && <ClipboardList className="w-4 h-4" style={{ color: '#60a5fa' }} />}
                       {art.tipo === 'checklist' && <CheckSquare className="w-4 h-4" style={{ color: '#34d399' }} />}
@@ -1406,7 +1323,7 @@ export default function MissionControl() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}
           onClick={() => setArtifactModal(null)}>
           <div className="w-full max-w-4xl max-h-[85vh] flex flex-col rounded-2xl overflow-hidden"
-            style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}
+            style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}
             onClick={e => e.stopPropagation()}>
 
             {/* Modal Header */}
@@ -1434,7 +1351,7 @@ export default function MissionControl() {
             {/* Modal Content */}
             <div className="flex-1 overflow-auto p-6">
               <pre className="text-sm p-4 rounded-xl font-mono whitespace-pre-wrap overflow-auto max-h-[50vh]"
-                style={{ background: 'var(--sf-bg-primary)', color: 'var(--sf-text)', border: '1px solid var(--sf-border-subtle)' }}>
+                style={{ background: 'var(--sf-bg)', color: 'var(--sf-text)', border: '1px solid var(--sf-border-subtle)' }}>
                 {artifactModal.conteudo || JSON.stringify(artifactModal.dados, null, 2)}
               </pre>
 
@@ -1461,7 +1378,7 @@ export default function MissionControl() {
                   onChange={e => setNovoComentario(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && adicionarComentario(artifactModal.artifact_id)}
                   className="flex-1 px-3 py-2 rounded-lg text-sm"
-                  style={{ background: 'var(--sf-bg-primary)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
+                  style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
                 <button onClick={() => adicionarComentario(artifactModal.artifact_id)}
                   className="px-3 py-2 rounded-lg text-sm font-medium text-white"
                   style={{ background: 'var(--sf-accent)' }}>
@@ -1472,7 +1389,7 @@ export default function MissionControl() {
 
             {/* Modal Actions */}
             <div className="flex items-center gap-3 px-6 py-4 flex-shrink-0"
-              style={{ borderTop: '1px solid var(--sf-border-subtle)', background: 'var(--sf-bg-primary)' }}>
+              style={{ borderTop: '1px solid var(--sf-border-subtle)', background: 'var(--sf-bg)' }}>
               {artifactModal.tipo === 'codigo' && (
                 <button onClick={() => aplicarNoEditor(artifactModal)}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
