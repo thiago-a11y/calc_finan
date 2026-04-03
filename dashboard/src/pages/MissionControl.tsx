@@ -11,6 +11,7 @@ import {
   Clock, ArrowRight, Play, Send,
 } from 'lucide-react'
 import PhaseDecisionControls from '../components/PhaseDecisionControls'
+import MissionCompleteActions from '../components/MissionCompleteActions'
 
 const API = import.meta.env.VITE_API_URL || ''
 
@@ -344,6 +345,22 @@ export default function MissionControl() {
   const agentes = sessao.agentes_ativos || []
   const agentesExecutando = agentes.filter(a => a.status === 'executando')
 
+  // Detectar conclusao: status da sessao OU progresso 100% OU todas fases completas
+  const missaoConcluida = sessao.status === 'concluida'
+    || (faseStatus && faseStatus.progresso >= 100 && !faseStatus.waiting_decision)
+    || (agentes.length > 0 && agentes.every(a => a.status === 'concluido' || a.status === 'erro'))
+
+  // Labels das fases BMAD
+  const FASES_BMAD = [
+    { num: 1, label: 'Planejamento' },
+    { num: 2, label: 'Discussao' },
+    { num: 3, label: 'Implementacao' },
+    { num: 4, label: 'Review' },
+    { num: 5, label: 'Entrega' },
+  ]
+  const faseAtual = faseStatus?.fase_atual || 0
+  const progressoGeral = faseStatus?.progresso || 0
+
   /* ============================================================
      Render: Painel da sessao — REBUILD STEP 1
      Sem resizable, sem complex layouts
@@ -423,6 +440,64 @@ export default function MissionControl() {
         </div>
       )}
 
+      {/* Barra de progresso das fases BMAD */}
+      {faseAtual > 0 && !missaoConcluida && (
+        <div className="flex items-center gap-1 px-4 py-2 flex-shrink-0"
+          style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+          {FASES_BMAD.map((fase) => {
+            const concluida = faseAtual > fase.num
+            const atual = faseAtual === fase.num
+            return (
+              <div key={fase.num} className="flex items-center gap-1 flex-1">
+                <div className="flex items-center gap-1.5 flex-1">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                    style={{
+                      background: concluida ? 'var(--sf-accent)' : atual ? 'rgba(16,185,129,0.3)' : 'var(--sf-bg-primary)',
+                      color: concluida ? 'white' : atual ? 'var(--sf-accent)' : 'var(--sf-text-secondary)',
+                      border: atual ? '2px solid var(--sf-accent)' : '1px solid var(--sf-border-subtle)',
+                    }}>
+                    {concluida ? '\u2713' : fase.num}
+                  </div>
+                  <span className="text-xs truncate" style={{
+                    color: concluida || atual ? 'var(--sf-text)' : 'var(--sf-text-secondary)',
+                    fontWeight: atual ? 600 : 400,
+                  }}>{fase.label}</span>
+                </div>
+                {fase.num < 5 && (
+                  <div className="w-8 h-0.5 flex-shrink-0" style={{
+                    background: concluida ? 'var(--sf-accent)' : 'var(--sf-border-subtle)',
+                  }} />
+                )}
+              </div>
+            )
+          })}
+          <span className="text-xs font-mono ml-2" style={{ color: 'var(--sf-accent)' }}>
+            {progressoGeral}%
+          </span>
+        </div>
+      )}
+
+      {/* Tela de conclusao — mostrada quando missao termina */}
+      {missaoConcluida ? (
+        <MissionCompleteActions
+          token={token || ''}
+          sessaoId={sessao.sessao_id}
+          projetoId={sessao.projeto_id}
+          papel="ceo"
+          sessaoTitulo={sessao.titulo}
+          totalArtifacts={artifacts.length}
+          totalComandos={sessao.total_comandos}
+          onVoltarRevisao={() => {
+            // Voltar para o painel de execucao (forcar re-render sem conclusao)
+            setSessao(prev => prev ? { ...prev, status: 'ativa' } : prev)
+          }}
+          onNovaSessao={() => {
+            setSessao(null)
+            navigate('/mission-control')
+          }}
+        />
+      ) : (
+      <>
       {/* Painel Triplo SIMPLES — 3 divs uma do lado da outra */}
       <div className="flex flex-1 overflow-hidden">
 
@@ -538,6 +613,8 @@ export default function MissionControl() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   )
