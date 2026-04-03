@@ -1,5 +1,5 @@
-/* Mission Control — REBUILDING STEP BY STEP
- * v0.58.17: Adiciona paineis basicos um por um para isolar erro
+/* Mission Control — v0.58.19
+ * Adiciona Phase Decision Controls para aprovacao de fases
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -10,6 +10,7 @@ import {
   Package, Sparkles, Plus, X,
   Clock, ArrowRight, Play, Send,
 } from 'lucide-react'
+import PhaseDecisionControls from '../components/PhaseDecisionControls'
 
 const API = import.meta.env.VITE_API_URL || ''
 
@@ -62,6 +63,20 @@ export default function MissionControl() {
   const [carregandoSessoes, setCarregandoSessoes] = useState(true)
   const [criando, setCriando] = useState(false)
   const [titulo, setTitulo] = useState('')
+
+  // Instruction input
+  const [instrucao, setInstrucao] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  // Phase decision state
+  const [faseStatus, setFaseStatus] = useState<{
+    status: string
+    fase_atual: number
+    progresso: number
+    waiting_decision: boolean
+    fase_decisao: string | null
+    agente_nome: string | null
+  } | null>(null)
 
   // Team Chat state
   const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([])
@@ -144,6 +159,25 @@ export default function MissionControl() {
   }, [headers, titulo, navigate])
 
   /* ============================================================
+     Enviar instrucao ao agente
+   ============================================================ */
+
+  const enviarInstrucao = useCallback(async () => {
+    if (!sessao || !instrucao.trim()) return
+    setEnviando(true)
+    try {
+      const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/agente`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ instrucao, tipo: 'bmad' }),
+      })
+      if (res.ok) {
+        setInstrucao('')
+        await carregarSessao(sessao.sessao_id)
+      }
+    } catch { /* */ } finally { setEnviando(false) }
+  }, [sessao, instrucao, headers, carregarSessao])
+
+  /* ============================================================
      Startup
    ============================================================ */
 
@@ -185,6 +219,25 @@ export default function MissionControl() {
     const timer = setInterval(() => carregarSessao(sessao.sessao_id), 5000)
     return () => clearInterval(timer)
   }, [sessao?.sessao_id, carregarSessao])
+
+  /* ============================================================
+     Phase status polling — checks if decision is needed
+   ============================================================ */
+
+  const carregarFaseStatus = useCallback(async () => {
+    if (!sessao?.sessao_id) return
+    try {
+      const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/fase-status`, { headers })
+      if (res.ok) setFaseStatus(await res.json())
+    } catch { /* */ }
+  }, [sessao?.sessao_id, headers])
+
+  useEffect(() => {
+    if (!sessao?.sessao_id) return
+    carregarFaseStatus()
+    const timer = setInterval(carregarFaseStatus, 2000)
+    return () => clearInterval(timer)
+  }, [sessao?.sessao_id, carregarFaseStatus])
 
   /* ============================================================
      Execute command
@@ -322,11 +375,16 @@ export default function MissionControl() {
         style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
         <Sparkles className="w-4 h-4" style={{ color: 'var(--sf-accent)' }} />
         <input type="text" placeholder="Instruir equipe..."
+          value={instrucao}
+          onChange={e => setInstrucao(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && enviarInstrucao()}
           className="flex-1 px-3 py-1.5 rounded text-sm"
           style={{ background: 'var(--sf-bg-primary)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
-        <button className="px-3 py-1.5 rounded text-xs font-medium text-white"
+        <button onClick={enviarInstrucao} disabled={enviando}
+          className="px-3 py-1.5 rounded text-xs font-medium text-white flex items-center gap-1.5"
           style={{ background: 'var(--sf-accent)' }}>
-          <Send className="w-3.5 h-3.5" />
+          {enviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          Executar
         </button>
       </div>
 
@@ -338,6 +396,30 @@ export default function MissionControl() {
           <span className="text-xs font-bold" style={{ color: 'var(--sf-accent)' }}>
             {agentesExecutando.map(a => a.nome).join(', ')} executando
           </span>
+        </div>
+      )}
+
+      {/* Phase Decision Controls — shown when waiting for user decision */}
+      {faseStatus?.waiting_decision && (
+        <div className="flex-shrink-0" style={{ borderBottom: '1px solid var(--sf-border-subtle)' }}>
+          <PhaseDecisionControls
+            token={token || ''}
+            sessaoId={sessao.sessao_id}
+            fase={faseStatus.fase_atual || 1}
+            faseLabel=""
+            progresso={faseStatus.progresso || 0}
+            agenteNome={faseStatus.agente_nome || 'Agente'}
+            onDecisao={async (fase, acao) => {
+              try {
+                await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/fase-decisao`, {
+                  method: 'POST', headers,
+                  body: JSON.stringify({ fase, acao }),
+                })
+                carregarFaseStatus()
+                carregarSessao(sessao.sessao_id)
+              } catch { /* */ }
+            }}
+          />
         </div>
       )}
 
