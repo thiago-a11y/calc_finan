@@ -44,11 +44,12 @@ def inicializar_fabrica():
 
     # ==========================================
     # Inicializar Skills (ferramentas dos agentes)
+    # DESABILITADO - ChromaDB crash no servidor Ubuntu 22.04
     # ==========================================
-    inicializar_skills(
-        rag_query=_fabrica.rag_query,
-        vault_factory_path=_fabrica.rag_config.vaults.get("factory", ""),
-    )
+    # inicializar_skills(
+    #     rag_query=_fabrica.rag_query,
+    #     vault_factory_path=_fabrica.rag_config.vaults.get("factory", ""),
+    # )
 
     # ==========================================
     # Carregar squads dinamicamente do banco

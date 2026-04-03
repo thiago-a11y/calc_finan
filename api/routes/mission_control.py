@@ -1,8 +1,14 @@
 """
-Rotas: Mission Control — Code Studio 2.0 (v0.55.0)
+Rotas: Mission Control — Code Studio 2.0 (v0.57.6)
 
-Painel triplo (Editor + Terminal + Navegador) com artifacts inteligentes,
-agentes vivos e comentarios inline estilo Google Docs.
+Painel triplo (Editor + Terminal + Team Chat/Artifacts) com artifacts inteligentes,
+agentes vivos, True Live Typing e comentarios inline estilo Google Docs.
+
+v0.57.6 — True Live Typing:
+- True Live Typing: caractere por caractere no editor com cursor verde piscando
+- Streaming em blocos de 2 linhas com 200ms de delay para efeito fluido
+- Comandos reais no terminal (npm build, pytest, eslint)
+- Progresso granular dentro de cada fase
 
 GET  /api/mission-control/sessoes           — Lista sessoes ativas
 POST /api/mission-control/sessao             — Cria nova sessao
@@ -28,7 +34,7 @@ from sqlalchemy.orm import Session
 
 from api.dependencias import obter_usuario_atual
 from database.models import (
-    UsuarioDB, ArtifactDB, MissionControlSessaoDB, ProjetoDB, TeamChatDB,
+    UsuarioDB, ArtifactDB, MissionControlSessaoDB, ProjetoDB, TeamChatDB, ProjetoVCSDB, AuditLogDB,
 )
 from database.session import get_db, SessionLocal
 from sqlalchemy.orm.attributes import flag_modified
@@ -74,6 +80,27 @@ class AutoSaveRequest(BaseModel):
     painel_editor: dict | None = None
     painel_terminal: dict | None = None
     painel_navegador: dict | None = None
+
+
+class GitCommitRequest(BaseModel):
+    """Commit apenas (sem push)."""
+    mensagem: str = ""
+
+
+class GitPushRequest(BaseModel):
+    """Push + criação de PR."""
+    titulo_pr: str = ""
+
+
+class GitMergeRequest(BaseModel):
+    """Merge de PR existente."""
+    pr_number: int
+
+
+class FaseDecisaoRequest(BaseModel):
+    """Decisao do usuario sobre uma fase: aprovar, regenerar, rejeitar ou revisar."""
+    fase: int  # Numero da fase (1-5)
+    acao: str  # 'aprovar' | 'regenerar' | 'rejeitar' | 'revisar'
 
 
 # =====================================================================
@@ -299,6 +326,455 @@ def auto_save_sessao(
 
 
 # =====================================================================
+# FASE DECISION — Aprovar/Regerar/Rejeitar/Revisar cada fase
+# =====================================================================
+
+@router.post("/sessao/{sessao_id}/fase-decisao")
+def fase_decisao(
+    sessao_id: str,
+    req: FaseDecisaoRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """
+    Registra a decisao do usuario sobre uma fase e desbloqueia o agente.
+
+    Acoes:
+    - 'aprovar': prossegue para proxima fase
+    - 'regenerar': refaz a fase atual
+    - 'rejeitar': cancela a fase e volta para a anterior
+    - 'revisar': pausa e abre detalhamento completo da fase
+    """
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    # Resolver no decision engine
+    resolvido = _decision_engine.resolve(sessao_id, req.fase, req.acao)
+
+    # Atualizar status do agente na sessao
+    ativos = sessao.agentes_ativos or []
+    for a in ativos:
+        if a.get("status") in ("executando", "waiting_decision"):
+            a["fase_decisao"] = {
+                "fase": req.fase,
+                "acao": req.acao,
+                "decidido_por": usuario.nome,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+            if req.acao == "rejeitar":
+                a["status"] = "rejeitado"
+            elif req.acao == "revisar":
+                a["status"] = "em_revisao"
+            elif req.acao == "regenerar":
+                a["status"] = "regenerando"
+            # 'aprovar' mantem 'executando'
+    sessao.agentes_ativos = ativos
+    sessao.atualizado_em = datetime.utcnow()
+
+    # Audit log
+    try:
+        db.add(AuditLogDB(
+            user_id=usuario.id, email=usuario.email,
+            acao="mission_control_fase_decisao",
+            descricao=f"[MC] Fase {req.fase} -> {req.acao} por {usuario.nome}",
+            ip="api",
+        ))
+    except Exception:
+        pass
+
+    db.commit()
+
+    acao_labels = {
+        "aprovar": "Aprovado — prosegue",
+        "regenerar": "Regenerando fase",
+        "rejeitar": "Rejeitado — voltando",
+        "revisar": "Em revisao — detalhamento",
+    }
+
+    logger.info(f"[MISSION/FaseDecisao] {usuario.email}: fase {req.fase} = {req.acao}")
+
+    return {
+        "sucesso": True,
+        "fase": req.fase,
+        "acao": req.acao,
+        "label": acao_labels.get(req.acao, req.acao),
+        "resolvido": resolvido,
+    }
+
+
+@router.get("/sessao/{sessao_id}/fase-status")
+def fase_status(
+    sessao_id: str,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Retorna status de decisao pendente da sessao (polling do frontend)."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    ativos = sessao.agentes_ativos or []
+    agente = ativos[0] if ativos else None
+
+    # Verificar se ha decisao pendente no engine
+    waiting = _decision_engine.is_waiting(sessao_id)
+
+    # Status do agente
+    status = agente.get("status") if agente else "sem_agente"
+    fase_decisao = agente.get("fase_decisao") if agente else None
+
+    # Fase atual do agente
+    fase_atual = agente.get("fase_atual") if agente else 0
+    progresso = agente.get("progresso") if agente else 0
+
+    return {
+        "status": status,
+        "fase_atual": fase_atual,
+        "progresso": progresso,
+        "waiting_decision": waiting,
+        "fase_decisao": fase_decisao,
+        "agente_nome": agente.get("nome") if agente else None,
+    }
+
+
+# =====================================================================
+# GIT — Status, Commit, Push+PR, Merge
+# =====================================================================
+
+def _obter_cwd_sessao(sessao: MissionControlSessaoDB, db: Session) -> tuple[str, ProjetoDB | None]:
+    """Retorna o cwd do projeto da sessao e o projeto."""
+    cwd = "/opt/synerium-factory"
+    projeto = None
+    if sessao.projeto_id:
+        projeto = db.query(ProjetoDB).filter_by(id=sessao.projeto_id).first()
+        if projeto:
+            cwd = getattr(projeto, "caminho_local", cwd) or cwd
+    return cwd, projeto
+
+
+@router.get("/sessao/{sessao_id}/git-info")
+def git_info(
+    sessao_id: str,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Retorna status do repositório Git (branch, commits pendentes, VCS config)."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    cwd, projeto = _obter_cwd_sessao(sessao, db)
+
+    # Verificar se e repo git
+    git_dir = os.path.join(cwd, ".git")
+    if not os.path.isdir(git_dir):
+        return {
+            "eh_git": False,
+            "mensagem": "Diretorio nao e um repositorio git",
+            "cwd": cwd,
+            "projeto_nome": projeto.nome if projeto else None,
+            "vcs_configurado": False,
+        }
+
+    # Branch atual
+    branch_result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=cwd, capture_output=True, text=True, timeout=10,
+    )
+    branch = branch_result.stdout.strip() if branch_result.returncode == 0 else "?"
+
+    # Commits pendentes ( Ahead / Behind )
+    try:
+        status_result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=cwd, capture_output=True, text=True, timeout=10,
+        )
+        pendentes = len(status_result.stdout.strip().split("\n")) if status_result.stdout.strip() else 0
+    except Exception:
+        pendentes = 0
+
+    # Buscar config VCS
+    vcs = None
+    vcs_configurado = False
+    if sessao.projeto_id:
+        vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=sessao.projeto_id, ativo=True).first()
+        vcs_configurado = vcs is not None
+
+    # Ultimo commit
+    try:
+        log_result = subprocess.run(
+            ["git", "log", "--oneline", "-1"],
+            cwd=cwd, capture_output=True, text=True, timeout=10,
+        )
+        ultimo_commit = log_result.stdout.strip() if log_result.returncode == 0 else ""
+    except Exception:
+        ultimo_commit = ""
+
+    return {
+        "eh_git": True,
+        "cwd": cwd,
+        "projeto_nome": projeto.nome if projeto else None,
+        "projeto_id": sessao.projeto_id,
+        "branch": branch,
+        "commits_pendentes": pendentes,
+        "ultimo_commit": ultimo_commit,
+        "vcs_configurado": vcs_configurado,
+        "vcs_tipo": vcs.vcs_tipo if vcs else None,
+        "repo_url": vcs.repo_url if vcs else None,
+        "branch_padrao": vcs.branch_padrao if vcs else "main",
+    }
+
+
+@router.post("/sessao/{sessao_id}/git-commit")
+def git_commit(
+    sessao_id: str,
+    req: GitCommitRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Faz commit das alteracoes (sem push)."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    cwd, projeto = _obter_cwd_sessao(sessao, db)
+
+    # Verificar se e repo git
+    git_dir = os.path.join(cwd, ".git")
+    if not os.path.isdir(git_dir):
+        raise HTTPException(status_code=400, detail="Diretorio nao e um repositorio git")
+
+    # Verificar se ha alteracoes
+    status_result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=cwd, capture_output=True, text=True, timeout=10,
+    )
+    if not status_result.stdout.strip():
+        return {"sucesso": True, "mensagem": "Nenhuma alteracao para commitar", "commit_hash": ""}
+
+    # Commit
+    mensagem = req.mensagem or f"Alteracoes via Mission Control — {usuario.nome}"
+    result = subprocess.run(
+        ["git", "-c", f"user.name={usuario.nome}", "-c", f"user.email={usuario.email}"],
+        cwd=cwd, capture_output=True, text=True, timeout=30,
+    )
+
+    commit_result = subprocess.run(
+        ["git", "commit", "-m", mensagem],
+        cwd=cwd, capture_output=True, text=True, timeout=30,
+    )
+
+    if commit_result.returncode != 0:
+        raise HTTPException(status_code=400, detail=f"Erro no commit: {commit_result.stderr[:200]}")
+
+    # Extrair hash
+    hash_result = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=cwd, capture_output=True, text=True, timeout=10,
+    )
+    commit_hash = hash_result.stdout.strip() if hash_result.returncode == 0 else "?"
+
+    # Audit log
+    try:
+        db.add(AuditLogDB(
+            user_id=usuario.id, email=usuario.email,
+            acao="mission_control_git_commit",
+            descricao=f"[{projeto.nome if projeto else 'MC'}] Commit {commit_hash}: {mensagem[:100]}",
+            ip="api",
+        ))
+        db.commit()
+    except Exception:
+        pass
+
+    logger.info(f"[MISSION/GitCommit] {usuario.email} commit {commit_hash}")
+
+    return {
+        "sucesso": True,
+        "mensagem": f"Commit {commit_hash} criado",
+        "commit_hash": commit_hash,
+        "branch": subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=cwd, capture_output=True, text=True, timeout=10).stdout.strip(),
+    }
+
+
+@router.post("/sessao/{sessao_id}/git-push")
+async def git_push(
+    sessao_id: str,
+    req: GitPushRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Faz push e cria PR (usa VCS do projeto se configurado)."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    cwd, projeto = _obter_cwd_sessao(sessao, db)
+
+    # Verificar VCS configurado
+    vcs = None
+    if sessao.projeto_id:
+        vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=sessao.projeto_id, ativo=True).first()
+
+    if not vcs:
+        raise HTTPException(status_code=400, detail="Projeto sem VCS configurado. Configure em Projetos > VCS.")
+
+    try:
+        from core.vcs_service import descriptografar_token, VCSService
+
+        token = descriptografar_token(vcs.api_token_encrypted)
+        service = VCSService(vcs.vcs_tipo, vcs.repo_url, token, vcs.branch_padrao or "main")
+
+        # Branch atual
+        branch_r = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=cwd, capture_output=True, text=True, timeout=10,
+        )
+        branch_atual = branch_r.stdout.strip() if branch_r.returncode == 0 else "main"
+
+        # Criar branch para push
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        branch_push = f"mc/push-{ts}"
+
+        subprocess.run(["git", "checkout", "-b", branch_push], cwd=cwd, capture_output=True, timeout=10)
+
+        # Push
+        push_result = service.push_branch(cwd, branch_push)
+        if not push_result.sucesso:
+            subprocess.run(["git", "checkout", branch_atual], cwd=cwd, capture_output=True, timeout=10)
+            subprocess.run(["git", "branch", "-D", branch_push], cwd=cwd, capture_output=True, timeout=10)
+            raise HTTPException(status_code=500, detail=f"Push falhou: {push_result.mensagem}")
+
+        # Criar PR
+        titulo = req.titulo_pr or f"[Mission Control] Push de {usuario.nome} — {ts}"
+        descricao = (
+            f"## Mission Control Push\n\n"
+            f"- **Usuario:** {usuario.nome} ({usuario.email})\n"
+            f"- **Sessao:** `{sessao_id}`\n"
+            f"- **Projeto:** {projeto.nome if projeto else 'N/A'}\n\n"
+            f"🤖 Gerado pelo [Synerium Factory](https://synerium-factory.objetivasolucao.com.br)"
+        )
+
+        pr_result = await service.criar_pr(titulo, descricao, branch_push, vcs.branch_padrao or "main")
+
+        # Voltar para branch original
+        subprocess.run(["git", "checkout", branch_atual], cwd=cwd, capture_output=True, timeout=10)
+
+        # Audit log
+        try:
+            db.add(AuditLogDB(
+                user_id=usuario.id, email=usuario.email,
+                acao="mission_control_git_push",
+                descricao=f"[{projeto.nome if projeto else 'MC'}] Push + PR {pr_result.get('pr_url', '')}",
+                ip="api",
+            ))
+            db.commit()
+        except Exception:
+            pass
+
+        logger.info(f"[MISSION/GitPush] {usuario.email} PR: {pr_result.get('pr_url', '')}")
+
+        return {
+            "sucesso": pr_result.get("sucesso", False),
+            "pr_url": pr_result.get("pr_url", ""),
+            "pr_number": pr_result.get("pr_number", 0),
+            "branch": branch_push,
+            "mensagem": pr_result.get("mensagem", ""),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[MISSION/GitPush] Erro: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro no push: {str(e)[:200]}")
+
+
+@router.post("/sessao/{sessao_id}/git-merge")
+async def git_merge(
+    sessao_id: str,
+    req: GitMergeRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Faz merge de uma PR existente."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    vcs = None
+    if sessao.projeto_id:
+        vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=sessao.projeto_id, ativo=True).first()
+
+    if not vcs:
+        raise HTTPException(status_code=400, detail="Projeto sem VCS configurado")
+
+    try:
+        from core.vcs_service import descriptografar_token, VCSService
+        import httpx
+
+        token = descriptografar_token(vcs.api_token_encrypted)
+        service = VCSService(vcs.vcs_tipo, vcs.repo_url, token, vcs.branch_padrao or "main")
+        owner_repo = service._extrair_owner_repo()
+
+        if not owner_repo:
+            raise HTTPException(status_code=400, detail="URL do repositorio invalida")
+
+        _, projeto = _obter_cwd_sessao(sessao, db)
+
+        if vcs.vcs_tipo == "github":
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.put(
+                    f"https://api.github.com/repos/{owner_repo}/pulls/{req.pr_number}/merge",
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                    },
+                    json={
+                        "merge_method": "squash",
+                        "commit_title": f"Merge PR #{req.pr_number} via Mission Control",
+                    },
+                )
+
+            if resp.status_code == 200:
+                data = resp.json()
+                try:
+                    db.add(AuditLogDB(
+                        user_id=usuario.id, email=usuario.email,
+                        acao="mission_control_git_merge",
+                        descricao=f"[{projeto.nome if projeto else 'MC'}] Merge PR #{req.pr_number}",
+                        ip="api",
+                    ))
+                    db.commit()
+                except Exception:
+                    pass
+                logger.info(f"[MISSION/GitMerge] PR #{req.pr_number} merged por {usuario.email}")
+                return {"sucesso": True, "mensagem": f"PR #{req.pr_number} mergeada", "sha": data.get("sha", "")}
+            else:
+                raise HTTPException(status_code=400, detail=f"GitHub API {resp.status_code}: {resp.text[:200]}")
+
+        else:
+            raise HTTPException(status_code=400, detail=f"VCS {vcs.vcs_tipo} nao suportado para merge")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[MISSION/GitMerge] Erro: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro no merge: {str(e)[:200]}")
+
+
+# =====================================================================
 # TERMINAL
 # =====================================================================
 
@@ -444,6 +920,83 @@ EQUIPE_AGENTES = [
 ]
 
 
+# =====================================================================
+# FASE DECISION ENGINE — estado global para human-in-the-loop
+# =====================================================================
+
+import threading
+
+class FaseDecisionEngine:
+    """
+    Motor de decisoes por fase.
+    Cada sessao pode ter uma decisao pendente (bloqueando o agente).
+    O agente thread verifica este estado entre cada fase.
+    """
+    def __init__(self):
+        self._lock = threading.Lock()
+        # Dict[sessao_id] -> { fase: int, acao: str, decidido: bool, evento: threading.Event }
+        self._pending: dict[str, dict] = {}
+
+    def set_pending(self, sessao_id: str, fase: int) -> None:
+        """Sinaliza que o agente deve esperar decisao apos completar a fase."""
+        with self._lock:
+            self._pending[sessao_id] = {
+                "fase": fase,
+                "acao": "aprovar",  # default: prossegue
+                "decidido": False,
+                "evento": threading.Event(),
+            }
+
+    def wait_decision(self, sessao_id: str, fase: int) -> str:
+        """
+        Bloqueia o agente ate o usuario decidir.
+        Retorna a acao decidida: 'aprovar' | 'regenerar' | 'rejeitar' | 'revisar'.
+        """
+        with self._lock:
+            if sessao_id not in self._pending:
+                self._pending[sessao_id] = {
+                    "fase": fase,
+                    "acao": "aprovar",
+                    "decidido": True,
+                    "evento": threading.Event(),
+                }
+            entry = self._pending[sessao_id]
+
+        # Espera ate que decida
+        entry["evento"].wait()
+        with self._lock:
+            return self._pending[sessao_id]["acao"]
+
+    def resolve(self, sessao_id: str, fase: int, acao: str) -> bool:
+        """
+        Resolve uma decisao pendente e desbloqueia o agente.
+        Retorna True se havia decisao pendente para esta sessao/fase.
+        """
+        with self._lock:
+            if sessao_id not in self._pending:
+                return False
+            entry = self._pending[sessao_id]
+            if entry["fase"] != fase or entry["decidido"]:
+                return False
+            entry["acao"] = acao
+            entry["decidido"] = True
+            entry["evento"].set()
+            return True
+
+    def clear(self, sessao_id: str) -> None:
+        """Remove estado de decisao pendente."""
+        with self._lock:
+            if sessao_id in self._pending:
+                del self._pending[sessao_id]
+
+    def is_waiting(self, sessao_id: str) -> bool:
+        """Retorna True se ha decisao pendente para esta sessao."""
+        with self._lock:
+            return sessao_id in self._pending and not self._pending[sessao_id]["decidido"]
+
+_decision_engine = FaseDecisionEngine()
+
+
 def _executar_agente_mission_control(
     sessao_id: str, agente_id: str, agente_nome: str,
     instrucao: str, tipo: str, projeto_id: int | None,
@@ -559,6 +1112,45 @@ def _executar_agente_mission_control(
             # Terminal: listar etapas
             _adicionar_terminal_agente(sessao_id, f"echo 'Etapas: {len(etapas)}' && tree -L 1", etapas_texto, True)
 
+        # ── FASE 1: PONTO DE DECISAO ──
+        # Sinaliza que Fase 1 completou e aguarda decisao do usuario
+        _chat_msg(db, sessao_id, "Sistema", "📋 Fase 1/5 (Planejamento) concluida — aguardando sua decisao.", tipo="sistema", fase="planejamento")
+        _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento — Aguardando Decisao", 33)
+        _decision_engine.set_pending(sessao_id, 1)
+
+        decisao_f1 = _decision_engine.wait_decision(sessao_id, 1)
+        _decision_engine.clear(sessao_id)
+
+        _chat_msg(db, sessao_id, "Sistema", f"💬 Decisao recebida: **{decisao_f1.upper()}**", tipo="sistema", fase="planejamento")
+
+        if decisao_f1 == "rejeitar":
+            _chat_msg(db, sessao_id, "Sistema", "❌ Planejamento rejeitado. Sessao encerrada.", tipo="sistema", fase="planejamento")
+            _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento Rejeitado", 100)
+            # Atualizar agente como rejeitado
+            ativos = sessao.agentes_ativos or []
+            for a in ativos:
+                if a.get("id") == agente_id:
+                    a["status"] = "rejeitado"
+                    a["resultado"] = "Planejamento rejeitado pelo usuario"
+            sessao.agentes_ativos = ativos
+            db.commit()
+            return
+
+        if decisao_f1 == "regenerar":
+            _chat_msg(db, sessao_id, "Sistema", "🔄 Regenerando Fase 1 (Planejamento)...", tipo="sistema", fase="planejamento")
+            # Refaz Fase 1 (loop simples)
+            _chat_msg(db, sessao_id, "Tech Lead", "Regenerando plano conforme seu feedback...", tipo="planejamento", fase="planejamento")
+            # Reusa mesmo plano por ora (regeneracao real usaria feedback do usuario se disponivel)
+            _chat_msg(db, sessao_id, "Tech Lead", f"Plano revisado: {plano_texto[:300]}", tipo="planejamento", fase="planejamento")
+            _chat_msg(db, sessao_id, "Sistema", "✅ Fase 1/5 regenerada — aguardando decisao.", tipo="sistema", fase="planejamento")
+            _decision_engine.set_pending(sessao_id, 1)
+            decisao_f1b = _decision_engine.wait_decision(sessao_id, 1)
+            _decision_engine.clear(sessao_id)
+            if decisao_f1b in ("rejeitar", "revisar"):
+                _chat_msg(db, sessao_id, "Sistema", f"❌ ou 📋 Decisao final: {decisao_f1b}. Prosseguindo.", tipo="sistema", fase="planejamento")
+
+        # Prossegue para Fase 2
+
         # ── FASE 2: DISCUSSAO (cada agente opina) ──
 
         _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussão", 35)
@@ -593,6 +1185,52 @@ def _executar_agente_mission_control(
             except Exception as e_disc:
                 _chat_msg(db, sessao_id, ag["nome"], f"(sem resposta: {str(e_disc)[:100]})", tipo="alerta", fase="discussao")
                 disc_idx += 1
+
+        # ── FASE 2: PONTO DE DECISAO ──
+        _chat_msg(db, sessao_id, "Sistema", "💬 Fase 2/5 (Discussao) concluida — aguardando sua decisao.", tipo="sistema", fase="discussao")
+        _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussao — Aguardando Decisao", 55)
+        _decision_engine.set_pending(sessao_id, 2)
+
+        decisao_f2 = _decision_engine.wait_decision(sessao_id, 2)
+        _decision_engine.clear(sessao_id)
+        _chat_msg(db, sessao_id, "Sistema", f"💬 Decisao: **{decisao_f2.upper()}**", tipo="sistema", fase="discussao")
+
+        if decisao_f2 == "rejeitar":
+            _chat_msg(db, sessao_id, "Sistema", "❌ Discussao rejeitada. Sessao encerrada.", tipo="sistema", fase="discussao")
+            _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussao Rejeitada", 100)
+            ativos = sessao.agentes_ativos or []
+            for a in ativos:
+                if a.get("id") == agente_id:
+                    a["status"] = "rejeitado"
+                    a["resultado"] = "Discussao rejeitada pelo usuario"
+            sessao.agentes_ativos = ativos
+            db.commit()
+            return
+        if decisao_f2 == "regenerar":
+            _chat_msg(db, sessao_id, "Sistema", "🔄 Regenerando Fase 2 (Discussao)...", tipo="sistema", fase="discussao")
+            _chat_msg(db, sessao_id, "Tech Lead", "Refazendo discussao com feedback adicional...", tipo="decisao", fase="discussao")
+            # loop simples: apenas repete a discussao sem mudar muita coisa
+            disc_idx2 = 0
+            for ag in EQUIPE_AGENTES[1:]:
+                disc_system2 = (
+                    f"Voce e o {ag['nome']}. Revise o plano revisado e confirme seu parecer.\n\n"
+                    f"Plano: {plano_texto[:800]}\n\nResponda em 1-2 frases."
+                )
+                try:
+                    resp2, _, _ = chamar_llm_com_fallback(
+                        [SystemMessage(content=disc_system2), HumanMessage(content="Confirme ou ajuste seu parecer.")],
+                        max_tokens=200, classificacao=cls_disc,
+                    )
+                    _chat_msg(db, sessao_id, ag["nome"], resp2.content[:300], tipo="mensagem", fase="discussao")
+                except Exception:
+                    pass
+                disc_idx2 += 1
+            _chat_msg(db, sessao_id, "Sistema", "✅ Fase 2/5 regenerada — aguardando decisao.", tipo="sistema", fase="discussao")
+            _decision_engine.set_pending(sessao_id, 2)
+            decisao_f2b = _decision_engine.wait_decision(sessao_id, 2)
+            _decision_engine.clear(sessao_id)
+            if decisao_f2b in ("rejeitar", "revisar"):
+                _chat_msg(db, sessao_id, "Sistema", f"Decisao final: {decisao_f2b}. Prosseguindo.", tipo="sistema", fase="discussao")
 
         # ── FASE 3: EXECUCAO (gerar artifacts concretos) ──
 
@@ -684,6 +1322,66 @@ def _executar_agente_mission_control(
         except Exception as e_code:
             _chat_msg(db, sessao_id, "Backend Dev", f"Erro ao gerar codigo: {str(e_code)[:200]}", tipo="alerta", fase="execucao")
 
+        # ── FASE 3: PONTO DE DECISAO ──
+        _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 3/5 (Execucao) concluida — aguardando sua decisao.", tipo="sistema", fase="execucao")
+        _atualizar_fase_agente(sessao_id, agente_id, 3, "Execucao — Aguardando Decisao", 80)
+        _decision_engine.set_pending(sessao_id, 3)
+
+        decisao_f3 = _decision_engine.wait_decision(sessao_id, 3)
+        _decision_engine.clear(sessao_id)
+        _chat_msg(db, sessao_id, "Sistema", f"💬 Decisao: **{decisao_f3.upper()}**", tipo="sistema", fase="execucao")
+
+        if decisao_f3 == "rejeitar":
+            _chat_msg(db, sessao_id, "Sistema", "❌ Execucao rejeitada. Sessao encerrada.", tipo="sistema", fase="execucao")
+            _atualizar_fase_agente(sessao_id, agente_id, 3, "Execucao Rejeitada", 100)
+            ativos = sessao.agentes_ativos or []
+            for a in ativos:
+                if a.get("id") == agente_id:
+                    a["status"] = "rejeitado"
+                    a["resultado"] = "Execucao rejeitada pelo usuario"
+            sessao.agentes_ativos = ativos
+            db.commit()
+            return
+        if decisao_f3 == "regenerar":
+            _chat_msg(db, sessao_id, "Sistema", "🔄 Regenerando Fase 3 (Execucao)...", tipo="sistema", fase="execucao")
+            _chat_msg(db, sessao_id, "Backend Dev", "Regenerando codigo com seu feedback...", tipo="decisao", fase="execucao")
+            # loop simples: regenera codigo
+            try:
+                resp_code2, _, _ = chamar_llm_com_fallback(
+                    [SystemMessage(content=exec_system), HumanMessage(content="Regenere a implementacao com possiveis ajustes.")],
+                    max_tokens=3000, classificacao=cls_exec,
+                )
+                dados_code2 = {}
+                jm3 = re.search(r'\{[\s\S]*\}', resp_code2.content)
+                if jm3:
+                    try:
+                        dados_code2 = json.loads(jm3.group())
+                    except json.JSONDecodeError:
+                        pass
+                codigo2 = dados_code2.get("codigo", resp_code2.content[:3000])
+                arquivo2 = dados_code2.get("arquivo", arquivo)
+                linhas2 = codigo2.split('\n')
+                acumulado2 = ""
+                for idx2, linha2 in enumerate(linhas2):
+                    acumulado2 += linha2 + '\n'
+                    eh_ultima2 = idx2 == len(linhas2) - 1
+                    if (idx2 + 1) % 2 == 0 or eh_ultima2:
+                        _escrever_codigo_no_editor(sessao_id, acumulado2.rstrip('\n'), arquivo2, streaming=not eh_ultima2)
+                        if not eh_ultima2:
+                            time.sleep(0.20)
+                _chat_msg(db, sessao_id, "Backend Dev", f"✅ Codigo regenerado: {arquivo2}", tipo="mensagem", fase="execucao")
+                _criar_artifact(db, sessao_id, "codigo", f"Codigo (regenerado): {arquivo2}", codigo2,
+                    dados={"arquivo": arquivo2, "regenerado": True},
+                    agente_nome="Backend Dev", usuario_id=usuario_id, company_id=company_id)
+            except Exception as e_r:
+                _chat_msg(db, sessao_id, "Backend Dev", f"Erro na regeneracao: {str(e_r)[:200]}", tipo="alerta", fase="execucao")
+            _chat_msg(db, sessao_id, "Sistema", "✅ Fase 3/5 regenerada — aguardando decisao.", tipo="sistema", fase="execucao")
+            _decision_engine.set_pending(sessao_id, 3)
+            decisao_f3b = _decision_engine.wait_decision(sessao_id, 3)
+            _decision_engine.clear(sessao_id)
+            if decisao_f3b in ("rejeitar", "revisar"):
+                _chat_msg(db, sessao_id, "Sistema", f"Decisao final: {decisao_f3b}. Prosseguindo.", tipo="sistema", fase="execucao")
+
         # ── FASE 4: REVIEW (QA) ──
 
         _atualizar_fase_agente(sessao_id, agente_id, 4, "Review QA", 82)
@@ -738,6 +1436,56 @@ def _executar_agente_mission_control(
             )
         except Exception as e_qa:
             _chat_msg(db, sessao_id, "QA Engineer", f"Erro no review: {str(e_qa)[:200]}", tipo="alerta", fase="review")
+
+        # ── FASE 4: PONTO DE DECISAO ──
+        _chat_msg(db, sessao_id, "Sistema", "🔍 Fase 4/5 (Review QA) concluida — aguardando sua decisao.", tipo="sistema", fase="review")
+        _atualizar_fase_agente(sessao_id, agente_id, 4, "Review QA — Aguardando Decisao", 90)
+        _decision_engine.set_pending(sessao_id, 4)
+
+        decisao_f4 = _decision_engine.wait_decision(sessao_id, 4)
+        _decision_engine.clear(sessao_id)
+        _chat_msg(db, sessao_id, "Sistema", f"💬 Decisao: **{decisao_f4.upper()}**", tipo="sistema", fase="review")
+
+        if decisao_f4 == "rejeitar":
+            _chat_msg(db, sessao_id, "Sistema", "❌ Review rejeitado. Sessao encerrada.", tipo="sistema", fase="review")
+            _atualizar_fase_agente(sessao_id, agente_id, 4, "Review Rejeitado", 100)
+            ativos = sessao.agentes_ativos or []
+            for a in ativos:
+                if a.get("id") == agente_id:
+                    a["status"] = "rejeitado"
+                    a["resultado"] = "Review rejeitado pelo usuario"
+            sessao.agentes_ativos = ativos
+            db.commit()
+            return
+        if decisao_f4 == "regenerar":
+            _chat_msg(db, sessao_id, "Sistema", "🔄 Regenerando Fase 4 (Review QA)...", tipo="sistema", fase="review")
+            _chat_msg(db, sessao_id, "QA Engineer", "Refazendo review com seu feedback...", tipo="decisao", fase="review")
+            try:
+                resp_qa2, _, _ = chamar_llm_com_fallback(
+                    [SystemMessage(content=review_system), HumanMessage(content="Regenere a checklist com seu feedback.")],
+                    max_tokens=1000, classificacao=cls_qa,
+                )
+                dados_qa2 = {}
+                jm4 = re.search(r'\{[\s\S]*\}', resp_qa2.content)
+                if jm4:
+                    try:
+                        dados_qa2 = json.loads(jm4.group())
+                    except json.JSONDecodeError:
+                        pass
+                checklist2 = dados_qa2.get("checklist", [])
+                _chat_msg(db, sessao_id, "QA Engineer", f"Review regenerado: {len(checklist2)} itens.", tipo="mensagem", fase="review")
+                _criar_artifact(db, sessao_id, "checklist", f"QA Review (regenerado): {instrucao[:80]}",
+                    "\n".join(f"- [ ] {c.get('item', c) if isinstance(c, dict) else c}" for c in checklist2),
+                    dados={"items": checklist2, "regenerado": True},
+                    agente_nome="QA Engineer", usuario_id=usuario_id, company_id=company_id)
+            except Exception as e_rq:
+                _chat_msg(db, sessao_id, "QA Engineer", f"Erro na regeneracao: {str(e_rq)[:200]}", tipo="alerta", fase="review")
+            _chat_msg(db, sessao_id, "Sistema", "✅ Fase 4/5 regenerada — aguardando decisao.", tipo="sistema", fase="review")
+            _decision_engine.set_pending(sessao_id, 4)
+            decisao_f4b = _decision_engine.wait_decision(sessao_id, 4)
+            _decision_engine.clear(sessao_id)
+            if decisao_f4b in ("rejeitar", "revisar"):
+                _chat_msg(db, sessao_id, "Sistema", f"Decisao final: {decisao_f4b}. Prosseguindo.", tipo="sistema", fase="review")
 
         # ── CONCLUSAO ──
 

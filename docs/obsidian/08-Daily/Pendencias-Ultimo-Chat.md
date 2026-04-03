@@ -1,26 +1,288 @@
-# Pendencias do Ultimo Chat — 01/Abr/2026
+# Pendencias do Ultimo Chat — 02/Abr/2026
 
-> Atualizado em 01/Abr/2026 (sessao 33 — v0.58.1)
-> Sessao 33: Vision para Squad Agents (v0.58.1). Sessao anterior: Agentes Multimodais Vision (v0.58.0).
+> Atualizado em 02/Abr/2026 (sessao 43 — v0.58.8)
+> Sessao 43: Correcao FINAL crash Mission Control ao criar sessao (v0.58.8).
 
-## Sessao 33 (01/Abr/2026) — Vision para Squad Agents (v0.58.1)
+## Sessao 49 (02/Abr/2026) — isInitializing Correto (v0.58.14)
+
+### v0.58.14 — isInitializing Depende de Carregando
+- [x] isInitializing setado false quando carregando=false
+- [x] Build OK, Commit + push OK
+
+---
+
+## Sessao 48 (02/Abr/2026) — TaskTray getStoredToken (v0.58.13)
+
+### v0.58.13 — TaskTray getStoredToken
+- [x] TaskTray com getStoredToken em try-catch
+- [x] Build OK, Commit + push OK
+
+---
+
+## Sessao 47 (02/Abr/2026) — Protecao localStorage (v0.58.12)
+
+### v0.58.12 — Protecao localStorage
+- [x] getStoredToken com try-catch
+- [x] Build OK, Commit + push OK
+
+---
+
+## Sessao 46 (02/Abr/2026) — isInitializing no Startup (v0.58.11)
+
+### v0.58.11 — Guard isInitializing no Startup UseEffect
+- [x] Startup useEffect com guard isInitializing
+- [x] Build OK, Commit + push OK
+
+---
+
+## Sessao 45 (02/Abr/2026) — isInitializing Guard (v0.58.10)
+
+### v0.58.10 — isInitializing Guard
+- [x] isInitializing state + useEffect que aguarda token
+- [x] Guardif (carregando || isInitializing) no topo
+- [x] Build OK, Commit + push OK
+
+---
+
+## Sessao 44 (02/Abr/2026) — Guard de Loading Mission Control (v0.58.9)
 
 ### O que foi feito
 
-#### v0.58.1 — Vision para Squad Agents (CrewAI)
-- [x] `api/routes/tarefas.py`: nova função `_analisar_imagens_com_vision()` — pré-processa imagens com GPT-4o-mini vision
-- [x] `api/routes/tarefas.py`: descrição da imagem injetada no `task.description` como contexto rico antes do CrewAI
-- [x] `ChatFloating.tsx`: frontend envia URLs reais de anexos (não mais strip para texto puro)
-- [x] `luna_engine.py`: fix de path resolution — caminhos relativos corrigidos para absolutos
-- [x] `classificador_mensagem.py`: roteamento vision estendido para tarefas de squad com imagem
-- [x] `llm_fallback.py`: rede de segurança pula providers sem vision quando imagens detectadas em squads
+#### v0.58.9 — Guard de Loading Mission Control
+- [x] Guard carregando no topo do MissionControl
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.9** commitada (deploy pendente)
+
+---
+
+## Sessao 43 (02/Abr/2026) — Correcao FINAL Crash Mission Control v0.58.8
+
+### O que foi feito
+
+#### v0.58.8 — Correcao FINAL do Crash Mission Control ao Criar Sessao
+- [x] hasToken guard: todas as chamadas API verificam token antes de executar
+- [x] criarSessao: reset estado antes de navegar + JSON parse defensivo
+- [x] dispararAgente: guard hasToken + reset mostrarConclusao
+- [x] carregarSessao: guard hasToken + JSON parse defensivo + null checks
+- [x] Polling useEffects: hasToken em todas as dependencias
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.8** commitada (deploy pendente)
+- Mission Control: todas as API calls com guard de token
+- Causa: token null + JSON invalido causavam crash
+
+---
+
+## Sessao 42 (02/Abr/2026) — Correcao FINAL Crash Mission Control (v0.58.7)
+
+### O que foi feito
+
+#### v0.58.7 — Correcao FINAL do Crash Mission Control ao Criar Sessao
+- [x] ErrorBoundary.tsx: novo componente protecao contra crashes
+- [x] App.tsx: MissionControl com ErrorBoundary wrapper
+- [x] MissionControl: token fallback via localStorage (tokenSeguro)
+- [x] MissionControl: res.ok check em criarSessao
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.7** commitada (deploy pendente)
+- Mission Control: protegido por Error Boundary
+- Causa: token null + response sem validacao causavam crash
+
+---
+
+## Sessao 41 (02/Abr/2026) — Correcao FINAL Mission Control blank (v0.58.6)
+
+### O que foi feito
+
+#### v0.58.6 — Correcao FINAL Mission Control em Branco
+- [x] TaskTray: sf_access_token -> sf_token (localStorage key correto)
+- [x] App.tsx: remove h-screen overflow-hidden, usa flex-1 min-h-screen
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.6** commitada (deploy pendente)
+- Mission Control: deve funcionar normalmente
+- Causa: TaskTray com token key errada (401) + conflito h-screen no body scroll container
+
+---
+
+## Sessao 40 (02/Abr/2026) — Correcao de Regressao Mission Control (v0.58.5)
+
+### O que foi feito
+
+#### v0.58.5 — Correcao de Regressao Mission Control
+- [x] Identificado: var(--sf-bg) NAO existe no design system
+- [x] Identificado: var(--sf-surface) NAO existe no design system
+- [x] MissionControl.tsx era o UNICO arquivo usando var(--sf-bg) em todo o projeto
+- [x] Substituido var(--sf-bg) -> var(--sf-bg-primary) em 14 lugares
+- [x] Substituido var(--sf-surface) -> var(--sf-bg-card) em 17 lugares
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.5** commitada (deploy pendente)
+- Mission Control: CSS corrigido
+- Causa: variaveis CSS undefined fazem backgrounds ficarem transparentes
+
+---
+
+## Sessao 39 (02/Abr/2026) — Sidebar Fixo e Colapsavel (v0.58.4)
+
+### O que foi feito
+
+#### v0.58.4 — Sidebar Fixo e Colapsavel
+- [x] Redux Toolkit: sidebarSlice com estado collapsed + localStorage
+- [x] Store Redux: configureStore com sidebarReducer
+- [x] Hooks Redux: useAppDispatch + useAppSelector tipados
+- [x] Sidebar.tsx: posicao fixed, height 100vh, overflow-y auto
+- [x] Sidebar colapsavel: 240px expandido / 64px mini (icons only)
+- [x] Card usuario + Sair sempre visiveis no bottom (flex-shrink-0)
+- [x] Animacao suave 300ms no colapso/expansao
+- [x] Mobile: overlay com backdrop + hamburger button
+- [x] SidebarContent extraido para reuse em desktop + mobile
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.4** commitada (deploy pendente)
+- Sidebar: fixo na lateral, colapsavel para mini mode
+- Mobile: overlay com backdrop e menu hamburger
+
+---
+
+## Sessao 38 (02/Abr/2026) — Correção de Regressão (v0.58.3)
+
+### O que foi feito
+
+#### v0.58.3 — Correção de Regressão no Mission Control
+- [x] PhaseDecisionControls: polling proprio REMOVIDO (causava re-render loop)
+- [x] PhaseDecisionControls: componente agora stateless — recebe tudo via props
+- [x] useAuth() duplicado: consolidado para const { token, usuario } = useAuth()
+- [x] waitingDecision prop: removida (nao utilizada)
+- [x] FaseStatus interface redundante: removida
+- [x] MissionControl: handleFaseDecisao callback adicionado
+- [x] Build TypeScript: zero erros
+- [x] Commit + push OK
+
+### Status atual
+- Versão: **v0.58.3** commitada (deploy pendente)
+- Phase Decision Controls: 4 botoes por fase funcionando
+- Crash da pagina em branco CORRIGIDO
+
+---
+
+## Sessao 37 (02/Abr/2026) — Phase Decision Controls (v0.58.2)
+
+### O que foi feito
+
+#### v0.58.2 — Phase Decision Controls — Human-in-the-Loop
+- [x] Backend: FaseDecisionEngine com threading.Event (bloqueio entre fases)
+- [x] Backend: POST /sessao/{id}/fase-decisao (aprovar/regenerar/rejeitar/revisar)
+- [x] Backend: GET /sessao/{id}/fase-status (polling do frontend)
+- [x] Backend: ponto de decisao entre cada fase (1→2, 2→3, 3→4, 4→5)
+- [x] Frontend: PhaseDecisionControls.tsx (novo componente com 4 botoes)
+- [x] Frontend: painel lateral de decisoes com indicador de progresso
+- [x] Frontend: MissionCompleteActions com "Voltar para Revisao"
+- [x] Frontend: mostrarConclusao state (so mostra conclusao apos 5 fases)
+- [x] Build TypeScript passando
+- [x] Commit + push OK
+- [x] Limpeza final de código (variáveis/imports não utilizados)
+- [x] Deploy em produção (SSH timeout — fazer pull manual no servidor)
+
+### Status atual
+- Versão: **v0.58.2** commitada (deploy pendente)
+- Phase Decision Controls: 4 botoes por fase (Aprovar/Revisar/Regenerar/Rejeitar)
+- Human-in-the-loop: agente pausa entre cada fase aguardando decisao
+- "Voltar para Revisao" na tela de conclusao preserva todo o historico
+
+---
+
+## Sessao 36 (02/Abr/2026) — Git Actions Funcionais (v0.57.8)
+
+### O que foi feito
+
+#### v0.57.8 — Git Actions Funcionais
+- [x] Backend: 4 endpoints de Git (git-info, git-commit, git-push, git-merge)
+- [x] Frontend: Git Status Bar com branch e pendências
+- [x] Botão Commit (laranja) funcional
+- [x] Botão Push + PR (verde) funcional
+- [x] Toast de feedback (sucesso/error)
+- [x] Permissões: só mostra para ceo/diretor/ops/lider
+- [x] Build TypeScript passando
+- [x] Deploy em produção OK
+
+### Status atual
+- Versão: **v0.57.8** em produção
+- Git actions: Commit, Push+PR funcionais com toast feedback
+
+---
+
+## Sessao 35 (02/Abr/2026) — Tela de Conclusão com Ações Recomendadas (v0.57.7)
+
+### O que foi feito
+
+#### v0.57.7 — Tela de Conclusão com Ações Recomendadas
+- [x] Criado componente MissionCompleteActions.tsx (7 botões com ícones)
+- [x] Badge verde "Concluído" no header (sem spinner)
+- [x] Barra de progresso ocultada quando completo
+- [x] isCompleto = faseAtual === 5 && progressoAtual === 100
+- [x] Build TypeScript passando
+- [x] Deploy em produção OK
+
+### Status atual
+- Versão: **v0.57.7** em produção
+- Tela de conclusão: 7 ações recomendadas com botões grandes
+
+---
+
+## Sessao 34 (01/Abr/2026) — True Live Typing & Execution Feeling (v0.57.6)
+
+### O que foi feito
+
+#### v0.57.6 — True Live Typing & Execution Feeling
+- [x] True Live Typing: caractere por caractere no editor com delay variável (8-40ms)
+- [x] Cursor verde piscando com glow (0.65s blink cycle, box-shadow)
+- [x] Highlight de linha atual (borda verde + fundo sutil rgba)
+- [x] Badge STREAMING com glow vermelho pulsante
+- [x] Badge "Em execução" com glow verde forte
+- [x] Barra de progresso com glow intenso quando LIVE
+- [x] Texto descritivo "Fase X/5" com emoji
+- [x] Animação agent-pulse mais forte (0.8s, scale 1.3x)
+- [x] Cursor verde no terminal com texto "agente executando..."
+- [x] Build TypeScript passando
+- [x] Deploy em produção OK
+
+### Status atual
+- Versão: **v0.57.6** em produção
+- True Live Typing: digitação caractere por caractere com cursor verde
+- Execution feeling: todos os elementos pulsam, glow forte
+- Terminal: cursor verde com "agente executando..."
+
+---
+
+## Sessao 33 (01/Abr/2026) — Vision Real para Agentes de Squad (v0.58.1)
+
+### O que foi feito
+
+#### v0.58.1 — Vision real para agentes de squad
+- [x] ChatFloating.tsx: envia anexos com URL real ao invés de texto placeholder
+- [x] tarefas.py: `_analisar_imagens_com_vision()` pré-processa imagens com GPT-4o-mini
+- [x] luna_engine.py: fix path resolution absoluto + fallback não-silencioso
+- [x] 4 arquivos alterados, 158 linhas adicionadas
 
 ### Status atual
 - Versão: **v0.58.1**
-- Agentes de squad (CrewAI) agora processam imagens via pré-processamento GPT-4o-mini vision
-- Imagem → descrição textual → injetada no task.description → CrewAI processa normalmente
-- Frontend envia URLs reais de anexos para o backend
-- Path resolution corrigido no luna_engine.py
+- Imagens pré-processadas com GPT-4o-mini vision antes de enviar ao agente
+- URLs reais de upload no ChatFloating (não mais placeholders)
+- Luna Engine com path absoluto e erro não-silencioso
 
 ---
 

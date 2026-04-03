@@ -1,34 +1,18 @@
-/* Mission Control — Code Studio 2.0 (v0.57.5)
- *
- * Painel triplo: Editor + Terminal + Team Chat/Artifacts
- * Multi-agente com conversa visivel, planejamento, review
- *
- * v0.57.5 — Visible Live Execution:
- * - Typewriter effect: codigo aparece caractere a caractere no editor
- * - Progress bar animada com texto descritivo + porcentagem
- * - Icone de agente pulsante no header + badge "Em execucao" no chat
- * - Terminal com comandos reais (npm build, pytest, eslint)
- * - Fluxo fluido: editor nunca vazio, codigo aparece gradualmente
+/* Mission Control — v0.58.19
+ * Adiciona Phase Decision Controls para aprovacao de fases
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useParams, useNavigate } from 'react-router-dom'
-import ResizableHandle from '../components/code-studio/ResizableHandle'
 import {
-  Rocket, Terminal, Code2, Bot, CheckSquare,
-  MessageSquare, Play, Send, Loader2,
-  Maximize2, Minimize2, Sparkles, Package,
-  Clock, ArrowRight, Plus, Save, X,
-  ClipboardList, Zap, Shield, Palette, Settings2,
-  Copy, Download, ExternalLink, Radio,
+  Rocket, Loader2, Bot, Terminal, Code2, MessageSquare,
+  Package, Sparkles, Plus, X,
+  Clock, ArrowRight, Play, Send,
 } from 'lucide-react'
+import PhaseDecisionControls from '../components/PhaseDecisionControls'
 
 const API = import.meta.env.VITE_API_URL || ''
-
-/* ============================================================
-   Tipos
-   ============================================================ */
 
 interface Artifact {
   artifact_id: string; tipo: string; titulo: string
@@ -69,108 +53,68 @@ interface SessaoResumo {
   criado_em: string | null; atualizado_em: string | null
 }
 
-/* ============================================================
-   Cores e icones por agente/fase
-   ============================================================ */
-
-const AGENTE_COR: Record<string, string> = {
-  'Tech Lead': '#10b981', 'Backend Dev': '#3b82f6', 'Frontend Dev': '#8b5cf6',
-  'QA Engineer': '#ef4444', 'Sistema': '#6b7280', 'Terminal': '#f59e0b',
-  'Mission Control Agent': '#14b8a6',
-}
-
-const FASE_COR: Record<string, { bg: string; text: string; label: string }> = {
-  planejamento: { bg: 'rgba(99,102,241,0.15)', text: '#818cf8', label: 'Planejamento' },
-  discussao:    { bg: 'rgba(245,158,11,0.15)', text: '#fbbf24', label: 'Discussao' },
-  execucao:     { bg: 'rgba(16,185,129,0.15)', text: '#34d399', label: 'Execucao' },
-  review:       { bg: 'rgba(239,68,68,0.15)',  text: '#f87171', label: 'Review' },
-  conclusao:    { bg: 'rgba(107,114,128,0.15)', text: '#9ca3af', label: 'Concluido' },
-}
-
-function getAgenteCor(nome: string): string {
-  return AGENTE_COR[nome] || '#6b7280'
-}
-
-function AgenteIcon({ nome, size = 16 }: { nome: string; size?: number }) {
-  const props = { size, style: { color: getAgenteCor(nome) } }
-  if (nome === 'Tech Lead') return <Settings2 {...props} />
-  if (nome === 'Backend Dev') return <Zap {...props} />
-  if (nome === 'Frontend Dev') return <Palette {...props} />
-  if (nome === 'QA Engineer') return <Shield {...props} />
-  if (nome === 'Sistema') return <Rocket {...props} />
-  return <Bot {...props} />
-}
-
-/* ============================================================
-   Componente Principal
-   ============================================================ */
-
 export default function MissionControl() {
   const { token } = useAuth()
   const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>()
   const navigate = useNavigate()
 
-  // Sessao
   const [sessao, setSessao] = useState<Sessao | null>(null)
   const [sessoes, setSessoes] = useState<SessaoResumo[]>([])
   const [carregandoSessoes, setCarregandoSessoes] = useState(true)
   const [criando, setCriando] = useState(false)
   const [titulo, setTitulo] = useState('')
 
-  // Editor
-  const [editorConteudo, setEditorConteudo] = useState('// Selecione um arquivo ou peca ao agente para gerar codigo\n')
-  const [editorArquivo, setEditorArquivo] = useState('novo-arquivo.tsx')
+  // Instruction input
+  const [instrucao, setInstrucao] = useState('')
+  const [enviando, setEnviando] = useState(false)
 
-  // Terminal
+  // Phase decision state
+  const [faseStatus, setFaseStatus] = useState<{
+    status: string
+    fase_atual: number
+    progresso: number
+    waiting_decision: boolean
+    fase_decisao: string | null
+    agente_nome: string | null
+  } | null>(null)
+
+  // Team Chat state
+  const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([])
+  const chatRef = useRef<HTMLDivElement>(null)
+
+  // Terminal state
   const [comandoTerminal, setComandoTerminal] = useState('')
   const [terminalHistorico, setTerminalHistorico] = useState<TerminalEntry[]>([])
   const [executandoCmd, setExecutandoCmd] = useState(false)
   const terminalRef = useRef<HTMLDivElement>(null)
 
-  // Artifacts
+  // Artifacts state
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [artifactModal, setArtifactModal] = useState<Artifact | null>(null)
-  const [novoComentario, setNovoComentario] = useState('')
 
-  // Team Chat
-  const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([])
-  const chatRef = useRef<HTMLDivElement>(null)
+  // Editor state
+  const [editorConteudo, setEditorConteudo] = useState('')
+  const [editorArquivo, setEditorArquivo] = useState('novo-arquivo.tsx')
 
-  // Agente
-  const [instrucaoAgente, setInstrucaoAgente] = useState('')
-  const [disparandoAgente, setDisparandoAgente] = useState(false)
-
-  // Layout
-  const [painelLarguras, setPainelLarguras] = useState([30, 30, 40])
-  const [painelMaximizado, setPainelMaximizado] = useState<number | null>(null)
-  const [abaDireita, setAbaDireita] = useState<'chat' | 'artifacts'>('chat')
-
-  // Visible Execution + LIVE Mode
-  const [editorFonteAgente, setEditorFonteAgente] = useState(false)
-  const [editorEditadoPeloUsuario, setEditorEditadoPeloUsuario] = useState(false)
-  const editorEditadoRef = useRef(false)  // ref para closures sem stale state
-  const [modoLive, setModoLive] = useState(true)  // LIVE ligado por padrao
-  const [editorStreaming, setEditorStreaming] = useState(false)  // true = codigo sendo escrito
-  const agentExecutandoRef = useRef(false)  // evita auto-save sobrescrever conteudo do agente
-
-  // Typewriter effect
-  const [editorAlvo, setEditorAlvo] = useState('')  // conteudo alvo (o que chegou do backend)
-  const [editorDisplay, setEditorDisplay] = useState('')  // conteudo exibido (digitando...)
-  const typewriterRef = useRef<number | null>(null)
-  const editorAlvoRef = useRef('')  // ref para evitar stale closure no rAF
-
-  // Auto-save
-  const [ultimoSave, setUltimoSave] = useState('')
-  const [salvando, setSalvando] = useState(false)
-
-  const headers = useMemo(() => ({
+  const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
-  }), [token])
+  }
+
+  function tempoRelativo(iso: string | null): string {
+    if (!iso) return ''
+    const diff = Date.now() - new Date(iso).getTime()
+    const min = Math.floor(diff / 60000)
+    if (min < 1) return 'agora'
+    if (min < 60) return `${min}min`
+    const h = Math.floor(min / 60)
+    if (h < 24) return `${h}h`
+    return `${Math.floor(h / 24)}d`
+  }
 
   /* ============================================================
-     Listar sessoes
-     ============================================================ */
+     Load sessions
+   ============================================================ */
 
   const carregarSessoes = useCallback(async () => {
     try {
@@ -178,6 +122,29 @@ export default function MissionControl() {
       if (res.ok) setSessoes(await res.json())
     } catch { /* */ } finally { setCarregandoSessoes(false) }
   }, [headers])
+
+  /* ============================================================
+     Load session
+   ============================================================ */
+
+  const carregarSessao = useCallback(async (sid: string) => {
+    try {
+      const res = await fetch(`${API}/api/mission-control/sessao/${sid}`, { headers })
+      if (!res.ok) return
+      const data: Sessao = await res.json()
+      setSessao(data)
+      setArtifacts(data.artifacts || [])
+      setTerminalHistorico(data.painel_terminal?.historico || [])
+      if (data.painel_editor?.conteudo) {
+        setEditorConteudo(data.painel_editor.conteudo)
+        setEditorArquivo(data.painel_editor.arquivo_ativo || 'arquivo.tsx')
+      }
+    } catch { /* */ }
+  }, [headers])
+
+  /* ============================================================
+     Create session
+   ============================================================ */
 
   const criarSessao = useCallback(async () => {
     setCriando(true)
@@ -192,175 +159,89 @@ export default function MissionControl() {
   }, [headers, titulo, navigate])
 
   /* ============================================================
-     Carregar sessao + restore
-     ============================================================ */
+     Enviar instrucao ao agente
+   ============================================================ */
 
-  const carregarSessao = useCallback(async (sid: string) => {
+  const enviarInstrucao = useCallback(async () => {
+    if (!sessao || !instrucao.trim()) return
+    setEnviando(true)
     try {
-      const res = await fetch(`${API}/api/mission-control/sessao/${sid}`, { headers })
-      if (!res.ok) return
-      const data: Sessao = await res.json()
-      setSessao(data)
-      setArtifacts(data.artifacts || [])
-
-      // Detectar se agente esta ativo (para auto-save e polling)
-      const temAgente = (data.agentes_ativos || []).some(a => a.status === 'executando')
-      agentExecutandoRef.current = temAgente
-
-      // Detectar streaming
-      const isStreaming = data.painel_editor?.streaming === true
-      setEditorStreaming(isStreaming)
-
-      // Atualizar editor com conteudo do agente
-      // Regra: se fonte === 'agente' OU se o usuario nao editou manualmente, atualizar
-      const editorData = data.painel_editor
-      if (editorData?.conteudo) {
-        const isFromAgent = editorData.fonte === 'agente'
-        if (isFromAgent) {
-          // Agente escreveu codigo — usar typewriter effect
-          if (editorData.arquivo_ativo) setEditorArquivo(editorData.arquivo_ativo)
-          setEditorFonteAgente(true)
-          setEditorEditadoPeloUsuario(false)
-          editorEditadoRef.current = false
-
-          // Se conteudo mudou, atualizar alvo do typewriter
-          if (editorData.conteudo !== editorAlvoRef.current) {
-            editorAlvoRef.current = editorData.conteudo
-            setEditorAlvo(editorData.conteudo)
-          }
-        } else if (!editorEditadoRef.current) {
-          // Conteudo normal (auto-save ou inicial) — atualiza direto
-          setEditorConteudo(editorData.conteudo)
-          setEditorDisplay(editorData.conteudo)
-          editorAlvoRef.current = editorData.conteudo
-          setEditorAlvo(editorData.conteudo)
-          if (editorData.arquivo_ativo) setEditorArquivo(editorData.arquivo_ativo)
-        }
+      const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/agente`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ instrucao, tipo: 'bmad' }),
+      })
+      if (res.ok) {
+        setInstrucao('')
+        await carregarSessao(sessao.sessao_id)
       }
-
-      // Atualizar terminal com TUDO do banco (agente + usuario)
-      const histBanco = data.painel_terminal?.historico || []
-      setTerminalHistorico(histBanco)
-      if (histBanco.length > 0) {
-        setTimeout(() => terminalRef.current?.scrollTo(0, terminalRef.current.scrollHeight), 100)
-      }
-    } catch { /* */ }
-  }, [headers])
+    } catch { /* */ } finally { setEnviando(false) }
+  }, [sessao, instrucao, headers, carregarSessao])
 
   /* ============================================================
-     Team Chat polling (2s)
-     ============================================================ */
+     Startup
+   ============================================================ */
+
+  useEffect(() => {
+    if (urlSessionId) {
+      carregarSessao(urlSessionId)
+      setCarregandoSessoes(false)
+    } else {
+      carregarSessoes()
+    }
+  }, [urlSessionId])
+
+  /* ============================================================
+     Chat polling
+   ============================================================ */
 
   useEffect(() => {
     if (!sessao?.sessao_id) return
-    let mounted = true
     const poll = async () => {
       try {
         const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/chat`, { headers })
-        if (res.ok && mounted) {
+        if (res.ok) {
           const msgs: ChatMsg[] = await res.json()
           setChatMsgs(msgs)
-          setTimeout(() => chatRef.current?.scrollTo(0, chatRef.current.scrollHeight), 50)
         }
       } catch { /* */ }
     }
     poll()
-    const timer = setInterval(poll, 2000)
-    return () => { mounted = false; clearInterval(timer) }
+    const timer = setInterval(poll, 3000)
+    return () => clearInterval(timer)
   }, [sessao?.sessao_id, headers])
 
   /* ============================================================
-     Auto-save (10s)
-     ============================================================ */
+     Session polling
+   ============================================================ */
 
   useEffect(() => {
     if (!sessao?.sessao_id) return
-    const timer = setInterval(async () => {
-      // Nao salvar enquanto agente esta executando — evita sobrescrever conteudo do agente
-      // O backend tambem protege, mas melhor prevenir no frontend
-      if (agentExecutandoRef.current) return
-      try {
-        setSalvando(true)
-        await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/save`, {
-          method: 'PATCH', headers,
-          body: JSON.stringify({
-            painel_editor: { conteudo: editorConteudo, arquivo_ativo: editorArquivo },
-            painel_terminal: { historico: terminalHistorico.slice(-50), cwd: '' },
-          }),
-        })
-        setUltimoSave(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }))
-      } catch { /* */ } finally { setSalvando(false) }
-    }, 10000)
-    return () => clearInterval(timer)
-  }, [sessao?.sessao_id, headers, editorConteudo, editorArquivo, terminalHistorico])
-
-  /* ============================================================
-     Typewriter Effect — digita caractere a caractere quando agente escreve
-     ============================================================ */
-
-  useEffect(() => {
-    // Se nao ha agente escrevendo, ou conteudo ja alcancou o alvo, nada a fazer
-    if (!editorAlvo || editorAlvo === editorDisplay) {
-      // Se alcancou o alvo, sincronizar editorConteudo
-      if (editorAlvo && editorAlvo === editorDisplay) {
-        setEditorConteudo(editorAlvo)
-      }
-      return
-    }
-
-    // Se o alvo e menor que o display (novo conteudo completamente diferente), resetar
-    if (!editorAlvo.startsWith(editorDisplay.slice(0, Math.min(20, editorDisplay.length)))) {
-      setEditorDisplay('')
-      setEditorConteudo('')
-    }
-
-    // Animar: adicionar caracteres rapidamente
-    const CHARS_PER_FRAME = 8  // 8 chars por frame = ~480 chars/s a 60fps
-    const animate = () => {
-      setEditorDisplay(prev => {
-        const alvo = editorAlvoRef.current
-        if (prev.length >= alvo.length) {
-          setEditorConteudo(alvo)
-          return alvo
-        }
-        const next = alvo.slice(0, prev.length + CHARS_PER_FRAME)
-        setEditorConteudo(next)
-        return next
-      })
-    }
-
-    const timer = setInterval(animate, 16)  // ~60fps
-    typewriterRef.current = timer as unknown as number
-
-    return () => {
-      if (typewriterRef.current) clearInterval(typewriterRef.current)
-    }
-  }, [editorAlvo, editorDisplay])
-
-  /* ============================================================
-     Polling sessao — sempre 2s para nao perder atualizacoes do agente
-     (nao depende de sessao?.agentes_ativos para evitar restart a cada poll)
-     ============================================================ */
-
-  useEffect(() => {
-    if (!sessao?.sessao_id) return
-    // Polling fixo em 2s — rapido o suficiente para ver streaming sem causar instabilidade
-    const timer = setInterval(() => carregarSessao(sessao.sessao_id), 2000)
+    const timer = setInterval(() => carregarSessao(sessao.sessao_id), 5000)
     return () => clearInterval(timer)
   }, [sessao?.sessao_id, carregarSessao])
 
   /* ============================================================
-     Startup
-     ============================================================ */
+     Phase status polling — checks if decision is needed
+   ============================================================ */
+
+  const carregarFaseStatus = useCallback(async () => {
+    if (!sessao?.sessao_id) return
+    try {
+      const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/fase-status`, { headers })
+      if (res.ok) setFaseStatus(await res.json())
+    } catch { /* */ }
+  }, [sessao?.sessao_id, headers])
 
   useEffect(() => {
-    if (urlSessionId) carregarSessao(urlSessionId)
-    else carregarSessoes()
-  }, [urlSessionId, carregarSessao, carregarSessoes])
+    if (!sessao?.sessao_id) return
+    carregarFaseStatus()
+    const timer = setInterval(carregarFaseStatus, 2000)
+    return () => clearInterval(timer)
+  }, [sessao?.sessao_id, carregarFaseStatus])
 
   /* ============================================================
-     Terminal
-     ============================================================ */
+     Execute command
+   ============================================================ */
 
   const executarComando = useCallback(async () => {
     if (!sessao || !comandoTerminal.trim()) return
@@ -375,88 +256,17 @@ export default function MissionControl() {
         sucesso: data.sucesso, timestamp: new Date().toISOString(),
       }])
       setComandoTerminal('')
-      setTimeout(() => terminalRef.current?.scrollTo(0, terminalRef.current.scrollHeight), 100)
     } catch { /* */ } finally { setExecutandoCmd(false) }
   }, [sessao, comandoTerminal, headers])
 
   /* ============================================================
-     Agentes
-     ============================================================ */
-
-  const dispararAgente = useCallback(async () => {
-    if (!sessao || !instrucaoAgente.trim()) return
-    setDisparandoAgente(true)
-    setAbaDireita('chat') // Mudar para chat para ver a conversa
-    // Resetar estado do editor para receber conteudo do agente (typewriter)
-    setEditorEditadoPeloUsuario(false)
-    editorEditadoRef.current = false
-    setEditorFonteAgente(false)
-    setEditorAlvo('')
-    setEditorDisplay('')
-    editorAlvoRef.current = ''
-    try {
-      await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/agente`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ instrucao: instrucaoAgente, tipo: 'implementacao' }),
-      })
-      setInstrucaoAgente('')
-      // Recarregar imediatamente para exibir agente em execucao e barra de progresso
-      await carregarSessao(sessao.sessao_id)
-    } catch { /* */ } finally { setDisparandoAgente(false) }
-  }, [sessao, instrucaoAgente, headers, carregarSessao])
-
-  /* ============================================================
-     Comentarios
-     ============================================================ */
-
-  const adicionarComentario = useCallback(async (artifactId: string) => {
-    if (!novoComentario.trim()) return
-    try {
-      await fetch(`${API}/api/mission-control/artifacts/${artifactId}/comentar`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ texto: novoComentario }),
-      })
-      setNovoComentario('')
-      if (sessao) await carregarSessao(sessao.sessao_id)
-    } catch { /* */ }
-  }, [novoComentario, headers, sessao, carregarSessao])
-
-  /* ============================================================
-     Aplicar codigo do artifact no editor
-     ============================================================ */
-
-  const aplicarNoEditor = useCallback((art: Artifact) => {
-    if (art.conteudo) {
-      setEditorConteudo(art.conteudo)
-      const arq = (art.dados as Record<string, string>)?.arquivo || art.titulo.replace('Codigo: ', '')
-      setEditorArquivo(arq)
-      setArtifactModal(null)
-    }
-  }, [])
-
-  /* ============================================================
-     Helper
-     ============================================================ */
-
-  function tempoRelativo(iso: string | null): string {
-    if (!iso) return ''
-    const diff = Date.now() - new Date(iso).getTime()
-    const min = Math.floor(diff / 60000)
-    if (min < 1) return 'agora'
-    if (min < 60) return `${min}min`
-    const h = Math.floor(min / 60)
-    if (h < 24) return `${h}h`
-    return `${Math.floor(h / 24)}d`
-  }
-
-  /* ============================================================
      Render: Lista de sessoes
-     ============================================================ */
+   ============================================================ */
 
   if (!sessao && !urlSessionId) {
     return (
-      <div className="h-full overflow-auto" style={{ background: 'var(--sf-bg)' }}>
-        <div className="max-w-3xl mx-auto p-8">
+      <div className="h-full overflow-auto p-8" style={{ background: 'var(--sf-bg-primary)' }}>
+        <div className="max-w-2xl mx-auto">
           <div className="flex items-center gap-3 mb-8">
             <Rocket className="w-8 h-8" style={{ color: 'var(--sf-accent)' }} />
             <div>
@@ -465,14 +275,14 @@ export default function MissionControl() {
             </div>
           </div>
 
-          <div className="p-5 rounded-xl mb-8" style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
+          <div className="p-5 rounded-xl mb-8" style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
             <div className="flex items-center gap-3">
-              <input type="text" placeholder="Nome da sessao (ex: Feature Login SSO)" value={titulo}
+              <input type="text" placeholder="Nome da sessao" value={titulo}
                 onChange={e => setTitulo(e.target.value)} onKeyDown={e => e.key === 'Enter' && criarSessao()}
                 className="flex-1 px-4 py-2.5 rounded-lg text-sm"
-                style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
+                style={{ background: 'var(--sf-bg-primary)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
               <button onClick={criarSessao} disabled={criando}
-                className="px-5 py-2.5 rounded-lg font-semibold text-white flex items-center gap-2 hover:scale-105 transition-transform"
+                className="px-5 py-2.5 rounded-lg font-semibold text-white flex items-center gap-2"
                 style={{ background: 'var(--sf-accent)' }}>
                 {criando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Nova Sessao
               </button>
@@ -486,7 +296,7 @@ export default function MissionControl() {
           {carregandoSessoes ? (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--sf-accent)' }} /></div>
           ) : sessoes.length === 0 ? (
-            <div className="text-center py-12 rounded-xl" style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
+            <div className="text-center py-12 rounded-xl" style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
               <Package className="w-12 h-12 mx-auto mb-3 opacity-30" style={{ color: 'var(--sf-text-secondary)' }} />
               <p className="text-sm" style={{ color: 'var(--sf-text-secondary)' }}>Nenhuma sessao anterior.</p>
             </div>
@@ -495,7 +305,7 @@ export default function MissionControl() {
               {sessoes.map(s => (
                 <div key={s.sessao_id} onClick={() => navigate(`/mission-control/${s.sessao_id}`)}
                   className="flex items-center gap-4 p-4 rounded-xl cursor-pointer hover:scale-[1.01] transition-all"
-                  style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
+                  style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center"
                     style={{ background: s.status === 'ativa' ? 'rgba(16,185,129,0.15)' : 'rgba(107,114,128,0.15)' }}>
                     <Rocket className="w-5 h-5" style={{ color: s.status === 'ativa' ? 'var(--sf-accent)' : '#6b7280' }} />
@@ -522,9 +332,11 @@ export default function MissionControl() {
   }
 
   if (!sessao && urlSessionId) {
-    return <div className="h-full flex items-center justify-center" style={{ background: 'var(--sf-bg)' }}>
-      <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--sf-accent)' }} />
-    </div>
+    return (
+      <div className="h-full flex items-center justify-center" style={{ background: 'var(--sf-bg-primary)' }}>
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--sf-accent)' }} />
+      </div>
+    )
   }
 
   if (!sessao) return null
@@ -532,58 +344,25 @@ export default function MissionControl() {
   const agentes = sessao.agentes_ativos || []
   const agentesExecutando = agentes.filter(a => a.status === 'executando')
 
-  const agente_exec = agentesExecutando[0]
-  const faseAtual = agente_exec?.fase_atual as number | undefined
-  const faseLabel = agente_exec?.fase_label as string | undefined
-  const progressoAtual = agente_exec?.progresso as number | undefined
-
   /* ============================================================
-     Render: Painel Triplo
-     ============================================================ */
+     Render: Painel da sessao — REBUILD STEP 1
+     Sem resizable, sem complex layouts
+   ============================================================ */
 
   return (
-    <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--sf-bg)' }}>
+    <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--sf-bg-primary)' }}>
 
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-2 flex-shrink-0"
-        style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+        style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
         <button onClick={() => { setSessao(null); navigate('/mission-control') }} className="opacity-60 hover:opacity-100">
           <Rocket className="w-5 h-5" style={{ color: 'var(--sf-accent)' }} />
         </button>
         <span className="font-bold text-sm" style={{ color: 'var(--sf-text)' }}>Mission Control</span>
-        <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--sf-bg)', color: 'var(--sf-text-secondary)' }}>
+        <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--sf-bg-primary)', color: 'var(--sf-text-secondary)' }}>
           {sessao.titulo}
         </span>
-
-        {agentesExecutando.length > 0 && (
-          <div className="flex items-center gap-2 ml-4">
-            {agentesExecutando.map(a => (
-              <div key={a.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-                style={{
-                  background: 'rgba(16,185,129,0.2)',
-                  color: 'var(--sf-accent)',
-                  border: '1px solid rgba(16,185,129,0.3)',
-                  boxShadow: '0 0 12px rgba(16,185,129,0.15)',
-                }}>
-                <div className="agent-pulse" style={{ lineHeight: 0 }}>
-                  <Bot className="w-3.5 h-3.5" style={{ filter: 'drop-shadow(0 0 4px rgba(16,185,129,0.5))' }} />
-                </div>
-                <span>{a.nome}</span>
-                <Loader2 className="w-3 h-3 animate-spin" />
-              </div>
-            ))}
-          </div>
-        )}
-
         <div className="flex-1" />
-
-        {ultimoSave && (
-          <span className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--sf-text-secondary)', opacity: 0.6 }}>
-            {salvando ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-            {salvando ? 'Salvando...' : `Salvo ${ultimoSave}`}
-          </span>
-        )}
-
         <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--sf-text-secondary)' }}>
           <span><Package className="w-3.5 h-3.5 inline mr-1" />{artifacts.length}</span>
           <span><Terminal className="w-3.5 h-3.5 inline mr-1" />{sessao.total_comandos}</span>
@@ -591,466 +370,171 @@ export default function MissionControl() {
         </div>
       </header>
 
-      {/* Instrucao do Agente + Barra de Progresso */}
-      <div className="flex-shrink-0" style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
-        {/* CSS para animacoes */}
-        <style>{`
-          @keyframes progressShimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
-          }
-          @keyframes agentPulse {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.2); opacity: 0.7; }
-          }
-          @keyframes dotBlink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-          }
-          .progress-shimmer {
-            background-size: 200% 100%;
-            animation: progressShimmer 2s linear infinite;
-          }
-          .agent-pulse {
-            animation: agentPulse 1.5s ease-in-out infinite;
-          }
-        `}</style>
+      {/* Instrucoes do Agente */}
+      <div className="flex items-center gap-2 px-4 py-2 flex-shrink-0"
+        style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+        <Sparkles className="w-4 h-4" style={{ color: 'var(--sf-accent)' }} />
+        <input type="text" placeholder="Instruir equipe..."
+          value={instrucao}
+          onChange={e => setInstrucao(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && enviarInstrucao()}
+          className="flex-1 px-3 py-1.5 rounded text-sm"
+          style={{ background: 'var(--sf-bg-primary)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
+        <button onClick={enviarInstrucao} disabled={enviando}
+          className="px-3 py-1.5 rounded text-xs font-medium text-white flex items-center gap-1.5"
+          style={{ background: 'var(--sf-accent)' }}>
+          {enviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          Executar
+        </button>
+      </div>
 
-        {/* Progress bar + LIVE toggle - aparece quando executa */}
-        {agentesExecutando.length > 0 && (
-          <div className="px-4 pt-2 pb-1">
-            <div className="flex items-center gap-2 mb-1.5">
-              {/* Icone de agente pulsante */}
-              <div className="agent-pulse" style={{ lineHeight: 0 }}>
-                <Bot className="w-4 h-4" style={{ color: 'var(--sf-accent)', filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.6))' }} />
-              </div>
-              <span className="text-xs font-bold" style={{ color: 'var(--sf-accent)' }}>
-                {faseLabel ? `Fase ${faseAtual}/5 — ${faseLabel}` : 'Executando...'}
-              </span>
-              {editorStreaming && modoLive && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-1"
-                  style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171' }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" style={{ animation: 'dotBlink 0.8s infinite' }} />
-                  STREAMING
-                </span>
-              )}
-              <div className="flex-1" />
-              {/* Descricao textual do progresso */}
-              <span className="text-[10px] font-medium" style={{ color: 'var(--sf-text-secondary)' }}>
-                {faseAtual === 1 ? 'Analisando tarefa...' :
-                 faseAtual === 2 ? 'Equipe discutindo...' :
-                 faseAtual === 3 ? 'Gerando código...' :
-                 faseAtual === 4 ? 'Revisando qualidade...' :
-                 faseAtual === 5 ? 'Finalizando!' : 'Processando...'}
-              </span>
-              {/* Botao LIVE toggle */}
-              <button onClick={() => setModoLive(prev => !prev)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all"
-                style={{
-                  background: modoLive ? 'rgba(16,185,129,0.2)' : 'rgba(107,114,128,0.15)',
-                  color: modoLive ? '#10b981' : '#6b7280',
-                  border: `1px solid ${modoLive ? 'rgba(16,185,129,0.4)' : 'rgba(107,114,128,0.3)'}`,
-                }}>
-                <Radio className="w-3 h-3" style={modoLive ? { filter: 'drop-shadow(0 0 3px #10b981)' } : {}} />
-                LIVE
-              </button>
-              <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--sf-accent)', minWidth: '32px', textAlign: 'right' }}>
-                {progressoAtual || 0}%
-              </span>
-            </div>
-            {/* Barra de progresso mais grossa + shimmer */}
-            <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--sf-bg)' }}>
-              <div className="h-full rounded-full transition-all duration-700 ease-out progress-shimmer"
-                style={{
-                  width: `${progressoAtual || 5}%`,
-                  background: modoLive
-                    ? 'linear-gradient(90deg, #10b981, #34d399, #60a5fa, #a78bfa, #10b981)'
-                    : 'linear-gradient(90deg, var(--sf-accent), #60a5fa)',
-                  backgroundSize: '200% 100%',
-                  boxShadow: modoLive ? '0 0 16px rgba(16,185,129,0.6)' : '0 0 8px var(--sf-accent)',
-                }} />
-            </div>
+      {/* Agentes Ativos */}
+      {agentesExecutando.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2"
+          style={{ background: 'rgba(16,185,129,0.1)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+          <Bot className="w-4 h-4" style={{ color: 'var(--sf-accent)' }} />
+          <span className="text-xs font-bold" style={{ color: 'var(--sf-accent)' }}>
+            {agentesExecutando.map(a => a.nome).join(', ')} executando
+          </span>
+        </div>
+      )}
+
+      {/* Phase Decision Controls — shown when waiting for user decision */}
+      {faseStatus?.waiting_decision && (
+        <div className="flex-shrink-0" style={{ borderBottom: '1px solid var(--sf-border-subtle)' }}>
+          <PhaseDecisionControls
+            token={token || ''}
+            sessaoId={sessao.sessao_id}
+            fase={faseStatus.fase_atual || 1}
+            faseLabel=""
+            progresso={faseStatus.progresso || 0}
+            agenteNome={faseStatus.agente_nome || 'Agente'}
+            onDecisao={async (fase, acao) => {
+              try {
+                await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/fase-decisao`, {
+                  method: 'POST', headers,
+                  body: JSON.stringify({ fase, acao }),
+                })
+                carregarFaseStatus()
+                carregarSessao(sessao.sessao_id)
+              } catch { /* */ }
+            }}
+          />
+        </div>
+      )}
+
+      {/* Painel Triplo SIMPLES — 3 divs uma do lado da outra */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* Editor */}
+        <div className="flex-1 flex flex-col overflow-hidden border-r" style={{ borderColor: 'var(--sf-border-subtle)' }}>
+          <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
+            style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
+            <Code2 className="w-3.5 h-3.5" />
+            <span className="font-medium">Editor</span>
+            <span className="opacity-60 truncate max-w-[120px]">{editorArquivo}</span>
           </div>
-        )}
-        <div className="flex items-center gap-2 px-4 py-2">
-          <Sparkles className="w-4 h-4" style={{ color: 'var(--sf-accent)' }} />
-          <input type="text" placeholder="Instruir equipe: 'Crie um componente de login com validacao e testes'"
-            value={instrucaoAgente} onChange={e => setInstrucaoAgente(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && dispararAgente()}
-            className="flex-1 px-3 py-1.5 rounded text-sm"
-            style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
-          <button onClick={dispararAgente} disabled={disparandoAgente || !instrucaoAgente.trim()}
-            className="px-3 py-1.5 rounded text-xs font-medium text-white flex items-center gap-1"
-            style={{ background: disparandoAgente ? '#666' : 'var(--sf-accent)' }}>
-            {disparandoAgente ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-            Executar Equipe
-          </button>
+          <div className="flex-1 overflow-auto p-3 font-mono text-sm"
+            style={{ background: '#1e1e2e', color: '#cdd6f4', lineHeight: '1.6', fontSize: '13px' }}>
+            <pre className="whitespace-pre-wrap">{editorConteudo || '// Aguardando codigo...'}</pre>
+          </div>
+        </div>
+
+        {/* Terminal */}
+        <div className="flex-1 flex flex-col overflow-hidden border-r" style={{ borderColor: 'var(--sf-border-subtle)' }}>
+          <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
+            style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
+            <Terminal className="w-3.5 h-3.5" />
+            <span className="font-medium">Terminal</span>
+          </div>
+          <div ref={terminalRef} className="flex-1 overflow-auto p-3 font-mono text-xs"
+            style={{ background: '#0d1117', color: '#c9d1d9' }}>
+            {terminalHistorico.map((entry, i) => (
+              <div key={i} className="mb-2">
+                <div className="flex items-center gap-1">
+                  <span style={{ color: '#58a6ff' }}>$</span>
+                  <span>{entry.comando}</span>
+                </div>
+                {entry.saida && (
+                  <pre className="whitespace-pre-wrap mt-0.5 pl-4" style={{ color: entry.sucesso ? '#8b949e' : '#f85149' }}>{entry.saida}</pre>
+                )}
+              </div>
+            ))}
+            {terminalHistorico.length === 0 && (
+              <div style={{ color: '#484f58' }}>Terminal pronto.</div>
+            )}
+          </div>
+          <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0"
+            style={{ background: '#161b22', borderTop: '1px solid #30363d' }}>
+            <span className="text-xs" style={{ color: '#58a6ff' }}>$</span>
+            <input type="text" value={comandoTerminal}
+              onChange={e => setComandoTerminal(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && executarComando()}
+              placeholder="Comando..."
+              className="flex-1 bg-transparent text-xs outline-none font-mono" style={{ color: '#f0f6fc' }} />
+            <button onClick={executarComando} disabled={executandoCmd}
+              className="text-xs px-2 py-0.5 rounded" style={{ background: '#21262d', color: '#58a6ff' }}>
+              {executandoCmd ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Team Chat + Artifacts */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex items-center gap-1 px-3 py-1.5 text-xs flex-shrink-0"
+            style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
+            <button className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium"
+              style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' }}>
+              <MessageSquare className="w-3.5 h-3.5" /> Team Chat
+            </button>
+            <button className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium opacity-50"
+              style={{ color: 'var(--sf-text-secondary)' }}>
+              <Package className="w-3.5 h-3.5" /> Artifacts
+            </button>
+          </div>
+          <div ref={chatRef} className="flex-1 overflow-auto p-3 space-y-2"
+            style={{ background: 'var(--sf-bg-primary)' }}>
+            {chatMsgs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3"
+                style={{ color: 'var(--sf-text-secondary)' }}>
+                <MessageSquare className="w-12 h-12 opacity-20" />
+                <p className="text-sm">Aguardando conversa...</p>
+              </div>
+            ) : chatMsgs.map(msg => (
+              <div key={msg.id} className="rounded-lg px-3 py-2"
+                style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Bot className="w-4 h-4" style={{ color: 'var(--sf-accent)' }} />
+                  <span className="text-xs font-semibold" style={{ color: 'var(--sf-accent)' }}>{msg.agente_nome}</span>
+                </div>
+                <p className="text-xs whitespace-pre-wrap" style={{ color: 'var(--sf-text)' }}>{msg.conteudo}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* === Painel Triplo === */}
-      <div className="flex flex-1 overflow-hidden">
-
-        {/* Painel 1: Editor */}
-        {(painelMaximizado === null || painelMaximizado === 0) && (
-          <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 0 ? '100%' : `${painelLarguras[0]}%` }}>
-            <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
-              style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
-              <Code2 className="w-3.5 h-3.5" />
-              <span className="font-medium">Editor</span>
-              <span className="opacity-60 truncate max-w-[120px]">{editorArquivo}</span>
-              {editorStreaming && modoLive && (
-                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold"
-                  style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171', animation: 'pulse 1s infinite' }}>
-                  <Radio className="w-3 h-3" style={{ filter: 'drop-shadow(0 0 3px #ef4444)' }} /> LIVE
-                </span>
-              )}
-              {editorFonteAgente && !editorStreaming && (
-                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full"
-                  style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' }}>
-                  <Bot className="w-3 h-3" /> agente
-                </span>
-              )}
-              {faseAtual === 3 && agentesExecutando.length > 0 && !editorStreaming && !editorFonteAgente && (
-                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full animate-pulse"
-                  style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>
-                  <Loader2 className="w-3 h-3 animate-spin" /> aguardando...
-                </span>
-              )}
-              <div className="flex-1" />
-              {editorEditadoPeloUsuario && <span className="text-[9px] opacity-40">editado</span>}
-              <button onClick={() => setPainelMaximizado(painelMaximizado === 0 ? null : 0)} className="opacity-60 hover:opacity-100">
-                {painelMaximizado === 0 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-            <div className="relative flex-1 overflow-hidden">
-              <textarea className="absolute inset-0 p-3 font-mono text-sm resize-none outline-none" spellCheck={false}
-                style={{ background: '#1e1e2e', color: '#cdd6f4', border: 'none' }}
-                value={editorConteudo} onChange={e => { setEditorConteudo(e.target.value); setEditorEditadoPeloUsuario(true); editorEditadoRef.current = true; setEditorFonteAgente(false) }} />
-              {/* Cursor pulsante + indicador durante streaming LIVE */}
-              {editorStreaming && modoLive && (
-                <div className="absolute bottom-3 right-3 flex items-center gap-2 px-3 py-1.5 rounded-lg"
-                  style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)', border: '1px solid rgba(16,185,129,0.3)' }}>
-                  <span className="w-2 h-5 rounded-sm" style={{
-                    background: '#10b981',
-                    animation: 'pulse 0.5s infinite alternate',
-                    boxShadow: '0 0 10px #10b981',
-                  }} />
-                  <span className="text-[10px] font-mono font-bold" style={{ color: '#10b981' }}>
-                    escrevendo código
-                    <span style={{ animation: 'dotBlink 1s infinite' }}>...</span>
-                  </span>
-                  <span className="text-[9px] font-mono" style={{ color: '#6b7280' }}>
-                    {editorConteudo.split('\n').length} linhas
-                  </span>
-                </div>
-              )}
-              {/* Indicador "agente ativo" mesmo fora de streaming (fases 1, 2, 4) */}
-              {!editorStreaming && agentesExecutando.length > 0 && editorFonteAgente && (
-                <div className="absolute bottom-3 right-3 flex items-center gap-2 px-3 py-1.5 rounded-lg"
-                  style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
-                  <Loader2 className="w-3 h-3 animate-spin" style={{ color: '#fbbf24' }} />
-                  <span className="text-[10px] font-mono" style={{ color: '#fbbf24' }}>
-                    agente trabalhando...
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {painelMaximizado === null && <ResizableHandle onResize={(d) => {
-          setPainelLarguras(prev => { const n = [...prev]; const delta = (d / window.innerWidth) * 100; n[0] = Math.max(15, Math.min(50, n[0] + delta)); n[1] = Math.max(15, Math.min(50, n[1] - delta)); return n })
-        }} />}
-
-        {/* Painel 2: Terminal */}
-        {(painelMaximizado === null || painelMaximizado === 1) && (
-          <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 1 ? '100%' : `${painelLarguras[1]}%` }}>
-            <div className="flex items-center gap-2 px-3 py-1.5 text-xs flex-shrink-0"
-              style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text-secondary)' }}>
-              <Terminal className="w-3.5 h-3.5" /><span className="font-medium">Terminal</span>
-              {agentesExecutando.length > 0 && (
-                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full animate-pulse"
-                  style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
-                  <Loader2 className="w-2.5 h-2.5 animate-spin" /> ativo
-                </span>
-              )}
-              <div className="flex-1" />
-              <button onClick={() => setPainelMaximizado(painelMaximizado === 1 ? null : 1)} className="opacity-60 hover:opacity-100">
-                {painelMaximizado === 1 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-            <div ref={terminalRef} className="flex-1 overflow-auto p-3 font-mono text-xs" style={{ background: '#0d1117', color: '#c9d1d9' }}>
-              {terminalHistorico.map((entry, i) => (
-                <div key={i} className="mb-3">
-                  <div className="flex items-center gap-1">
-                    {entry.tipo === 'agente'
-                      ? <Bot className="w-3 h-3 flex-shrink-0" style={{ color: '#10b981' }} />
-                      : <span style={{ color: '#58a6ff' }}>$</span>
-                    }
-                    <span style={{ color: entry.tipo === 'agente' ? '#10b981' : '#f0f6fc' }}>
-                      {entry.comando}
-                    </span>
-                  </div>
-                  {entry.saida && (
-                    <pre className="whitespace-pre-wrap mt-0.5 pl-4" style={{ color: entry.sucesso ? '#8b949e' : '#f85149' }}>{entry.saida}</pre>
-                  )}
-                </div>
-              ))}
-              {/* Cursor piscante no final quando agente executa */}
-              {agentesExecutando.length > 0 && (
-                <div className="flex items-center gap-1 mt-1">
-                  <span style={{ color: '#10b981' }}>$</span>
-                  <span className="w-2 h-3.5 rounded-sm" style={{
-                    background: '#10b981',
-                    animation: 'dotBlink 0.8s infinite',
-                  }} />
-                </div>
-              )}
-              {terminalHistorico.length === 0 && (
-                <div style={{ color: '#484f58' }}>
-                  Terminal pronto. Agentes executam comandos reais aqui.
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0" style={{ background: '#161b22', borderTop: '1px solid #30363d' }}>
-              <span className="text-xs" style={{ color: '#58a6ff' }}>$</span>
-              <input type="text" value={comandoTerminal} onChange={e => setComandoTerminal(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && executarComando()} placeholder="Digite comando..."
-                className="flex-1 bg-transparent text-xs outline-none font-mono" style={{ color: '#f0f6fc' }} />
-              <button onClick={executarComando} disabled={executandoCmd} className="text-xs px-2 py-0.5 rounded"
-                style={{ background: '#21262d', color: '#58a6ff' }}>
-                {executandoCmd ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {painelMaximizado === null && <ResizableHandle onResize={(d) => {
-          setPainelLarguras(prev => { const n = [...prev]; const delta = (d / window.innerWidth) * 100; n[1] = Math.max(15, Math.min(50, n[1] + delta)); n[2] = Math.max(20, Math.min(60, n[2] - delta)); return n })
-        }} />}
-
-        {/* Painel 3: Team Chat + Artifacts */}
-        {(painelMaximizado === null || painelMaximizado === 2) && (
-          <div className="flex flex-col overflow-hidden" style={{ width: painelMaximizado === 2 ? '100%' : `${painelLarguras[2]}%` }}>
-            {/* Tabs: Chat / Artifacts */}
-            <div className="flex items-center gap-1 px-3 py-1.5 text-xs flex-shrink-0"
-              style={{ background: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
-              <button onClick={() => setAbaDireita('chat')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-all ${abaDireita === 'chat' ? '' : 'opacity-50 hover:opacity-80'}`}
-                style={abaDireita === 'chat' ? { background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' } : { color: 'var(--sf-text-secondary)' }}>
-                <MessageSquare className="w-3.5 h-3.5" /> Team Chat
-                {chatMsgs.length > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px]" style={{ background: 'rgba(16,185,129,0.2)' }}>{chatMsgs.length}</span>}
-              </button>
-              <button onClick={() => setAbaDireita('artifacts')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-all ${abaDireita === 'artifacts' ? '' : 'opacity-50 hover:opacity-80'}`}
-                style={abaDireita === 'artifacts' ? { background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' } : { color: 'var(--sf-text-secondary)' }}>
-                <Package className="w-3.5 h-3.5" /> Artifacts
-                {artifacts.length > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px]" style={{ background: 'rgba(16,185,129,0.2)' }}>{artifacts.length}</span>}
-              </button>
-              <div className="flex-1" />
-              <button onClick={() => setPainelMaximizado(painelMaximizado === 2 ? null : 2)} className="opacity-60 hover:opacity-100">
-                {painelMaximizado === 2 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-
-            {/* === TEAM CHAT === */}
-            {abaDireita === 'chat' && (
-              <div ref={chatRef} className="flex-1 overflow-auto p-3 space-y-2" style={{ background: 'var(--sf-bg)' }}>
-                {chatMsgs.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color: 'var(--sf-text-secondary)' }}>
-                    <MessageSquare className="w-12 h-12 opacity-20" />
-                    <p className="text-sm">Nenhuma conversa ainda.</p>
-                    <p className="text-xs opacity-60">Instrua a equipe acima para ver os agentes conversando.</p>
-                  </div>
-                ) : chatMsgs.map(msg => {
-                  const fase = FASE_COR[msg.fase] || null
-                  const isSistema = msg.tipo === 'sistema'
-                  // Verificar se este agente esta executando agora
-                  const agenteAtivo = agentesExecutando.find(a => a.nome === msg.agente_nome)
-                  return (
-                    <div key={msg.id} className={`rounded-lg px-3 py-2 ${isSistema ? 'text-center' : ''}`}
-                      style={{
-                        background: isSistema ? 'rgba(107,114,128,0.08)' : fase?.bg || 'var(--sf-surface)',
-                        border: isSistema ? 'none' : `1px solid ${agenteAtivo ? 'rgba(16,185,129,0.3)' : 'var(--sf-border-subtle)'}`,
-                        ...(agenteAtivo ? { boxShadow: '0 0 8px rgba(16,185,129,0.1)' } : {}),
-                      }}>
-                      {!isSistema && (
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <AgenteIcon nome={msg.agente_nome} size={14} />
-                          <span className="text-xs font-semibold" style={{ color: getAgenteCor(msg.agente_nome) }}>{msg.agente_nome}</span>
-                          {fase && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: fase.bg, color: fase.text }}>
-                              {fase.label}
-                            </span>
-                          )}
-                          {msg.tipo === 'decisao' && <Zap className="w-3 h-3" style={{ color: '#fbbf24' }} />}
-                          {/* Badge "Em execucao" para agentes ativos */}
-                          {agenteAtivo && (
-                            <span className="flex items-center gap-1 text-[8px] px-1.5 py-0.5 rounded-full animate-pulse font-bold"
-                              style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981' }}>
-                              <Loader2 className="w-2.5 h-2.5 animate-spin" /> Em execução
-                            </span>
-                          )}
-                          <span className="text-[9px] ml-auto" style={{ color: 'var(--sf-text-secondary)', opacity: 0.5 }}>
-                            {msg.criado_em ? new Date(msg.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
-                          </span>
-                        </div>
-                      )}
-                      <p className={`text-xs whitespace-pre-wrap ${isSistema ? 'font-medium' : ''}`}
-                        style={{ color: isSistema ? 'var(--sf-text-secondary)' : 'var(--sf-text)' }}>
-                        {msg.conteudo}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* === ARTIFACTS === */}
-            {abaDireita === 'artifacts' && (
-              <div className="flex-1 overflow-auto p-3 space-y-3" style={{ background: 'var(--sf-bg)' }}>
-                {artifacts.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color: 'var(--sf-text-secondary)' }}>
-                    <Package className="w-12 h-12 opacity-30" />
-                    <p className="text-sm">Nenhum artifact ainda.</p>
-                  </div>
-                ) : artifacts.map(art => (
-                  <div key={art.artifact_id} onClick={() => setArtifactModal(art)}
-                    className="rounded-lg p-3 cursor-pointer hover:scale-[1.01] transition-all"
-                    style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}>
-                    <div className="flex items-center gap-2">
-                      {art.tipo === 'plano' && <ClipboardList className="w-4 h-4" style={{ color: '#60a5fa' }} />}
-                      {art.tipo === 'checklist' && <CheckSquare className="w-4 h-4" style={{ color: '#34d399' }} />}
-                      {art.tipo === 'terminal' && <Terminal className="w-4 h-4" style={{ color: '#fbbf24' }} />}
-                      {art.tipo === 'codigo' && <Code2 className="w-4 h-4" style={{ color: '#a78bfa' }} />}
-                      <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--sf-text)' }}>{art.titulo}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${art.status === 'aprovado' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                        {art.status}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1.5 text-[10px]" style={{ color: 'var(--sf-text-secondary)' }}>
-                      <AgenteIcon nome={art.agente_nome} size={12} />
-                      <span>{art.agente_nome}</span>
-                      {(art.comentarios_inline || []).length > 0 && (
-                        <span className="flex items-center gap-0.5"><MessageSquare className="w-3 h-3" /> {art.comentarios_inline.length}</span>
-                      )}
-                      <span className="ml-auto">{tempoRelativo(art.criado_em)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* === MODAL DO ARTIFACT (grande, expansivel) === */}
+      {/* Artifact Modal */}
       {artifactModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.7)' }}
           onClick={() => setArtifactModal(null)}>
-          <div className="w-full max-w-4xl max-h-[85vh] flex flex-col rounded-2xl overflow-hidden"
-            style={{ background: 'var(--sf-surface)', border: '1px solid var(--sf-border-subtle)' }}
+          <div className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-xl overflow-hidden"
+            style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}
             onClick={e => e.stopPropagation()}>
-
-            {/* Modal Header */}
-            <div className="flex items-center gap-3 px-6 py-4 flex-shrink-0"
+            <div className="flex items-center gap-3 px-6 py-4"
               style={{ borderBottom: '1px solid var(--sf-border-subtle)' }}>
-              {artifactModal.tipo === 'plano' && <ClipboardList className="w-5 h-5" style={{ color: '#60a5fa' }} />}
-              {artifactModal.tipo === 'checklist' && <CheckSquare className="w-5 h-5" style={{ color: '#34d399' }} />}
-              {artifactModal.tipo === 'codigo' && <Code2 className="w-5 h-5" style={{ color: '#a78bfa' }} />}
-              {artifactModal.tipo === 'terminal' && <Terminal className="w-5 h-5" style={{ color: '#fbbf24' }} />}
-              <div className="flex-1">
-                <h3 className="text-base font-bold" style={{ color: 'var(--sf-text)' }}>{artifactModal.titulo}</h3>
-                <div className="flex items-center gap-2 mt-0.5 text-xs" style={{ color: 'var(--sf-text-secondary)' }}>
-                  <AgenteIcon nome={artifactModal.agente_nome} size={12} />
-                  <span>{artifactModal.agente_nome}</span>
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${artifactModal.status === 'aprovado' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                    {artifactModal.status}
-                  </span>
-                </div>
-              </div>
-              <button onClick={() => setArtifactModal(null)} className="p-1 rounded hover:bg-white/10">
+              <h3 className="text-base font-bold" style={{ color: 'var(--sf-text)' }}>{artifactModal.titulo}</h3>
+              <div className="flex-1" />
+              <button onClick={() => setArtifactModal(null)}>
                 <X className="w-5 h-5" style={{ color: 'var(--sf-text-secondary)' }} />
               </button>
             </div>
-
-            {/* Modal Content */}
             <div className="flex-1 overflow-auto p-6">
-              <pre className="text-sm p-4 rounded-xl font-mono whitespace-pre-wrap overflow-auto max-h-[50vh]"
-                style={{ background: 'var(--sf-bg)', color: 'var(--sf-text)', border: '1px solid var(--sf-border-subtle)' }}>
+              <pre className="text-sm p-4 rounded-xl font-mono whitespace-pre-wrap overflow-auto"
+                style={{ background: 'var(--sf-bg-primary)', color: 'var(--sf-text)' }}>
                 {artifactModal.conteudo || JSON.stringify(artifactModal.dados, null, 2)}
               </pre>
-
-              {/* Comentarios */}
-              {(artifactModal.comentarios_inline || []).length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <span className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--sf-text-secondary)' }}>
-                    <MessageSquare className="w-3.5 h-3.5" /> {artifactModal.comentarios_inline.length} Comentarios
-                  </span>
-                  {artifactModal.comentarios_inline.map((c, ci) => (
-                    <div key={ci} className="text-xs p-3 rounded-lg"
-                      style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.15)' }}>
-                      <span className="font-semibold" style={{ color: '#60a5fa' }}>{c.autor}</span>
-                      <span className="opacity-50 ml-2">{c.secao || (c.linha ? `linha ${c.linha}` : '')}</span>
-                      <p className="mt-1" style={{ color: 'var(--sf-text)' }}>{c.texto}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Novo comentario */}
-              <div className="flex items-center gap-2 mt-4">
-                <input type="text" placeholder="Adicionar comentario..." value={novoComentario}
-                  onChange={e => setNovoComentario(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && adicionarComentario(artifactModal.artifact_id)}
-                  className="flex-1 px-3 py-2 rounded-lg text-sm"
-                  style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
-                <button onClick={() => adicionarComentario(artifactModal.artifact_id)}
-                  className="px-3 py-2 rounded-lg text-sm font-medium text-white"
-                  style={{ background: 'var(--sf-accent)' }}>
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center gap-3 px-6 py-4 flex-shrink-0"
-              style={{ borderTop: '1px solid var(--sf-border-subtle)', background: 'var(--sf-bg)' }}>
-              {artifactModal.tipo === 'codigo' && (
-                <button onClick={() => aplicarNoEditor(artifactModal)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
-                  style={{ background: 'var(--sf-accent)' }}>
-                  <ExternalLink className="w-4 h-4" /> Aplicar no Editor
-                </button>
-              )}
-              {artifactModal.tipo === 'codigo' && (
-                <button onClick={async () => {
-                  if (!sessao) return
-                  // Rodar build/lint no terminal como verificação rápida
-                  const res = await fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/comando`, {
-                    method: 'POST', headers,
-                    body: JSON.stringify({ comando: 'echo "✅ Código aplicado. Rode: npm run build" && node --version' }),
-                  })
-                  const d = await res.json()
-                  setTerminalHistorico(prev => [...prev, { comando: 'node --version', saida: d.saida, sucesso: d.sucesso, timestamp: new Date().toISOString() }])
-                  setArtifactModal(null)
-                  setTimeout(() => terminalRef.current?.scrollTo(0, terminalRef.current.scrollHeight), 100)
-                }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-                  style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)' }}>
-                  <Play className="w-4 h-4" /> Rodar Testes
-                </button>
-              )}
-              <button onClick={() => { navigator.clipboard.writeText(artifactModal.conteudo || '') }}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-                style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--sf-text)', border: '1px solid var(--sf-border-subtle)' }}>
-                <Copy className="w-4 h-4" /> Copiar
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-                style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--sf-text)', border: '1px solid var(--sf-border-subtle)' }}>
-                <Download className="w-4 h-4" /> Download
-              </button>
             </div>
           </div>
         </div>

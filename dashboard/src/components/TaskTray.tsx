@@ -19,8 +19,16 @@ interface TarefaAtiva {
 
 const API = ''
 
+function getStoredToken(): string {
+  try {
+    return localStorage.getItem('sf_token') || ''
+  } catch {
+    return ''
+  }
+}
+
 function headers() {
-  const t = localStorage.getItem('sf_access_token')
+  const t = getStoredToken()
   return { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' }
 }
 

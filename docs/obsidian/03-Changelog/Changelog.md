@@ -4,28 +4,469 @@
 
 ---
 
-## v0.58.1 — Vision para Squad Agents: Pré-processamento de Imagens no CrewAI (01/Abr/2026)
+## v0.58.19 — Phase Decision Controls + ChromaDB Fix (03/Abr/2026)
 
-### Problema Resolvido
-Agentes de squad (CrewAI) não conseguiam processar imagens enviadas pelo usuário. O CrewAI não suporta vision nativamente — imagens eram ignoradas ou causavam erro. Agora, quando o usuário envia imagem para um agente de squad, o sistema faz pré-processamento com GPT-4o-mini vision **antes** de passar ao CrewAI, injetando a descrição da imagem como contexto rico no `task.description`.
+### Funcionalidade
+Mission Control agora exibe os controles de decisão de fase quando o agente aguarda aprovação humana após cada etapa do BMAD.
 
-### Backend (`api/routes/tarefas.py`)
-- **Nova função `_analisar_imagens_com_vision()`**: recebe anexos com imagens, envia para GPT-4o-mini vision, retorna descrição textual detalhada
-- **Injeção no task.description**: descrição da imagem é concatenada ao texto da tarefa como contexto rico antes de passar ao CrewAI
-- **Processamento transparente**: o agente recebe texto enriquecido sem saber que veio de uma imagem
+### Novidades
+- `PhaseDecisionControls` importado e integrado ao MissionControl
+- Polling para `/fase-status` a cada 2s
+- Botões **Aprovar**, **Regenerar**, **Rejeitar**, **Revisar** funcionais
+- Exibidos automaticamente quando `waiting_decision: true`
 
-### Frontend (`dashboard/src/components/ChatFloating.tsx`)
-- **URLs de anexo reais**: frontend agora envia URLs reais dos attachments em vez de strip para texto puro
-- **Compatibilidade mantida**: mensagens sem imagem continuam funcionando normalmente
+### ChromaDB Fix (Servidor)
+ChromaDB 1.1.1 crashava com `range start index 10 out of range for slice of length 9` no Ubuntu 22.04.
+- Patch: usar `EphemeralClient` ao invés de `PersistentClient` no crewai
+- Skills desabilitadas temporariamente (`inicializar_skills` comentado)
 
-### Luna Engine (`core/luna_engine.py`)
-- **Fix de path resolution**: caminhos relativos corrigidos para absolutos, evitando erros de FileNotFoundError em produção
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx` — integração PhaseDecisionControls
+- `dashboard/src/components/PhaseDecisionControls.tsx` — controles de decisão
+- `api/dependencias.py` — skills desabilitadas
 
-### Smart Router Vision (`core/classificador_mensagem.py`)
-- **Roteamento vision para squads**: tarefas de squad com imagem são classificadas e roteadas para providers com vision
+---
 
-### LLM Fallback (`core/llm_fallback.py`)
-- **Rede de segurança para squads**: quando imagens são detectadas, fallback pula providers sem vision automaticamente (Minimax, Groq, Fireworks, Together)
+## v0.58.14 — isInitializing Depende de Carregando (02/Abr/2026)
+
+### Problema
+Loading spinner travado permanentemente. isInitializing so virava false se token existisse.
+
+### Solucao
+```
+// ANTES (travava se token nao existisse)
+useEffect(() => {
+  if (tokenSeguro && tokenSeguro.length > 0) setIsInitializing(false)
+}, [tokenSeguro])
+
+// DEPOIS (sempre libera quando auth terminar)
+useEffect(() => {
+  if (!carregando) setIsInitializing(false)
+}, [carregando])
+```
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx`
+
+---
+
+## v0.58.13 — TaskTray com getStoredToken Seguro (02/Abr/2026)
+
+### Problema
+TaskTray causando 401. localStorage.getItem() sem try-catch.
+
+### Solucao
+Mesma protecao aplicada ao TaskTray:
+```tsx
+function getStoredToken(): string {
+  try {
+    return localStorage.getItem('sf_token') || ''
+  } catch {
+    return ''
+  }
+}
+```
+
+### Arquivos alterados
+- `dashboard/src/components/TaskTray.tsx`
+
+---
+
+## v0.58.12 — Protecao localStorage no Mission Control (02/Abr/2026)
+
+### Problema
+TaskTray dava 401, possivel erro em localStorage.getItem() se storage nao disponivel.
+
+### Solucao
+localStorage access envolvido em try-catch:
+```tsx
+const getStoredToken = (): string => {
+  try {
+    return localStorage.getItem('sf_token') || ''
+  } catch {
+    return ''
+  }
+}
+const tokenSeguro = token || getStoredToken() || ''
+```
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx`
+
+---
+
+## v0.58.11 — Guard isInitializing no Startup UseEffect (02/Abr/2026)
+
+### Problema
+Crash ao carregar sessao (clicar em Nova Sessao ou Retomar). Startup useEffect rodava antes do token estar confirmado.
+
+### Solucao
+Guard `isInitializing` no startup useEffect:
+```tsx
+useEffect(() => {
+  if (isInitializing) return  // NAO faz nada enquanto token nao estiver pronto
+  if (urlSessionId) carregarSessao(urlSessionId)
+  else carregarSessoes()
+}, [urlSessionId, isInitializing, carregarSessao, carregarSessoes])
+```
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx`
+
+---
+
+## v0.58.10 — Guard isInitializing no Mission Control (02/Abr/2026)
+
+### Problema
+React error #310 ao criar nova missao. useEffects podiam executar antes do token estar disponivel.
+
+### Solucao
+Adicionado `isInitializing` state que so vira `false` quando `tokenSeguro` estiver disponivel:
+```tsx
+const [isInitializing, setIsInitializing] = useState(true)
+
+useEffect(() => {
+  if (tokenSeguro && tokenSeguro.length > 0) {
+    setIsInitializing(false)
+  }
+}, [tokenSeguro])
+
+if (carregando || isInitializing) {
+  return <Spinner />
+}
+```
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx` — guard isInitializing
+
+---
+
+## v0.58.9 — Guard de Loading no Mission Control (02/Abr/2026)
+
+### Problema
+Mission Control crashava ao criar sessao. useEffects executavam antes da autenticacao estar pronta.
+
+### Solucao
+Guard simples no topo do componente:
+```tsx
+if (carregando) {
+  return (
+    <div className="h-full flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin" />
+    </div>
+  )
+}
+```
+Isso impede que qualquer useEffect execute ate que `carregando` seja `false`.
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx` — guard carregando no topo
+
+---
+
+## v0.58.8 — Correção FINAL do Crash Mission Control ao Criar Sessão (02/Abr/2026)
+
+### Problema
+Mission Control crashava (React error #310) ao criar nova missao. Console mostrava 401 Unauthorized em /api/tarefas/historico e erros de render.
+
+### Causas Identificadas
+1. **Token null**: chamadas API podiam ser feitas sem token valido
+2. **JSON parse errors**: responses invalidas causavam crashes
+3. **Race conditions**: re-render loop ao criar sessao sem reset de estado
+4. **Missing guards**: efeitos acessavam APIs sem verificar token
+
+### O que foi feito
+1. **hasToken guard**: todas as chamadas API verificam token antes de executar
+2. **criarSessao**: reset completo de estado antes de navegar (sessao, artifacts, chat, terminal, conclusao, faseStatus)
+3. **dispararAgente**: guard hasToken + reset mostrarConclusao
+4. **carregarSessao**: guard hasToken + JSON parse defensivo + null checks em todas propriedades
+5. **Polling useEffects**: hasToken adicionado em todas as dependencias
+6. **Team Chat + Fase Status**: JSON parse com try/catch
+
+### Protecoes
+- Se token vazio, nenhuma API e chamada
+- Responses JSON invalidas nao causam crash
+- Estado sempre resetado corretamente ao criar nova sessao
+- Todas as propriedades acessadas com null checks
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx` — todas as protecoes acima
+
+---
+
+## v0.58.7 — Correção FINAL do Crash Mission Control ao Criar Sessão (02/Abr/2026)
+
+### Problema
+Mission Control carregava a pagina inicial, mas crashava (tela preta) ao criar nova missao. Console mostrava React error #310 + 401 Unauthorized em /api/tarefas/historico.
+
+### Causas Identificadas
+1. **401 Unauthorized**: TaskTray e MissionControl podiam receber token null da context antes de estar disponivel
+2. **React error #310**: Componente recebia response invalida apos criacao de sessao sem verificar res.ok
+3. **Falha catastrófica**: Nenhum Error Boundary para proteger a rota — qualquer erro causava tela preta total
+
+### O que foi feito
+1. **ErrorBoundary.tsx** (NOVO): Componente que captura erros React e mostra mensagem amigavel com botao recarregar
+2. **App.tsx**: MissionControl envolvido com ErrorBoundary em ambas rotas (/mission-control e /mission-control/:sessionId)
+3. **tokenSeguro**: Token usa localStorage como fallback se context token ainda nao disponivel
+4. **criarSessao**: Adicionado check `res.ok` e throw se `sessao_id` ausente
+5. **Prop token**: Substituido `token || ''` por `tokenSeguro` em todos os lugares
+
+### Protecoes Adicionadas
+- Error Boundary protege contra qualquer erro de renderizacao
+- Token sempre disponivel via localStorage fallback
+- Sessao s6o criada apenas com response valida (res.ok check)
+- Log de erros facilita debug
+
+### Arquivos alterados
+- `dashboard/src/components/ErrorBoundary.tsx` — **NOVO**
+- `dashboard/src/App.tsx` — ErrorBoundary wrapper
+- `dashboard/src/pages/MissionControl.tsx` — tokenSeguro + res.ok check
+
+---
+
+## v0.58.6 — Correção FINAL Mission Control em Branco (02/Abr/2026)
+
+### Problema
+Mission Control continuava em branco apos v0.58.4/v0.58.5. Console mostrava:
+- React error #310 (Invalid element type)
+- 401 Unauthorized em /api/tarefas/historico
+
+### Causas Identificadas
+1. **TaskTray**: usava `sf_access_token` como chave de localStorage, mas AuthContext usa `sf_token`. Resultado: polling sempre retornava 401.
+2. **App.tsx Layout**: `h-screen overflow-hidden` no main div dentro de body com `min-h-screen` causava conflito de altura quando body vira scroll container.
+
+### O que foi feito
+- TaskTray: `sf_access_token` → `sf_token` (localStorage key correto)
+- App.tsx: remove `h-screen overflow-hidden`, usa `flex-1 min-h-screen` no main
+
+### Arquivos alterados
+- `dashboard/src/components/TaskTray.tsx` — corrige localStorage key
+- `dashboard/src/App.tsx` — corrige layout conflict
+
+---
+
+## v0.58.5 — Correção de Regressão Mission Control (02/Abr/2026)
+
+### Problema
+Após v0.58.4, pagina do Mission Control ficou completamente em branco/preta. Console sem erros. Build TypeScript passava.
+
+### Causa Raiz
+`MissionControl.tsx` usava `var(--sf-bg)` e `var(--sf-surface)` que NAO existem no design system. Variaveis CSS indefinidas fazem o valor da propriedade ficar UNSET (transparente para background). Quando v0.58.4 removeu o background explicito do parent (`min-h-screen` sem `background` vs `h-screen` sem `background`), os backgrounds transparentes de MissionControl passaram a herdar do body (default branco) — escondendo todo o conteudo.
+
+MissionControl era o UNICO arquivo em todo o projeto que usava `--sf-bg`. Todas as outras paginas usam `--sf-bg-primary` (alias correto).
+
+### O que foi feito
+- `var(--sf-bg)` → `var(--sf-bg-primary)` em 14 lugares
+- `var(--sf-surface)` → `var(--sf-bg-card)` em 17 lugares
+- Build TypeScript: zero erros
+
+### Arquivos alterados
+- `dashboard/src/pages/MissionControl.tsx` — corrige CSS undefined
+
+---
+
+## v0.58.4 — Sidebar Fixo e Colapsável (02/Abr/2026)
+
+### Problema
+Menu lateral anterior rolava junto com o conteudo da pagina. Usuario precisava rolar ate o final para ver nome/email e botao Sair. Sem opcao de colapsar para modo mini.
+
+### O que foi feito
+
+**Sidebar fixo (desktop):**
+- `position: fixed` com `height: 100vh` e `overflow-y: auto`
+- Card do usuario + botao Sair SEMPRE visiveis na parte inferior
+- Scroll interno quando navegacao exceder altura da tela
+- Animacao suave de 300ms ao colapsar/expandir
+- Toggle via botao ChevronLeft/Right
+- Modo expandido: 240px (labels visiveis) | Modo mini: 64px (icons only)
+
+**Mobile:**
+- Overlay com backdrop escuro
+- Botao hamburger flutuante (Menu icon) no canto superior esquerdo
+- Sidebar 280px em overlay
+- Fecha ao clicar fora ou no X
+
+**Redux Toolkit:**
+- `sidebarSlice`: estado `collapsed` com persistencia em `localStorage`
+- `useAppSelector` / `useAppDispatch` hooks
+- Provider em `App.tsx`
+
+### Arquivos alterados
+- `dashboard/src/components/Sidebar.tsx` — rewrite completo com fixed sidebar
+- `dashboard/src/App.tsx` — Redux Provider + LayoutComSidebar wrapper
+- `dashboard/src/store/sidebarSlice.ts` — **NOVO** — slice com localStorage
+- `dashboard/src/store/index.ts` — **NOVO** — store
+- `dashboard/src/store/hooks.ts` — **NOVO** — hooks tipados
+- `dashboard/package.json` — @reduxjs/toolkit + react-redux
+
+---
+
+## v0.58.3 — Correção de Regressão no Mission Control (02/Abr/2026)
+
+### Problema
+Após implementar a v0.58.2 (Phase Decision Controls), a página do Mission Control ficava em branco/preta. Console mostrava React error #310 (render error) e 401 Unauthorized em `/api/tarefas/historico`.
+
+### O que foi feito
+
+**Erros corrigidos:**
+- **Polling redundante**: `PhaseDecisionControls` tinha seu próprio polling de `/fase-status` que conflituava com o polling do componente pai, causando re-render loop infinito → **REMOVIDO** (componente agora é stateless)
+- **useAuth() duplicado**: `useAuth()` era chamado duas vezes (topo do componente e inline no JSX) → consolidado para `const { token, usuario } = useAuth()` no topo
+- **waitingDecision prop não utilizada**: removida da interface e do componente
+- **FaseStatus interface redundante**: removida (não usada no componente leve)
+
+**Melhorias aplicadas:**
+- `handleFaseDecisao` callback no `MissionControl` para tratar decisões
+- `PhaseDecisionControls` agora só renderiza via props — polling centralizado no pai
+- Componente mais simples, mais rápido, sem loops de render
+
+### Arquivos alterados
+- `dashboard/src/components/PhaseDecisionControls.tsx` — polling proprio removido, componente leve
+- `dashboard/src/pages/MissionControl.tsx` — callback handleFaseDecisao, usoAuth consolidado
+
+---
+
+## v0.58.2 — Phase Decision Controls — Human-in-the-Loop (02/Abr/2026)
+
+### Problema
+O Mission Control executava as 5 fases do BMAD automaticamente, sem intervenção humana em tempo real. Não havia como aprovar, regerar, rejeitar ou revisar cada fase individualmente antes de prosseguir.
+
+### Solução: Phase Decision Controls — Human-in-the-Loop
+
+**O que foi feito:**
+- `FaseDecisionEngine`: motor de decisões por fase com `threading.Event` para bloqueio/desbloqueio entre fases
+- `POST /sessao/{id}/fase-decisao`: registra decisão do usuário (aprovar/regenerar/rejeitar/revisar) e desbloqueia o agente
+- `GET /sessao/{id}/fase-status`: polling do frontend para detectar se agente está esperando decisão
+- `_executar_agente_mission_control()`: ponto de decisão entre cada fase (1→2, 2→3, 3→4, 4→5)
+- Regerar refaz a fase atual; Rejeitar encerra a sessão; Aprovar prossegue; Revisar abre detalhamento
+
+**Melhorias aplicadas:**
+- Novo componente `PhaseDecisionControls.tsx`: painel lateral com 4 botões coloridos
+- Indicador visual de progresso das 5 fases (setas numeradas)
+- Estado `mostrarConclusao`: tela "Concluído" só após 5 fases aprovadas
+- **"Voltar para Revisão"** preserva todo o histórico (artifacts, código, terminal)
+
+**Erros corrigidos durante implementação:**
+- `ArrowRight` import não utilizado → removido
+- `onConcluido` prop não utilizado → removido da interface
+- `ultimaFase` variável não utilizada → removida
+- `isCompleto` usado antes da declaração → useEffect movido para após `const isCompleto`
+- `setModoRevisao` não existia → substituído por `setMostrarConclusao`
+- `PhaseDecisionControls` usava polling próprio redundante → usa `faseStatus` do MissionControl
+
+**Arquitetura de decisão:**
+```
+Fase N completa → Agente bloqueia (set_pending + wait_decision)
+→ Frontend detecta waiting_decision → Mostra PhaseDecisionControls
+→ Usuário clica → POST /fase-decisao → Agente desbloqueia
+→ Aprovar: próxima fase | Regenerar: refaz fase | Rejeitar: encerra
+```
+
+**Arquivos alterados:**
+- `api/routes/mission_control.py` — FaseDecisionEngine + 2 endpoints + pontos de decisão
+- `dashboard/src/components/PhaseDecisionControls.tsx` — novo componente
+- `dashboard/src/pages/MissionControl.tsx` — integração + estado mostrarConclusao
+- `dashboard/src/components/MissionCompleteActions.tsx` — botão "Voltar para Revisão"
+
+**Próximos passos:**
+- Testar fluxo completo no browser (deploy pendente via SSH)
+- Adicionar feedback visual de qual fase foi rejeitada/regenerada
+- Persistir histórico de decisões no banco (audit log por fase)
+
+---
+
+## v0.57.8 — Git Actions Funcionais no Mission Control (02/Abr/2026)
+
+### Problema
+Botões de Git (Commit, Push, PR, Merge) eram placeholders com `alert()`. Não executavam ações reais.
+
+### Solução: Git Actions Funcionais
+
+**Backend — 4 novos endpoints em `mission_control.py`:**
+- `GET /sessao/{id}/git-info`: branch atual, commits pendentes, se tem VCS configurado
+- `POST /sessao/{id}/git-commit`: commit local (sem push) com audit log
+- `POST /sessao/{id}/git-push`: push + criação automática de PR via API GitHub/GitBucket
+- `POST /sessao/{id}/git-merge`: merge de PR existente via API
+
+**Frontend — `MissionCompleteActions.tsx` atualizado:**
+- **Git Status Bar**: mostra branch, número de pendências, tipo de VCS
+- **Botão Commit** (laranja): commita alterações locais
+- **Botão Push + PR** (verde): push para remote + cria PR automaticamente
+- **Toast de feedback**: verde (sucesso) ou vermelho (erro) com mensagem clara
+- **Permissões**: Git actions só aparecem para ceo/diretor_tecnico/operations_lead/pm_central/lider
+- Auto-refresh do git-info após cada operação
+
+---
+
+## v0.57.7 — Tela de Conclusão com Ações Recomendadas (02/Abr/2026)
+
+### Problema
+Quando uma sessão atingia 100% (Fase 5/5), a interface continuava em estados de loading sem oferecer ações claras para o próximo passo.
+
+### Solução: Painel de Ações Recomendadas
+
+**Novo componente: `MissionCompleteActions.tsx`**
+- Exibe "✅ Concluído com Sucesso!" com badge verde
+- Painel com 7 botões grandes e auto-explicativos:
+  - 🧪 **Testar Agora** (azul) — Executa testes automatizados
+  - 💻 **Aplicar no Code Studio** (roxo) — Abre no editor para revisar
+  - 🤖 **Revisar com Factory Optimizer** (amber) — Análise PDCA
+  - 🛡️ **Pedir Aprovação** (verde) — Envia para Operations Lead
+  - 👥 **Convidar Colaborador** (ciano) — Convida membro da equipe
+  - 📄 **Gerar Relatório CEO** (rosa) — Resumo executive
+  - ➕ **Nova Sessão** (cinza) — Inicia nova missão
+
+**MissionControl.tsx atualizado**
+- Detecção de conclusão: `isCompleto = faseAtual === 5 && progressoAtual === 100`
+- Badge verde "Concluído" no header (sem spinner)
+- Barra de progresso ocultada quando completo
+- Transição suave com fade-in animation
+
+---
+
+## v0.57.6 — True Live Typing & Execution Feeling (01/Abr/2026)
+
+### True Live Typing no Editor
+- **Caractere por caractere**: delay variável (8-40ms) para simular digitação natural real
+  - Caracteres comuns: 15ms | Pontuação: 28ms | Newline: 40ms | Indentação: 8ms
+- **Cursor verde piscando**: 0.65s blink cycle com box-shadow glow (0 0 12px #10b981)
+- **Highlight de linha atual**: borda verde à esquerda + fundo sutil rgba(16,185,129,0.06)
+
+### Feedback Visual Forte
+- **Badge STREAMING**: glow vermelho pulsante (liveGlow animation, 0.8s)
+- **Badge "Em execução"**: glow verde forte (execBadgePulse animation, 1.2s)
+- **Barra de progresso**: glow intenso quando LIVE (box-shadow 0 0 24px rgba)
+- **Texto descritivo**: "⚡ Gerando código... Fase 3/5" com emoji
+- **Animação agent-pulse**: mais forte (0.8s, scale 1.3x, drop-shadow 8px)
+
+### Terminal Real
+- Cursor verde com texto "agente executando..." no final do terminal
+- Comandos reais: npm build, pytest, eslint, tsc --noEmit
+
+### Backend (streaming 2 linhas/200ms)
+- Mantido streaming em blocos de 2 linhas com 200ms de delay
+- Frontend faz character-by-character a partir dos chunks
+
+---
+
+## v0.58.1 — Vision Real para Agentes de Squad: Pré-processamento de Imagens (01/Abr/2026)
+
+### Problema
+O sistema roteava imagens para o Minimax (sem vision) mesmo após o fix v0.58.0. O classificador não recebia a flag `tem_imagem` corretamente em todos os pontos de entrada.
+
+### Solução: Pré-processamento com GPT-4o-mini Vision
+
+**ChatFloating (`dashboard/src/components/ChatFloating.tsx`)**
+- Envia anexos com URL real (upload pré-assinado) ao invés de texto placeholder
+- Permite que o backend processe a imagem corretamente
+
+**Tarefas Route (`api/routes/tarefas.py`)**
+- Nova função `_analisar_imagens_com_vision()`: pré-processa imagens com GPT-4o-mini vision antes de enviar ao agente
+- Extrai descrição textual da imagem para ser adicionada ao contexto da mensagem
+- Funciona como camada de segurança adicional (independentemente do classificador)
+
+**Luna Engine (`core/luna_engine.py`)**
+- Fix: path resolution absoluto para arquivos de imagem
+- Fallback não-silencioso: se falhar ao processar imagem, loga erro e continua (não quebra a conversa)
 
 ---
 

@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.58.1 (01/Abr/2026)
+**Versão Atual:** v0.58.14 (02/Abr/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -103,21 +103,13 @@ O sistema classifica cada mensagem individualmente e roteia para o provider mais
 
 Arquivo: `core/classificador_mensagem.py`
 
-### Roteamento Vision / Multimodal (v0.58.0+)
+### Roteamento Vision / Multimodal (v0.58.0)
 
 Quando o usuário envia imagem, o classificador detecta automaticamente e roteia para providers com suporte a vision:
 - **SIMPLES/MEDIO com imagem** → GPT-4o-mini (mais barato com vision)
 - **COMPLEXO com imagem** → GPT-4o (máxima qualidade multimodal)
 - **Fallback chain filtrada**: pula Minimax, Groq, Fireworks e Together (sem vision)
 - **Rede de segurança**: `llm_fallback.py` detecta `image_url` em mensagens independentemente do classificador
-
-### Vision para Squad Agents (v0.58.1)
-
-Agentes de squad (CrewAI) não suportam vision nativamente. Pipeline de pré-processamento:
-- **`_analisar_imagens_com_vision()`** em `api/routes/tarefas.py`: pré-processa imagens com GPT-4o-mini vision
-- **Injeção no task.description**: descrição textual rica da imagem é concatenada ao texto da tarefa
-- **Frontend (`ChatFloating.tsx`)**: envia URLs reais de anexos (não mais strip para texto)
-- **luna_engine.py**: fix de path resolution (relativo → absoluto)
 
 ### LLM Providers — Cadeia Definitiva (v0.52.0)
 
@@ -480,7 +472,36 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.57.2** — **Visible Execution** — 3 novos helpers no backend (fase/progresso, código no editor, terminal do agente), barra de progresso animada por fase (10%→35%→60%→85%→100%), código aparece ao vivo no editor com badge "agente", terminal distingue entradas do agente (ícone Bot verde) vs usuário ($), proteção de edições manuais do CEO no editor, botão "Rodar Testes" no modal
 - **v0.57.3** — **Modo LIVE + Recovery de Agentes Órfãos** — Botão toggle LIVE (verde, default on) na barra de progresso, streaming progressivo de código no editor (4 linhas/flush, 350ms delay), polling dinâmico 1s em LIVE vs 5s normal, badge LIVE vermelho pulsante durante streaming, indicador "escrevendo..." com cursor pulsante, proteção contra sobrescrita de edições manuais. **Bug #52 corrigido**: `_recovery_agentes_orfaos()` executada no import do módulo — varre sessões ativas no startup e marca como erro agentes que ficaram travados em "executando" após `systemctl restart`
 - **v0.57.4** — **Fix Crítico Streaming ao Vivo** — 3 root causes corrigidas: session isolada por helper + flag_modified (Bug #53), auto-save protegido contra race condition com agente (Bug #54), polling estável sem restart a cada poll (Bug #55). Streaming ao vivo finalmente funciona.
+- **v0.58.1** — **Vision Real para Agentes de Squad** — Pré-processamento de imagens com GPT-4o-mini vision (`_analisar_imagens_com_vision()`), ChatFloating envia URLs reais de upload, Luna Engine com path resolution absoluto e fallback não-silencioso
+- **v0.58.0** — **Agentes Multimodais (Vision)** — Flag `vision` em todos os providers, novo parâmetro `tem_imagem` no classificador, roteamento SIMPLES/MEDIO→GPT-4o-mini e COMPLEXO→GPT-4o quando imagem presente, fallback chain filtra providers sem vision, `_mensagens_tem_imagem()` no LLM Fallback
+- **v0.57.6** — **True Live Typing & Execution Feeling** — True character-by-character typing no editor com cursor verde piscando e highlight de linha, badge STREAMING com glow vermelho, badge "Em execução" com glow verde forte, barra de progresso com glow intenso, texto descritivo "Fase X/5" com emoji, agent-pulse mais forte (scale 1.3x), terminal com cursor verde e texto "agente executando..."
+- **v0.58.14** — **isInitializing Depende de Carregando** — isInitializing so vira false quando carregando=false (auth terminado), nao depende mais da existencia do token
+- **v0.58.13** — **TaskTray com getStoredToken Seguro** — TaskTray recebe mesmo tratamento de protecao localStorage
+- **v0.58.12** — **Protecao localStorage no Mission Control** — localStorage access envolvido em try-catch
+- **v0.58.11** — **Guard isInitializing no Startup UseEffect** — startup useEffect agora tem guard isInitializing, impedindo carregamento de sessao antes do token estar confirmado
+- **v0.58.10** — **Guard isInitializing no Mission Control** — isInitializing state que so vira false quando token disponivel, bloqueando todo o render e useEffects ate confirmacao de token
+- **v0.58.9** — **Guard de Loading no Mission Control** — guard `carregando` no topo do componente que mostra spinner ate autenticacao estar pronta
+- **v0.58.8** — **Correção FINAL Crash Mission Control ao Criar Sessão** — hasToken guard em todas API calls; reset estado completo antes de navegar em criarSessao; JSON parse defensivo; null checks em todas propriedades
+- **v0.58.7** — **Correção FINAL do Crash Mission Control ao Criar Sessão** — ErrorBoundary protege rotas contra crashes React #310; token fallback via localStorage; res.ok check em criarSessao; MissionControl com ErrorBoundary wrapper
+- **v0.58.6** — **Correção FINAL Mission Control em Branco** — TaskTray usava chave errada localStorage (sf_access_token vs sf_token), causing 401 em /api/tarefas/historico; App.tsx removido h-screen overflow-hidden que conflituava com body scroll container
+- **v0.58.5** — **Correção de Regressão Mission Control** — var(--sf-bg) e var(--sf-surface) não existem no design system, backgrounds ficavam transparentes, MissionControl em branco após v0.58.4 — corrigido para var(--sf-bg-primary) e var(--sf-bg-card)
+- **v0.58.4** — **Sidebar Fixo e Colapsável** — Sidebar com position: fixed, height: 100vh, overflow-y auto, Redux Toolkit para estado collapsed com persistência em localStorage, modo mini 64px (ícones apenas), animação 300ms, card usuário + Sair sempre visíveis no bottom, mobile overlay com backdrop
+- **v0.58.3** — **Correção de Regressão Mission Control** — Polling redundante do PhaseDecisionControls removido (causava blank page), useAuth() duplicado consolidado, componente leve stateless
+- **v0.58.2** — **Phase Decision Controls — Human-in-the-Loop** — FaseDecisionEngine com threading.Event para bloqueio entre fases, POST/GET fase-decisao endpoints, ponto de decisão após cada fase (Aprovar/Regenerar/Rejeitar/Revisar), painel lateral com 4 botões coloridos, "Voltar para Revisão" preserva histórico completo, tela "Concluído com Sucesso!" só após 5 fases aprovadas
+- **v0.57.8** — **Git Actions Funcionais no Mission Control** — 4 endpoints Git (git-info, git-commit, git-push, git-merge), Git Status Bar com branch e pendências, botões Commit/Push+PR funcionais com toast feedback, permissões por papel (ceo/diretor/ops/lider)
+- **v0.57.7** — **Tela de Conclusão com Ações Recomendadas** — "Concluído com Sucesso!" com 8 botões (Testar/Code Studio/Factory Optimizer/Aprovar/Convidar/Relatório CEO/Nova Sessão/Voltar Revisão), MissionCompleteActions.tsx com Git Status Bar integrado
+- **v0.57.6** — **True Live Typing & Execution Feeling** — True character-by-character typing no editor com cursor verde piscando e highlight de linha, badge STREAMING com glow vermelho, badge "Em execução" com glow verde forte, barra de progresso com glow intenso, texto descritivo "Fase X/5" com emoji, agent-pulse mais forte (scale 1.3x), terminal com cursor verde e texto "agente executando..."
 - **v0.57.5** — **Visible Live Execution** — Efeito typewriter no editor (caracteres graduais), barra de progresso com shimmer + texto descritivo + %, ícone do agente pulsante, badge "Em execução" no Team Chat, cursor piscante no terminal. Backend: chunks 2 linhas/200ms (era 4/350ms), progresso granular dentro das fases, comandos reais no terminal (npm run build, pytest, eslint, tsc), editor com conteúdo desde Fase 1 (scaffold→plan→code), mais entradas de terminal em todas as fases.
+- **v0.57.4** — **Fix Crítico Streaming ao Vivo** — 3 root causes corrigidas: session isolada por helper + flag_modified (Bug #53), auto-save protegido contra race condition com agente (Bug #54), polling estável sem restart a cada poll (Bug #55). Streaming ao vivo finalmente funciona.
+- **v0.57.3** — **Modo LIVE + Recovery de Agentes Órfãos** — Botão toggle LIVE (verde, default on) na barra de progresso, streaming progressivo de código no editor (4 linhas/flush, 350ms delay), polling dinâmico 1s em LIVE vs 5s normal, badge LIVE vermelho pulsante durante streaming, indicador "escrevendo..." com cursor pulsante, proteção contra sobrescrita de edições manuais. **Bug #52 corrigido**: `_recovery_agentes_orfaos()` executada no import do módulo
+- **v0.57.2** — **Visible Execution** — 3 novos helpers no backend (fase/progresso, código no editor, terminal do agente), barra de progresso animada por fase (10%→35%→60%→85%→100%), código aparece ao vivo no editor com badge "agente", terminal distingue entradas do agente (ícone Bot verde) vs usuário ($), proteção de edições manuais do CEO no editor, botão "Rodar Testes" no modal
+- **v0.57.1** — **Team Chat Multi-Agente + Artifact Modal** — TeamChatDB, 4 fases multi-agente (Tech Lead+Backend+Frontend+QA), polling GET /chat a cada 2s, Painel 3 com abas Team Chat|Artifacts, modal estável (não fecha sozinho) com botões Aplicar/Copiar/Download, 3 bugs corrigidos (#49 metadata reservado, #50 string como ProviderRecomendado, #51 import TypeScript desnecessário), teste integração APROVADO (14 mensagens, 3 artifacts)
+- **v0.57.0** — **Mission Control Session Persistence** — Auto-save a cada 10s (editor+terminal), tela de sessões recentes com "Retomar", URL `/mission-control/:sessionId`, endpoint PATCH /save, editor `<pre>`→`<textarea>`, indicador "Salvo HH:MM"
+- **v0.56.0** — **Suporte Completo Novos Agentes** — Ícones GitBranch/TrendingUp/FlaskConical, categorias qualidade/infraestrutura/otimizacao com cores nos filtros, perfis diretor/arquiteto na Skills, CATEGORIAS_DISPONIVEIS expandido, Escritório DK 9→16 posições (agentes 10–16 têm mesa própria), 3 bugs críticos resolvidos (Aprovação 500, Git Pull conflito, Command Center reiniciar workflow)
+- **v0.55.1** — **Fix Mission Control Produção** — URL relativa para API (`VITE_API_URL || ''`), systemd service para dashboard, diagnóstico porta 5173 bloqueada pelo Lightsail
+- **v0.55.0** — **Mission Control** — Painel triplo Editor+Terminal+Artifacts, agentes live animados, comentários inline estilo Google Docs, 8 endpoints REST, ArtifactDB + MissionControlSessaoDB
+- **v0.54.0** — **Continuous Factory (24/7)** — Modo contínuo com toggle CEO/Ops Lead, auto-aprovação gates soft/hard, notificações SES, relatório diário LLM às 23h, worker background com recovery
+- **v0.53.0→v0.53.3** — **Pipeline Completo + Correções** — Agente→Proposta→Aprovação→Build→Deploy, tool schemas Pydantic no CrewAI, retry com backoff exponencial, throttle Fase 4
 
 ---
 
@@ -641,4 +662,4 @@ Cadeia centralizada em `core/llm_fallback.py`:
 
 ---
 
-> Ultima atualizacao: 2026-03-31
+> Ultima atualizacao: 2026-04-02 (v0.58.6)

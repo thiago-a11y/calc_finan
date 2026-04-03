@@ -3,6 +3,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { Provider } from 'react-redux'
+import { store } from './store'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
 import PainelGeral from './pages/PainelGeral'
@@ -16,6 +18,7 @@ import Configuracoes from './pages/Configuracoes'
 import Agente from './pages/Agente'
 import Registrar from './pages/Registrar'
 import ThemeToggle from './components/ThemeToggle'
+import ErrorBoundary from './components/ErrorBoundary'
 import { ChatProvider } from './components/ChatManager'
 import TaskTray from './components/TaskTray'
 import Relatorios from './pages/Relatorios'
@@ -51,27 +54,36 @@ function RotaProtegida({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-/* Layout principal com sidebar — usa tema dinâmico */
-function LayoutPrincipal({ children }: { children: React.ReactNode }) {
+/* Layout com sidebar fixo — sidebar fora do flex container */
+function LayoutComSidebar({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen" style={{ background: 'var(--sf-bg-primary)' }}>
+    <>
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div
+        className="flex flex-col flex-1 min-h-screen"
+        style={{ color: 'var(--sf-text-primary)' }}
+      >
         {/* Header com ThemeToggle */}
         <header
           className="flex items-center justify-end px-6 py-3 shrink-0"
-          style={{ borderBottom: '1px solid var(--sf-border-subtle)' }}
+          style={{ borderBottom: '1px solid var(--sf-border-subtle)', background: 'var(--sf-bg-1)' }}
         >
           <ThemeToggle />
         </header>
-        <main
-          className="flex-1 p-6 overflow-y-auto transition-colors duration-300"
-          style={{ color: 'var(--sf-text-primary)' }}
-        >
+        <main className="flex-1 p-6 overflow-y-auto">
           {children}
         </main>
       </div>
       <TaskTray />
+    </>
+  )
+}
+
+/* Layout principal — wrapper */
+function LayoutPrincipal({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex" style={{ background: 'var(--sf-bg-primary)' }}>
+      <LayoutComSidebar>{children}</LayoutComSidebar>
     </div>
   )
 }
@@ -241,7 +253,9 @@ function AppRoutes() {
         path="/mission-control"
         element={
           <RotaProtegida>
-            <LayoutPrincipal><MissionControl /></LayoutPrincipal>
+            <ErrorBoundary>
+              <LayoutPrincipal><MissionControl /></LayoutPrincipal>
+            </ErrorBoundary>
           </RotaProtegida>
         }
       />
@@ -249,7 +263,9 @@ function AppRoutes() {
         path="/mission-control/:sessionId"
         element={
           <RotaProtegida>
-            <LayoutPrincipal><MissionControl /></LayoutPrincipal>
+            <ErrorBoundary>
+              <LayoutPrincipal><MissionControl /></LayoutPrincipal>
+            </ErrorBoundary>
           </RotaProtegida>
         }
       />
@@ -278,14 +294,16 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <BrowserRouter>
-        <AuthProvider>
-          <ChatProvider>
-            <AppRoutes />
-          </ChatProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </ThemeProvider>
+    <Provider store={store}>
+      <ThemeProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <ChatProvider>
+              <AppRoutes />
+            </ChatProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </ThemeProvider>
+    </Provider>
   )
 }
