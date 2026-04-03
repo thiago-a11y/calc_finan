@@ -99,6 +99,10 @@ Nenhum bug ativo no momento. Sistema recém-criado.
 
 ---
 
+- **Bug #56** ✅ RESOLVIDO (v0.58.1): Imagens enviadas para agentes de squad (CrewAI) eram ignoradas ou causavam erro — CrewAI não suporta vision nativamente. Fix: nova função `_analisar_imagens_com_vision()` em `api/routes/tarefas.py` pré-processa imagens com GPT-4o-mini vision e injeta descrição textual no `task.description`. Frontend `ChatFloating.tsx` corrigido para enviar URLs reais de anexos. Lição: frameworks de agentes que não suportam multimodal podem ser estendidos via pré-processamento externo sem modificar o framework.
+
+- **Bug #57** ✅ RESOLVIDO (v0.58.1): `luna_engine.py` falhava com `FileNotFoundError` em produção por usar caminhos relativos que dependiam do CWD do processo. Fix: path resolution corrigido de relativo para absoluto usando `Path(__file__).parent`. Lição: nunca usar caminhos relativos em módulos Python que podem ser importados de diretórios diferentes — sempre resolver para absoluto.
+
 - **Bug #43** ✅ RESOLVIDO: `except Exception` genérico capturava `HTTPException(400)` do Build Gate em `propostas.py` e re-lançava como 500. Fix: adicionar `except HTTPException: raise` antes do handler genérico. Padrão obrigatório em toda rota FastAPI que chama validações que podem lançar HTTPException intencionalmente.
 - **Bug #44** ✅ RESOLVIDO: Agente IA substituiu arquivos React do SyneriumX (`EditProposalModal.tsx`, `App.tsx`) por texto puro, corrompendo build. O PR foi mergeado sem Build Gate detectar (o build estava passando parcialmente). Fix emergencial: `git checkout HEAD -- <arquivo>`. Lição: Build Gate deve rodar `tsc --noEmit` além de `vite build` para detectar arquivos corrompidos que ainda compilam.
 - **Bug #45** ✅ RESOLVIDO: Command Center não exibia causa do erro em workflows falhos e não tinha botão para reiniciar. Fix: `AutonomoPanel.tsx` exibe `outputs.erro` em bloco monospace vermelho + botão "Reiniciar da Fase X". Novo endpoint `POST /tarefas/autonomo/{id}/reiniciar` retorna ao estado `em_execucao` a partir da fase onde parou.

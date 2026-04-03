@@ -106,6 +106,44 @@ Opus/Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 
 Cada provider tem health check. Se falhar, pula para o proximo. O usuario nunca fica sem resposta.
 
+### Fallback com Vision (v0.58.0+)
+
+Quando imagens sao detectadas na mensagem, a cadeia de fallback e filtrada automaticamente para incluir apenas providers com suporte a vision:
+
+```
+GPT-4o-mini → GPT-4o → Claude Sonnet → Claude Opus → Gemini 2.5 Flash
+(Minimax, Groq, Fireworks e Together sao excluidos)
+```
+
+Deteccao dupla independente:
+1. **Classificador** (`classificador_mensagem.py`): parametro `tem_imagem=True` filtra a cadeia
+2. **Fallback** (`llm_fallback.py`): helper `_mensagens_tem_imagem()` detecta `image_url` em HumanMessage
+
+### Vision para Squad Agents — Pre-processamento (v0.58.1)
+
+Agentes de squad (CrewAI) nao suportam vision nativamente. A solucao e um pipeline de pre-processamento:
+
+```
+Imagem enviada pelo usuario
+       |
+       v
+[1] _analisar_imagens_com_vision() em api/routes/tarefas.py
+       |
+       v
+[2] GPT-4o-mini vision analisa a imagem
+       |
+       v
+[3] Descricao textual rica gerada
+       |
+       v
+[4] Descricao injetada no task.description do CrewAI
+       |
+       v
+[5] Agente CrewAI processa como texto normal
+```
+
+O frontend (`ChatFloating.tsx`) envia URLs reais dos anexos. O backend filtra imagens, pre-processa com vision, e injeta a descricao antes de criar a task CrewAI.
+
 ---
 
 ## Override Manual
@@ -145,4 +183,4 @@ Ambos coexistem. O SmartRouter antigo continua roteando dentro do CrewAI. O Rout
 
 ---
 
-> Ultima atualizacao: 2026-03-28
+> Ultima atualizacao: 2026-04-01 (v0.58.1)

@@ -502,4 +502,20 @@ CSS keyframes sao preferidos a animacoes JavaScript porque:
 
 ---
 
-> Ultima atualizacao: 2026-04-01
+## Por que pré-processamento vision com GPT-4o-mini antes do CrewAI (não vision nativo)?
+
+O CrewAI não suporta envio de imagens nativamente — o framework trabalha apenas com texto em `task.description`. Três abordagens foram avaliadas:
+
+1. **Modificar o CrewAI internamente** — invasivo, quebraria em updates futuros, alto custo de manutenção
+2. **Converter imagem para base64 no prompt** — estoura context window (Bug #22 já demonstrou isso com 213K tokens)
+3. **Pré-processar com GPT-4o-mini vision** — analisar a imagem ANTES de passar ao CrewAI, injetando descrição textual no `task.description`
+
+A opção 3 foi escolhida por ser não-invasiva, barata (GPT-4o-mini vision custa $0.00015/1K input) e transparente para o agente. A função `_analisar_imagens_com_vision()` em `api/routes/tarefas.py` recebe os anexos, filtra apenas imagens, envia para GPT-4o-mini vision via API OpenAI, e retorna uma descrição textual rica que é concatenada ao `task.description`. O agente CrewAI recebe texto enriquecido sem saber que a origem era uma imagem.
+
+**Frontend (ChatFloating.tsx):** Antes, o frontend fazia strip dos anexos para texto puro antes de enviar ao backend. Agora envia as URLs reais dos attachments, permitindo que o backend faça o pré-processamento vision.
+
+**Complementaridade com v0.58.0:** A v0.58.0 adicionou roteamento vision no Smart Router (Luna e chat direto). A v0.58.1 estende isso para agentes de squad CrewAI, usando o mesmo pipeline de detecção do classificador + rede de segurança do fallback.
+
+---
+
+> Ultima atualizacao: 2026-04-01 (v0.58.1)

@@ -4,6 +4,31 @@
 
 ---
 
+## v0.58.1 — Vision para Squad Agents: Pré-processamento de Imagens no CrewAI (01/Abr/2026)
+
+### Problema Resolvido
+Agentes de squad (CrewAI) não conseguiam processar imagens enviadas pelo usuário. O CrewAI não suporta vision nativamente — imagens eram ignoradas ou causavam erro. Agora, quando o usuário envia imagem para um agente de squad, o sistema faz pré-processamento com GPT-4o-mini vision **antes** de passar ao CrewAI, injetando a descrição da imagem como contexto rico no `task.description`.
+
+### Backend (`api/routes/tarefas.py`)
+- **Nova função `_analisar_imagens_com_vision()`**: recebe anexos com imagens, envia para GPT-4o-mini vision, retorna descrição textual detalhada
+- **Injeção no task.description**: descrição da imagem é concatenada ao texto da tarefa como contexto rico antes de passar ao CrewAI
+- **Processamento transparente**: o agente recebe texto enriquecido sem saber que veio de uma imagem
+
+### Frontend (`dashboard/src/components/ChatFloating.tsx`)
+- **URLs de anexo reais**: frontend agora envia URLs reais dos attachments em vez de strip para texto puro
+- **Compatibilidade mantida**: mensagens sem imagem continuam funcionando normalmente
+
+### Luna Engine (`core/luna_engine.py`)
+- **Fix de path resolution**: caminhos relativos corrigidos para absolutos, evitando erros de FileNotFoundError em produção
+
+### Smart Router Vision (`core/classificador_mensagem.py`)
+- **Roteamento vision para squads**: tarefas de squad com imagem são classificadas e roteadas para providers com vision
+
+### LLM Fallback (`core/llm_fallback.py`)
+- **Rede de segurança para squads**: quando imagens são detectadas, fallback pula providers sem vision automaticamente (Minimax, Groq, Fireworks, Together)
+
+---
+
 ## v0.58.0 — Agentes Multimodais (Vision): Roteamento Inteligente para Imagens (01/Abr/2026)
 
 ### Problema Resolvido

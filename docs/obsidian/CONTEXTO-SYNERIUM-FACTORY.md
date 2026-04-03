@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.58.0 (01/Abr/2026)
+**Versão Atual:** v0.58.1 (01/Abr/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -103,13 +103,21 @@ O sistema classifica cada mensagem individualmente e roteia para o provider mais
 
 Arquivo: `core/classificador_mensagem.py`
 
-### Roteamento Vision / Multimodal (v0.58.0)
+### Roteamento Vision / Multimodal (v0.58.0+)
 
 Quando o usuário envia imagem, o classificador detecta automaticamente e roteia para providers com suporte a vision:
 - **SIMPLES/MEDIO com imagem** → GPT-4o-mini (mais barato com vision)
 - **COMPLEXO com imagem** → GPT-4o (máxima qualidade multimodal)
 - **Fallback chain filtrada**: pula Minimax, Groq, Fireworks e Together (sem vision)
 - **Rede de segurança**: `llm_fallback.py` detecta `image_url` em mensagens independentemente do classificador
+
+### Vision para Squad Agents (v0.58.1)
+
+Agentes de squad (CrewAI) não suportam vision nativamente. Pipeline de pré-processamento:
+- **`_analisar_imagens_com_vision()`** em `api/routes/tarefas.py`: pré-processa imagens com GPT-4o-mini vision
+- **Injeção no task.description**: descrição textual rica da imagem é concatenada ao texto da tarefa
+- **Frontend (`ChatFloating.tsx`)**: envia URLs reais de anexos (não mais strip para texto)
+- **luna_engine.py**: fix de path resolution (relativo → absoluto)
 
 ### LLM Providers — Cadeia Definitiva (v0.52.0)
 

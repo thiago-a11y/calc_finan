@@ -1,7 +1,28 @@
 # Pendencias do Ultimo Chat — 01/Abr/2026
 
-> Atualizado em 01/Abr/2026 (sessao 32 — v0.58.0)
-> Sessao 32: Agentes Multimodais Vision (v0.58.0). Sessao anterior: Visible Live Execution (v0.57.5).
+> Atualizado em 01/Abr/2026 (sessao 33 — v0.58.1)
+> Sessao 33: Vision para Squad Agents (v0.58.1). Sessao anterior: Agentes Multimodais Vision (v0.58.0).
+
+## Sessao 33 (01/Abr/2026) — Vision para Squad Agents (v0.58.1)
+
+### O que foi feito
+
+#### v0.58.1 — Vision para Squad Agents (CrewAI)
+- [x] `api/routes/tarefas.py`: nova função `_analisar_imagens_com_vision()` — pré-processa imagens com GPT-4o-mini vision
+- [x] `api/routes/tarefas.py`: descrição da imagem injetada no `task.description` como contexto rico antes do CrewAI
+- [x] `ChatFloating.tsx`: frontend envia URLs reais de anexos (não mais strip para texto puro)
+- [x] `luna_engine.py`: fix de path resolution — caminhos relativos corrigidos para absolutos
+- [x] `classificador_mensagem.py`: roteamento vision estendido para tarefas de squad com imagem
+- [x] `llm_fallback.py`: rede de segurança pula providers sem vision quando imagens detectadas em squads
+
+### Status atual
+- Versão: **v0.58.1**
+- Agentes de squad (CrewAI) agora processam imagens via pré-processamento GPT-4o-mini vision
+- Imagem → descrição textual → injetada no task.description → CrewAI processa normalmente
+- Frontend envia URLs reais de anexos para o backend
+- Path resolution corrigido no luna_engine.py
+
+---
 
 ## Sessao 32 (01/Abr/2026) — Agentes Multimodais Vision (v0.58.0)
 
