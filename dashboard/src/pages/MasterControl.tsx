@@ -1,6 +1,6 @@
 /* Master Control — Feature Flags GUI (CEO Only)
  *
- * v0.59.4 — Controle visual de feature flags do sistema.
+ * v0.59.5 — Controle visual de feature flags do sistema.
  * Flags são ligadas/desligadas pelo CEO via interface web.
  * Altera o banco de dados (não variáveis de ambiente em produção).
  */
@@ -57,6 +57,116 @@ function formatDate(iso: string | null): string {
   }
 }
 
+/* Dialog de confirmação de restart */
+function RestartConfirmDialog({
+  flagNome,
+  onConfirm,
+  onCancel,
+  restarting,
+}: {
+  flagNome: string
+  onConfirm: () => void
+  onCancel: () => void
+  restarting: boolean
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl p-6 space-y-5"
+        style={{
+          background: 'var(--sf-bg-1)',
+          border: '1px solid var(--sf-border-default)',
+          boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Ícone e título */}
+        <div className="flex items-start gap-4">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(239,68,68,0.12)' }}
+          >
+            <Rocket size={20} style={{ color: '#ef4444' }} />
+          </div>
+          <div>
+            <h2 className="text-[16px] font-semibold" style={{ color: 'var(--sf-text-0)' }}>
+              Reiniciar Serviço
+            </h2>
+            <p className="text-[13px] mt-1" style={{ color: 'var(--sf-text-2)' }}>
+              Tem certeza que deseja reiniciar o <strong>Synerium Factory</strong>?
+            </p>
+          </div>
+        </div>
+
+        {/* Aviso */}
+        <div
+          className="rounded-xl px-4 py-3 text-[12px]"
+          style={{
+            background: 'rgba(239,68,68,0.06)',
+            border: '1px solid rgba(239,68,68,0.15)',
+            color: '#fca5a5',
+          }}
+        >
+          Esta ação vai reiniciar a API e desconectar usuários temporariamente.
+        </div>
+
+        {/* Flag */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px]" style={{ color: 'var(--sf-text-3)' }}>Flag:</span>
+          <code
+            className="text-[12px] px-2 py-0.5 rounded-md font-semibold"
+            style={{ background: 'rgba(239,68,68,0.1)', color: '#fca5a5' }}
+          >
+            {flagNome}
+          </code>
+        </div>
+
+        {/* Botões */}
+        <div className="flex items-center justify-end gap-3 pt-1">
+          <button
+            onClick={onCancel}
+            disabled={restarting}
+            className="px-4 py-2 rounded-lg text-[13px] font-medium transition-all disabled:opacity-50"
+            style={{
+              background: 'var(--sf-bg-2)',
+              border: '1px solid var(--sf-border-subtle)',
+              color: 'var(--sf-text-1)',
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={restarting}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-all disabled:opacity-50"
+            style={{
+              background: '#ef4444',
+              color: '#fff',
+              boxShadow: '0 0 0 0 rgba(239,68,68,0.4)',
+            }}
+          >
+            {restarting ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                Reiniciando...
+              </>
+            ) : (
+              <>
+                <Rocket size={14} />
+                Reiniciar
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function MasterControl() {
   const { token, usuario } = useAuth()
   const [flags, setFlags] = useState<FeatureFlag[]>([])
@@ -64,7 +174,13 @@ export default function MasterControl() {
   const [carregando, setCarregando] = useState(true)
   const [toggling, setToggling] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [tab, setTab] = useState<'flags' | 'history'>('flags')
+
+  // Dialog de restart
+  const [confirmingRestart, setConfirmingRestart] = useState(false)
+  const [restartTarget, setRestartTarget] = useState<string | null>(null)
+  const [restarting, setRestarting] = useState(false)
 
   const fetchFlags = useCallback(async () => {
     try {
@@ -107,6 +223,14 @@ export default function MasterControl() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Auto-dismiss success message after 5s
+  useEffect(() => {
+    if (successMsg) {
+      const t = setTimeout(() => setSuccessMsg(null), 5000)
+      return () => clearTimeout(t)
+    }
+  }, [successMsg])
+
   const toggleFlag = async (nome: string) => {
     setToggling(nome)
     try {
@@ -139,16 +263,40 @@ export default function MasterControl() {
     }
   }
 
-  const restartFlag = async (nome: string) => {
+  const openRestartDialog = (nome: string) => {
+    setRestartTarget(nome)
+    setConfirmingRestart(true)
+  }
+
+  const handleRestartConfirm = async () => {
+    if (!restartTarget) return
+    setRestarting(true)
     try {
-      const res = await fetch(`/api/master-control/flags/${nome}/restart`, {
+      const res = await fetch(`/api/master-control/flags/${restartTarget}/restart`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (!res.ok) throw new Error('Erro no restart')
-      setErro(null)
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || 'Erro ao reiniciar')
+      }
+      setConfirmingRestart(false)
+      setRestartTarget(null)
+      setSuccessMsg('Serviço reiniciado com sucesso! A página vai recarregar em instantes.')
+      // Reload the page after a short delay to pick up the restarted service
+      setTimeout(() => window.location.reload(), 3000)
     } catch (e) {
-      setErro(`Erro ao solicitar restart: ${e}`)
+      setErro(`Erro ao reiniciar: ${e instanceof Error ? e.message : String(e)}`)
+      setConfirmingRestart(false)
+    } finally {
+      setRestarting(false)
+    }
+  }
+
+  const handleRestartCancel = () => {
+    if (!restarting) {
+      setConfirmingRestart(false)
+      setRestartTarget(null)
     }
   }
 
@@ -163,6 +311,16 @@ export default function MasterControl() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {/* Dialog de confirmação de restart */}
+      {confirmingRestart && restartTarget && (
+        <RestartConfirmDialog
+          flagNome={restartTarget}
+          onConfirm={handleRestartConfirm}
+          onCancel={handleRestartCancel}
+          restarting={restarting}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -220,18 +378,36 @@ export default function MasterControl() {
               {flagsComRestart.map(f => f.nome).join(', ')}
             </p>
           </div>
-          <button
-            onClick={() => flagsComRestart.forEach(f => restartFlag(f.nome))}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all"
-            style={{
-              background: 'rgba(239,68,68,0.15)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              color: '#fca5a5',
-            }}
-          >
-            <Rocket size={12} />
-            Restart
-          </button>
+          {/* Botão de restart por flag */}
+          {flagsComRestart.map(f => (
+            <button
+              key={f.nome}
+              onClick={() => openRestartDialog(f.nome)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all flex-shrink-0"
+              style={{
+                background: 'rgba(239,68,68,0.15)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                color: '#fca5a5',
+              }}
+            >
+              <Rocket size={12} />
+              Restart
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Sucesso */}
+      {successMsg && (
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded-xl"
+          style={{
+            background: 'rgba(16,185,129,0.08)',
+            border: '1px solid rgba(16,185,129,0.25)',
+          }}
+        >
+          <CheckCircle size={16} style={{ color: '#10b981', flexShrink: 0 }} />
+          <p className="text-[13px]" style={{ color: '#6ee7b7' }}>{successMsg}</p>
         </div>
       )}
 

@@ -200,7 +200,14 @@ def restart_servico(
         f"[MasterControl] Restart solicitado para '{nome}' por {usuario.email}"
     )
 
-    # Registrar no histórico
+    # Executar o restart — mata o processo atual (SIGTERM).
+    # systemd vai automaticamente reiniciar após RestartSec=5.
+    # O response é enviado ANTES do kill para garantir que o usuário receba a confirmação.
+    import os, signal, sys
+
+    logger.info(f"[MasterControl] Solicitando restart do serviço por {usuario.email}")
+
+    # Registrar no histórico ANTES de matar o processo
     historico = FeatureFlagHistoryDB(
         flag_nome=nome,
         usuario_id=usuario.id,
@@ -210,6 +217,23 @@ def restart_servico(
     )
     db.add(historico)
     db.commit()
+
+    # Enviar response ANTES de matar — senão o HTTP connection morre sem resposta
+    # Usamos threads para não bloquear o response
+    def restart_after_response():
+        import time
+        time.sleep(2)  # dá tempo do response chegar ao cliente
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    import threading
+    threading.Thread(target=restart_after_response, daemon=True).start()
+
+    return {
+        "mensagem": f"Restart solicitado para '{nome}'. "
+        "O serviço será reiniciado em instantes.",
+        "flag": nome,
+        "solicitado_por": usuario.email,
+    }
 
     return {
         "mensagem": f"Restart solicitado para '{nome}'. "
