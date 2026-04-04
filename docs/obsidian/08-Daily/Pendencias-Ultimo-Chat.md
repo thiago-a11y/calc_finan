@@ -1,4 +1,48 @@
-# Pendencias do Ultimo Chat — 02/Abr/2026
+# Pendencias do Ultimo Chat — 03/Abr/2026
+
+## Sessao 50 (03/Abr/2026) — Code Studio + API Fixes (v0.59.1)
+
+### v0.59.1 — Correcoes de Infraestrutura
+- [x] Fix /api/projetos 500 — coluna regras_aprovacao adicionada ao banco
+- [x] Fix Code Studio — caminho SyneriumX corrigido para /opt/projetos/syneriumx
+- [x] Fix Git Pull — VCS record criado com token GitHub
+- [x] Testes API: Login, Luna, Projetos, Squads, Prompts — todos APROVADOS
+
+## Sessao 52 (03/Abr/2026) — Fase 2.2 Implementacao Completa (v0.59.2)
+
+### Implementado
+- [x] `core/agents/base.py` — tipos core completos
+- [x] `core/agents/registry.py` — singleton com 12 agentes built-in
+- [x] `core/agents/fork.py` — ForkManager com anti-recursive guard + worktree
+- [x] `core/agents/spawn.py` — AgentSpawner com fork + named path
+- [x] `core/agents/lifecycle.py` — AgentLifecycle com callbacks + timeout
+- [x] `core/tools/base.py` — ToolFactory + ToolRegistry fail-closed
+- [x] `core/tools/brief.py` — BriefTool funcional
+- [x] Todos os imports verificados: OK
+- [x] Documentacao atualizada: Changelog, Pendencias, Roadmap
+
+### Proximos passos (v0.60.0)
+- [ ] Integrar spawn.py com orchestrator.py existente
+- [ ] Criar tool implementations concretas (Bash, Read, Write, Edit, Grep)
+
+---
+
+## Sessao 51 (03/Abr/2026) — Agent Architecture Phase 2.2 (v0.59.2)
+
+### v0.59.2 — Advanced Agent Architecture
+- [x] Analise dos 5 arquivos de referencia TypeScript
+- [x] Identificadas 5 tecnicas: Fork Subagent, Tool Registry, Brief Mode, Worktree Isolation, Multi-Agent
+- [x] Proposta de estrutura `core/agents/` e `core/tools/`
+- [x] Documentacao criada: Agent-Architecture.md
+- [x] Decisoes tecnicas atualizadas
+- [x] Roadmap marcado: Fase 2.2 ✅
+
+### Proximos passos (v0.60.0)
+- [ ] Integrar spawn.py com orchestrator.py existente
+- [ ] Criar tool implementations concretas (Bash, Read, Write, Edit, Grep)
+
+---
+
 
 > Atualizado em 02/Abr/2026 (sessao 43 — v0.58.8)
 > Sessao 43: Correcao FINAL crash Mission Control ao criar sessao (v0.58.8).

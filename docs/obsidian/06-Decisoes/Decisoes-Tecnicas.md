@@ -518,4 +518,45 @@ A opção 3 foi escolhida por ser não-invasiva, barata (GPT-4o-mini vision cust
 
 ---
 
-> Ultima atualizacao: 2026-04-01 (v0.58.1)
+---
+
+## Por que Fork Subagent em vez de spawning explícito?
+
+Fork implícito (omitindo `agent_type`) oferece três vantagens:
+
+1. **Prompt cache optimization**: fork children usam placeholder idêntico nos `tool_result` para API request prefixes byte-identical → cache hits maximized. Cada fork child difere apenas no último bloco de texto (diretiva).
+2. **Contexto completo herdado**: não precisa recarregar histórico da conversa
+3. **Worktree isolation**: pode modificar arquivos sem afetar o parent
+
+Trade-off: menos explícito, mais mágico. Mitigado com feature flag e documentação clara.
+
+## Por que Worktree isolation (não processo isolado)?
+
+Git worktree é mais leve que container/VM e mantém o repositório compartilhado. Alterações ficam isoladas no worktree mas compartilhadas via `.git`. Mais simples de implementar que namespaces/cgroups.
+
+Alternativas avaliadas:
+- **Container (Docker)**: muito pesado para spawns frequentes
+- **Processo isolado**: não há isolamento de sistema de arquivos
+- **Git worktree**: leve, nativo do git, simples de limpar
+
+## Por que Tool Registry com buildTool factory?
+
+Centralização de defaults fail-closed: `isEnabled→True`, `isConcurrencySafe→False`, `isReadOnly→False`, etc. Garante que tools novas não abreblem segurança por omissão.
+
+O padrão de factory também permite:
+- Registro tardio de tools (lazy loading)
+- Aliases para renomeação sem quebrar código existente
+- Feature flags por tool (`is_enabled` é callable)
+
+## Por que Brief Mode?
+
+Kairos Mode requer output controlada. Toda visible output deve passar pela Brief tool para:
+1. Formatação consistente (Structured output)
+2. Supressão de texto não-intencional
+3. Attachments suportados nativamente
+
+É o equivalente ao "canvas" em outros sistemas de agents.
+
+---
+
+> Ultima atualizacao: 2026-04-03 (v0.59.2 — Agent Architecture)

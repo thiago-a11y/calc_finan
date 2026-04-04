@@ -1,7 +1,7 @@
 # Roadmap — Synerium Factory
 
 > Fases de desenvolvimento da fábrica de SaaS da Objetiva.
-> Atualizado em: 01/04/2026 — v0.58.1
+> Atualizado em: 03/04/2026 — v0.59.2 (sessao 52)
 
 ---
 
@@ -83,6 +83,18 @@
 - [x] Fallback automático na cadeia
 - [x] Dashboard visual de gestão de providers (ativar/desativar/testar/trocar padrão)
 - [x] Dashboard de Consumo de APIs (Recharts: Line, Pie, Bar + tabela detalhada)
+
+## Fase 2.2 — Advanced Agent Architecture (✅ concluída)
+
+- [x] Análise de arquitetura de referência (TypeScript)
+- [x] Fork Subagent: spawning implícito com herança de contexto
+- [x] Prompt cache optimization com placeholder idêntico
+- [x] Recursive fork guard (FORK_BOILERPLATE_TAG)
+- [x] Worktree isolation scaffold
+- [x] Tool Registry com interface Tool completa
+- [x] buildTool factory com defaults fail-closed
+- [x] Brief Mode scaffold
+- [x] AgentRegistry singleton
 
 ### Fase 2.6 — Redesign Premium Completo ✅
 - [x] Dark mode verdadeiro em TODAS as páginas (#0a0a0f)

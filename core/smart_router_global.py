@@ -90,6 +90,7 @@ PROVIDER_CONFIG = {
         "modelo": "MiniMax-Text-01",
         "nome": "MiniMax Text 01",
         "api_key_env": "MINIMAX_API_KEY",
+        "base_url": "https://api.minimaxi.chat/v1",
         "custo_input": 0.0004,
         "custo_output": 0.0016,
         "max_tokens": 8192,

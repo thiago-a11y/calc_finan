@@ -4,6 +4,82 @@
 
 ---
 
+## v0.59.2 — Agent Architecture Phase 2.2 (03/Abr/2026)
+
+### Implementação Completa
+
+**Arquivos criados:**
+- `core/agents/base.py` — AgentDefinition, AgentSpawnParams, AgentResult, AgentPermissionMode, IsolationMode, ForkContext + constantes
+- `core/agents/registry.py` — AgentRegistry singleton com 12 agentes built-in (tech_lead, backend_dev, frontend_dev, qa_engineer, pm_agent, devops, security, integration, test_master, github_master, gitbucket_master, general_purpose)
+- `core/agents/fork.py` — ForkManager com anti-recursive guard, worktree isolation, fork message building, AutoApproveMode
+- `core/agents/spawn.py` — AgentSpawner com suporte a fork path e named agents, SpawnProgress tracking
+- `core/agents/lifecycle.py` — AgentLifecycle com callbacks, timeout, lifecycle manager
+- `core/tools/base.py` — ToolFactory, ToolDefinition, ToolRegistry com defaults fail-closed
+- `core/tools/brief.py` — BriefTool para messaging ao usuário com attachments
+- `core/tools/__init__.py` — Exports centralizados
+
+**Técnicas implementadas (inspiradas em referência TypeScript):**
+- **Fork Subagent**: spawning implícito via `agent_type=None`, placeholder idêntico para prompt cache
+- **Recursive Guard**: detecta `FORK_BOILERPLATE_TAG` nas mensagens para prevenir fork infinito
+- **Worktree Isolation**: criação e cleanup de git worktrees isolados via subprocess
+- **Tool Registry**: factory pattern com defaults fail-closed (isEnabled→True, isConcurrencySafe→False, etc.)
+- **Brief Tool**: canal primário de output com suporte a attachments e status (normal/proactive)
+- **Auto-Approve Mode**: None, AcceptEdits, BypassPermissions, Plan
+- **Lifecycle Manager**: tracking de estado, callbacks de progress, timeout support
+
+**Documentação atualizada:**
+- `docs/obsidian/04-Arquitetura/Agent-Architecture.md` — arquitetura completa
+- `docs/obsidian/06-Decisoes/Decisoes-Tecnicas.md` — decisões Fork, Worktree, Tool Registry, Brief
+- `docs/obsidian/01-Roadmap/Roadmap.md` — Fase 2.2 ✅
+- `docs/obsidian/08-Daily/Pendencias-Ultimo-Chat.md` — sessão 52
+
+---
+
+## v0.59.1 — Code Studio + API Fixes (03/Abr/2026)
+
+### Correções
+
+**`/api/projetos` 500 Internal Server Error**
+- Causa: coluna `regras_aprovacao` definida no modelo `database/models.py` mas inexistente na tabela SQLite
+- Fix: migration adicionou a coluna JSON com default padrão
+- Arquivo: `scripts/fix_projetos_schema.py`
+
+**Code Studio — Projeto não aparecia na árvore**
+- Causa: caminho do SyneriumX estava como `/Users/thiagoxavier/propostasap` (macOS local)
+- O repositório no servidor está em `/opt/projetos/syneriumx`
+- Fix: atualizado `projetos.caminho` para `/opt/projetos/syneriumx`
+
+**Git Pull — `fatal: could not read Username`**
+- Causa: não havia token do GitHub configurado na tabela `projeto_vcs`
+- Fix: criado registro `ProjetoVCSDB` para SyneriumX com token do `.env`
+- Atualizado repo_url para `https://github.com/SineriumX/syneriumx.git`
+
+### Testes de integração — APROVADOS ✅
+- Login JWT: funcionando
+- Luna streaming (groq/llama-3.3-70b): funcionando
+- Listar projetos: SyneriumX com caminho correto
+- Listar squads: CEO-Thiago, Diretor-Jonatas carregados
+- Prompts registry: 21 seções, Luna 2419 chars
+
+### Arquivos alterados
+- `scripts/fix_projetos_schema.py` — adiciona coluna `regras_aprovacao`
+- `scripts/fix_projetos_caminho.py` — corrige caminho SyneriumX
+- `scripts/create_vcs_record.py` — cria VCS com token GitHub
+
+---
+
+## v0.59.0 — System Prompts Modular (03/Abr/2026)
+
+### Novidade
+Luna e agentes agora usam `core.prompts.composers` para compor prompts de forma modular.
+
+### Arquivos alterados
+- `core/luna_engine.py` — `SYSTEM_PROMPT` via `compose_luna_prompt()`
+- `core/prompts/composers.py` — novo sistema de composição de prompts
+- `core/prompts/registry.py` — registry centralizado de seções de prompt
+
+---
+
 ## v0.58.19 — Phase Decision Controls + ChromaDB Fix (03/Abr/2026)
 
 ### Funcionalidade

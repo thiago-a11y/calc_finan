@@ -8,7 +8,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   Rocket, Loader2, Bot, Terminal, Code2, MessageSquare,
   Package, Sparkles, Plus, X,
-  Clock, ArrowRight, Play, Send,
+  Clock, ArrowRight, Play, Send, Copy, Download,
 } from 'lucide-react'
 import PhaseDecisionControls from '../components/PhaseDecisionControls'
 import MissionCompleteActions from '../components/MissionCompleteActions'
@@ -92,6 +92,7 @@ export default function MissionControl() {
   // Artifacts state
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [artifactModal, setArtifactModal] = useState<Artifact | null>(null)
+  const [abaPainel3, setAbaPainel3] = useState<'chat' | 'artifacts'>('chat')
 
   // Editor state
   const [editorConteudo, setEditorConteudo] = useState('')
@@ -558,34 +559,79 @@ export default function MissionControl() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex items-center gap-1 px-3 py-1.5 text-xs flex-shrink-0"
             style={{ background: 'var(--sf-bg-card)', borderBottom: '1px solid var(--sf-border-subtle)' }}>
-            <button className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium"
-              style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--sf-accent)' }}>
+            <button onClick={() => setAbaPainel3('chat')}
+              className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium"
+              style={{ background: abaPainel3 === 'chat' ? 'rgba(16,185,129,0.15)' : 'transparent', color: abaPainel3 === 'chat' ? 'var(--sf-accent)' : 'var(--sf-text-secondary)' }}>
               <MessageSquare className="w-3.5 h-3.5" /> Team Chat
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium opacity-50"
-              style={{ color: 'var(--sf-text-secondary)' }}>
-              <Package className="w-3.5 h-3.5" /> Artifacts
+            <button onClick={() => setAbaPainel3('artifacts')}
+              className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium"
+              style={{ background: abaPainel3 === 'artifacts' ? 'rgba(16,185,129,0.15)' : 'transparent', color: abaPainel3 === 'artifacts' ? 'var(--sf-accent)' : 'var(--sf-text-secondary)' }}>
+              <Package className="w-3.5 h-3.5" /> Artifacts ({artifacts.length})
             </button>
           </div>
-          <div ref={chatRef} className="flex-1 overflow-auto p-3 space-y-2"
-            style={{ background: 'var(--sf-bg-primary)' }}>
-            {chatMsgs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3"
-                style={{ color: 'var(--sf-text-secondary)' }}>
-                <MessageSquare className="w-12 h-12 opacity-20" />
-                <p className="text-sm">Aguardando conversa...</p>
-              </div>
-            ) : chatMsgs.map(msg => (
-              <div key={msg.id} className="rounded-lg px-3 py-2"
-                style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Bot className="w-4 h-4" style={{ color: 'var(--sf-accent)' }} />
-                  <span className="text-xs font-semibold" style={{ color: 'var(--sf-accent)' }}>{msg.agente_nome}</span>
+
+          {/* Team Chat */}
+          {abaPainel3 === 'chat' && (
+            <div ref={chatRef} className="flex-1 overflow-auto p-3 space-y-2"
+              style={{ background: 'var(--sf-bg-primary)' }}>
+              {chatMsgs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3"
+                  style={{ color: 'var(--sf-text-secondary)' }}>
+                  <MessageSquare className="w-12 h-12 opacity-20" />
+                  <p className="text-sm">Aguardando conversa...</p>
                 </div>
-                <p className="text-xs whitespace-pre-wrap" style={{ color: 'var(--sf-text)' }}>{msg.conteudo}</p>
-              </div>
-            ))}
-          </div>
+              ) : chatMsgs.map(msg => (
+                <div key={msg.id} className="rounded-lg px-3 py-2"
+                  style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Bot className="w-4 h-4" style={{ color: 'var(--sf-accent)' }} />
+                    <span className="text-xs font-semibold" style={{ color: 'var(--sf-accent)' }}>{msg.agente_nome}</span>
+                    {msg.fase && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(16,185,129,0.1)', color: 'var(--sf-accent)' }}>{msg.fase}</span>
+                    )}
+                  </div>
+                  <p className="text-xs whitespace-pre-wrap" style={{ color: 'var(--sf-text)' }}>{msg.conteudo}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Artifacts */}
+          {abaPainel3 === 'artifacts' && (
+            <div className="flex-1 overflow-auto p-3 space-y-2"
+              style={{ background: 'var(--sf-bg-primary)' }}>
+              {artifacts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3"
+                  style={{ color: 'var(--sf-text-secondary)' }}>
+                  <Package className="w-12 h-12 opacity-20" />
+                  <p className="text-sm">Nenhum artifact gerado</p>
+                </div>
+              ) : artifacts.map(artifact => (
+                <div key={artifact.artifact_id}
+                  onClick={() => setArtifactModal(artifact)}
+                  className="rounded-lg px-3 py-2 cursor-pointer hover:scale-[1.01] transition-all"
+                  style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Package className="w-4 h-4" style={{ color: 'var(--sf-accent)' }} />
+                    <span className="text-xs font-semibold" style={{ color: 'var(--sf-text)' }}>{artifact.titulo}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded ml-auto"
+                      style={{ background: artifact.status === 'aprovado' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', color: artifact.status === 'aprovado' ? '#10b981' : '#f59e0b' }}>
+                      {artifact.status}
+                    </span>
+                  </div>
+                  <p className="text-[10px]" style={{ color: 'var(--sf-text-secondary)' }}>
+                    {artifact.agente_nome} • {artifact.tipo}
+                  </p>
+                  {artifact.conteudo && (
+                    <p className="text-[10px] mt-1 line-clamp-2" style={{ color: 'var(--sf-text-secondary)' }}>
+                      {artifact.conteudo.slice(0, 100)}...
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -594,14 +640,16 @@ export default function MissionControl() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.7)' }}
           onClick={() => setArtifactModal(null)}>
-          <div className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-xl overflow-hidden"
+          <div className="w-full max-w-4xl max-h-[85vh] flex flex-col rounded-xl overflow-hidden"
             style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 px-6 py-4"
               style={{ borderBottom: '1px solid var(--sf-border-subtle)' }}>
+              <Package className="w-5 h-5" style={{ color: 'var(--sf-accent)' }} />
               <h3 className="text-base font-bold" style={{ color: 'var(--sf-text)' }}>{artifactModal.titulo}</h3>
+              <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(16,185,129,0.1)', color: 'var(--sf-accent)' }}>{artifactModal.tipo}</span>
               <div className="flex-1" />
-              <button onClick={() => setArtifactModal(null)}>
+              <button onClick={() => setArtifactModal(null)} className="p-1 rounded hover:bg-white/10">
                 <X className="w-5 h-5" style={{ color: 'var(--sf-text-secondary)' }} />
               </button>
             </div>
@@ -610,6 +658,42 @@ export default function MissionControl() {
                 style={{ background: 'var(--sf-bg-primary)', color: 'var(--sf-text)' }}>
                 {artifactModal.conteudo || JSON.stringify(artifactModal.dados, null, 2)}
               </pre>
+            </div>
+            <div className="flex items-center gap-3 px-6 py-4"
+              style={{ borderTop: '1px solid var(--sf-border-subtle)' }}>
+              <button onClick={() => {
+                if (artifactModal.conteudo) {
+                  setEditorConteudo(artifactModal.conteudo)
+                  setEditorArquivo(artifactModal.titulo.replace(/\s+/g, '-').toLowerCase())
+                }
+                setArtifactModal(null)
+              }}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-white"
+                style={{ background: 'var(--sf-accent)' }}>
+                <Code2 className="w-4 h-4" /> Aplicar no Editor
+              </button>
+              <button onClick={() => {
+                const text = artifactModal.conteudo || JSON.stringify(artifactModal.dados, null, 2)
+                navigator.clipboard.writeText(text)
+              }}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium"
+                style={{ background: 'var(--sf-bg-primary)', color: 'var(--sf-text)', border: '1px solid var(--sf-border-subtle)' }}>
+                <Copy className="w-4 h-4" /> Copiar
+              </button>
+              <button onClick={() => {
+                const text = artifactModal.conteudo || JSON.stringify(artifactModal.dados, null, 2)
+                const blob = new Blob([text], { type: 'text/plain' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = artifactModal.titulo.replace(/\s+/g, '-').toLowerCase() + '.txt'
+                a.click()
+                URL.revokeObjectURL(url)
+              }}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium"
+                style={{ background: 'var(--sf-bg-primary)', color: 'var(--sf-text)', border: '1px solid var(--sf-border-subtle)' }}>
+                <Download className="w-4 h-4" /> Download
+              </button>
             </div>
           </div>
         </div>
