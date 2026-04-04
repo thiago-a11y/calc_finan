@@ -520,6 +520,32 @@ A opção 3 foi escolhida por ser não-invasiva, barata (GPT-4o-mini vision cust
 
 ---
 
+## Por que AgentSpawner em vez de spawning direto no módulo?
+
+AgentSpawner centraliza TODA a lógica de spawn de agentes em um único ponto. Cada spawn passa por `spawner.spawn(params)`, que:
+1. Determina se é fork path (agent_type=None) ou named path (agent_type!=None)
+2. Para fork: usa ForkManager com recursive guard, worktree, e fork messages
+3. Para named: usa AgentRegistry para resolver a definição
+
+Benefícios da centralização:
+- Feature gates em um lugar só
+- Progress tracking padronizado (SpawnProgress dataclass)
+- Lifecycle management uniforme
+- Testabilidade: um módulo cobre todo o comportamento de spawn
+
+Alternativa (spawn direto em cada módulo): criaria código duplicado, gates inconsistentes e tracking fragmentado.
+
+## Por que AgentSpawner é async mas fork real pode ser síncrono?
+
+AgentSpawner usa `async` em todos os métodos para ser compatível com:
+- Worktree isolation (subprocess calls que podem ser awaited)
+- Lifecycle callbacks
+- Progress tracking com callbacks
+
+O fork em si não é verdadeiramente async (usa subprocess síncrono), mas a arquitetura async permite que o caller (FastAPI, CrewAI, etc.) fasse `await spawner.spawn()` sem bloquear a event loop.
+
+---
+
 ## Por que Fork Subagent em vez de spawning explícito?
 
 Fork implícito (omitindo `agent_type`) oferece três vantagens:
@@ -559,4 +585,14 @@ Kairos Mode requer output controlada. Toda visible output deve passar pela Brief
 
 ---
 
-> Ultima atualizacao: 2026-04-03 (v0.59.2 — Agent Architecture)
+## Por que Opus 1M (claude-opus-4-6) em vez do modelo anterior?
+
+O Opus anterior (`claude-opus-4-20250514`) suportava apenas 200K tokens de contexto. O modelo `claude-opus-4-6` suporta **1M de tokens** — 5x mais contexto por apenas o mesmo custo ($0.015/1K input, $0.075/1K output).
+
+Atualizado em 4 lugares para garantir consistência:
+- `core/llm_router.py` — MODELOS_CLAUDE[OPUS]
+- `config/llm_providers.py` — ProviderConfig ANTHROPIC_OPUS
+- `core/smart_router_global.py` — PROVIDER_CONFIG[OPUS]
+- `core/classificador_mensagem.py` — mapa de providers
+
+> Ultima atualizacao: 2026-04-04 (v0.59.3 — Opus 1M + Minimax Fix)

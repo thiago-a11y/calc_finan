@@ -40,8 +40,8 @@ class ModeloClaudeTier(str, Enum):
 # Modelos atuais (março 2026)
 MODELOS_CLAUDE = {
     ModeloClaudeTier.OPUS: {
-        "modelo": "claude-opus-4-20250514",
-        "nome": "Claude Opus 4",
+        "modelo": "claude-opus-4-6",
+        "nome": "Claude Opus 4.6",
         "custo_por_1k_input": 0.015,
         "custo_por_1k_output": 0.075,
         "max_tokens": 8192,
@@ -326,7 +326,7 @@ class SmartRouter:
             "gpt4o_mini": ("openai/gpt-4o-mini", "OPENAI_API_KEY"),
             "gpt4o": ("openai/gpt-4o", "OPENAI_API_KEY"),
             "anthropic_sonnet": (f"anthropic/{config['modelo']}", "ANTHROPIC_API_KEY"),
-            "anthropic_opus": ("anthropic/claude-opus-4-20250514", "ANTHROPIC_API_KEY"),
+            "anthropic_opus": (f"anthropic/{MODELOS_CLAUDE[ModeloClaudeTier.OPUS]['modelo']}", "ANTHROPIC_API_KEY"),
             "groq": ("groq/llama-3.3-70b-versatile", "GROQ_API_KEY"),
         }
 

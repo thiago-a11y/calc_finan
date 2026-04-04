@@ -273,7 +273,79 @@ Modo onde toda output visível ao usuário deve passar pela ferramenta `Brief`. 
 
 ---
 
-## 5. Multi-Agent Coordination
+## 5. AgentSpawner
+
+### Conceito
+
+`AgentSpawner` é o orchestrator central de spawning de agentes. Direciona cada spawn para o path correto (fork ou named) e gerencia o lifecycle completo.
+
+### Fluxo de Spawn
+
+```
+1. spawn(params, context, messages, assistant_msg)
+   │
+   ├── agent_type == None?  ──→ Fork Path (ForkManager)
+   │   ├── is_fork_subagent_enabled() → check feature gate
+   │   ├── is_in_fork_child() → recursive guard
+   │   ├── build_forked_messages() → placeholder cache
+   │   ├── isolation=worktree? → create_worktree()
+   │   └── return AgentResult(status="fork", fork_messages=...)
+   │
+   └── agent_type != None? ──→ Named Agent Path (AgentRegistry)
+       ├── registry.get(agent_type) → AgentDefinition
+       ├── isolation=worktree? → create_worktree()
+       ├── background? → return AgentResult(status="async_launched")
+       └── foreground → return AgentResult(status="completed")
+```
+
+### Interface
+
+```python
+class AgentSpawner:
+    """Singleton de spawn de agentes."""
+
+    # Spawn principal — determina fork vs named
+    async def spawn(
+        params: AgentSpawnParams,
+        context: dict | None = None,
+        parent_messages: list[dict] | None = None,
+        assistant_message: dict | None = None,
+        on_progress: Callable[[SpawnProgress], None] | None = None,
+    ) -> AgentResult: ...
+
+    # Spawn em background (async_launched)
+    async def spawn_background(
+        params: AgentSpawnParams,
+        context: dict | None = None,
+        parent_messages: list[dict] | None = None,
+        assistant_message: dict | None = None,
+    ) -> AgentResult: ...
+
+    # Lifecycle
+    async def complete_spawn(agent_id: str) -> None: ...
+    async def cancel_spawn(agent_id: str) -> bool: ...
+
+    # Tracking
+    def get_active_spawns() -> list[SpawnProgress]: ...
+    def get_spawn(agent_id: str) -> SpawnProgress | None: ...
+```
+
+### SpawnProgress
+
+```python
+@dataclass
+class SpawnProgress:
+    agent_id: str
+    status: str = "pending"  # pending, running, completed, failed
+    message: str | None = None
+    percent: float = 0.0
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+```
+
+---
+
+## 6. Multi-Agent Coordination
 
 ### Spawn com Equipe
 

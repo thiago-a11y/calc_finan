@@ -107,7 +107,7 @@ PROVIDERS_REGISTRO = {
         "streaming": True,
     },
     "anthropic_opus": {
-        "modelo": "claude-opus-4-20250514",
+        "modelo": "claude-opus-4-6",
         "custo_1k_input": 0.015,
         "system_role": True,
         "function_calling": True,

@@ -100,8 +100,8 @@ PROVIDER_CONFIG = {
         "qualidade": 4,
     },
     Provider.OPUS: {
-        "modelo": "claude-opus-4-20250514",
-        "nome": "Claude Opus 4",
+        "modelo": "claude-opus-4-6",
+        "nome": "Claude Opus 4.6",
         "api_key_env": "ANTHROPIC_API_KEY",
         "custo_input": 0.015,
         "custo_output": 0.075,

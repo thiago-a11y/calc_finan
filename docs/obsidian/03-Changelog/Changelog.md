@@ -4,6 +4,27 @@
 
 ---
 
+## v0.59.3 — Opus 1M Context + Minimax Fix (04/Abr/2026)
+
+### Alterações de LLM Provider
+
+**Opus atualizado para contexto de 1M:**
+- Modelo alterado de `claude-opus-4-20250514` (200K) → `claude-opus-4-6` (1M) em 4 arquivos:
+  - `core/llm_router.py` — MODELOS_CLAUDE[OPUS] e _MAPA_CREWAI
+  - `config/llm_providers.py` — ProviderConfig ANTHROPIC_OPUS
+  - `core/smart_router_global.py` — PROVIDER_CONFIG[OPUS]
+  - `core/classificador_mensagem.py` — mapa de providers
+
+**Minimax 401 corrigido:**
+- Adicionado `base_url="https://api.minimaxi.chat/v1"` em `config/llm_providers.py` e `core/smart_router_global.py`
+- Sem o base_url, requests iam para o endpoint padrão da OpenAI (401)
+
+### Documentação
+- `docs/obsidian/04-Arquitetura/Agent-Architecture.md` — seção "5. AgentSpawner" adicionada
+- `docs/obsidian/01-Roadmap/Roadmap.md` — Fase 2.2 ✅ confirmada
+
+---
+
 ## v0.59.2 — Agent Architecture Phase 2.2 (03/Abr/2026)
 
 ### Implementação Completa

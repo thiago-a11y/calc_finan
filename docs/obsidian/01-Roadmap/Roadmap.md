@@ -95,6 +95,10 @@
 - [x] buildTool factory com defaults fail-closed
 - [x] Brief Mode scaffold
 - [x] AgentRegistry singleton
+- [x] AgentSpawner: fork vs named path, progress tracking, lifecycle
+- [x] AgentLifecycle: callbacks, timeout, context manager
+- [x] LifecycleManager: tracking global de lifecycles
+- [x] Opus 1M context: `claude-opus-4-6` em todos os 4 providers
 
 ### Fase 2.6 — Redesign Premium Completo ✅
 - [x] Dark mode verdadeiro em TODAS as páginas (#0a0a0f)
