@@ -88,32 +88,32 @@ def main():
         FLAGS_INICIAIS = [
             {
                 "nome": "fork_subagent",
-                "descricao": "Fork implícito com herança de contexto",
+                "descricao": "Fork de Subagente — herança de contexto implícita",
                 "requer_restart": False,
             },
             {
                 "nome": "worktree_isolation",
-                "descricao": "Git worktree para isolamento de agentes",
+                "descricao": "Isolamento Worktree — cópia isolada do projeto por agente",
                 "requer_restart": False,
             },
             {
                 "nome": "autonomous_mode",
-                "descricao": "Modo autônomo sem approval gates",
+                "descricao": "Modo Autônomo — agentes decidem e executam sem aprovação",
                 "requer_restart": False,
             },
             {
                 "nome": "brief_mode",
-                "descricao": "Forçar output via Brief tool",
+                "descricao": "Modo Breve — respostas curtas e estruturadas",
                 "requer_restart": False,
             },
             {
                 "nome": "continuous_factory",
-                "descricao": "Modo contínuo 24/7",
+                "descricao": "Fábrica Contínua — modo 24/7 processando tarefas em segundo plano",
                 "requer_restart": True,
             },
             {
                 "nome": "visible_execution",
-                "descricao": "Streaming ao vivo no Mission Control",
+                "descricao": "Execução Visível — streaming ao vivo no Mission Control",
                 "requer_restart": False,
             },
         ]
@@ -133,7 +133,13 @@ def main():
                 db.add(flag)
                 print(f"[Migration] Seed: flag '{flag_data['nome']}' adicionada.")
             else:
-                print(f"[Migration] Flag '{flag_data['nome']}' já existe — pulando.")
+                # Atualizar descricao de flags já existentes (v0.59.6)
+                flag_existente = db.query(FeatureFlagDB).filter(
+                    FeatureFlagDB.nome == flag_data["nome"]
+                ).first()
+                if flag_existente and flag_existente.descricao != flag_data["descricao"]:
+                    flag_existente.descricao = flag_data["descricao"]
+                    print(f"[Migration] Descrição atualizada: '{flag_data['nome']}'")
 
         db.commit()
         print("[Migration] Migração concluída com sucesso!")

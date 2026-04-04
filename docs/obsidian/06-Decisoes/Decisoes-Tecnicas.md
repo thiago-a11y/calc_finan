@@ -619,4 +619,4 @@ Atualizado em 4 lugares para garantir consistência:
 - `core/smart_router_global.py` — PROVIDER_CONFIG[OPUS]
 - `core/classificador_mensagem.py` — mapa de providers
 
-> Ultima atualizacao: 2026-04-04 (v0.59.3 — Opus 1M + Minimax Fix)
+> Ultima atualizacao: 2026-04-04 (v0.59.6 — Master Control finalizada com tooltips e dialog)

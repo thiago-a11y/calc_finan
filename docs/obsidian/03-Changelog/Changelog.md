@@ -4,6 +4,27 @@
 
 ---
 
+## v0.59.6 — Master Control: Tooltips, Dialog e Melhorias Visuais (04/Abr/2026)
+
+### Melhorias no Master Control
+
+- [x] **Nomes amigáveis** — cada flag tem nome em português ("Fork de Subagente", "Fábrica Contínua", etc.)
+- [x] **Tooltips explicativos** — hover em cada card com explicação didática da funcionalidade
+- [x] **Badge "Requires Restart"** — badge vermelho nos cards e banner quando flag precisa de restart
+- [x] **Dialog de restart melhorado** — layout profissional com header, flag afetada, warning visual e botões Cancelar/Reiniciar
+- [x] **Botão Atualizar** — reload dos dados sem F5 no header
+- [x] **Histórico com nomes amigáveis** — tabela de histórico mostra nome da flag em português
+- [x] **Contador de flags** — badge com número total de flags na tab "Feature Flags"
+- [x] **Descrições atualizadas no banco** — seed data atualizada com descrições claras em português
+- [x] Bug #53 corrigido — banner de restart não desaparecia após restart
+
+### Detalhes técnicos
+- `FLAG_META` com `nomeAmigavel`, `tooltip` e cor por flag
+- Componente `FlagCard` com tooltip no hover
+- Componente `RestartConfirmDialog` com visual profissional
+- Componente `HistoryRow` com ícones coloridos e nome amigável
+- Migration atualiza descrições de flags já existentes
+
 ## v0.59.5 — Master Control: Feature Flags GUI (04/Abr/2026)
 
 ### Novo: Master Control (CEO-only)

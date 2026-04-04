@@ -6,11 +6,13 @@
 
 ## Ativos
 
+Nenhum bug ativo no momento.
+
+## Resolvidos
+
 | # | Descrição | Causa | Solução | Data |
 |---|---|---|---|---|
 | 53 | Banner de restart não desaparecia após restart — `requer_restart=True` não era limpo no banco após restart via SIGTERM | O endpoint de restart apenas enviava SIGTERM mas não atualizava o campo `requer_restart` da flag no banco | Endpoint agora limpa `requer_restart=False` em todas as flags ANTES de enviar o SIGTERM. Flags com restart pendente são "consumidas" após cada restart. | 2026-04-04 |
-
-## Resolvidos
 
 | # | Descrição | Causa | Solução | Data |
 |---|---|---|---|---|

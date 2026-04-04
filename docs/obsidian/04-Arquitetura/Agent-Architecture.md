@@ -2,9 +2,9 @@
 
 > Arquitetura de agentes avançados: fork subagent, tool registry, worktree isolation, e modo brief.
 
-**Fase:** 2.2 | **Versão:** v0.59.4 | **Última atualização:** 04/Abr/2026
+**Fase:** 2.2 | **Versão:** v0.59.6 | **Última atualização:** 04/Abr/2026
 
-> **v0.59.4:** Master Control implementado — Feature Flags GUI disponível em `/master-control` (CEO only).
+> **v0.59.6:** Master Control finalizado — tooltips, dialog de restart, nomes amigáveis, badges "Requires Restart", histórico melhorado.
 
 ---
 

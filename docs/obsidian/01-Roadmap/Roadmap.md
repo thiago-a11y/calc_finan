@@ -164,14 +164,18 @@
 - [x] Botão Novo Projeto + modal de criação (v0.47.0)
 - [x] Preview de arquivos por commit + horário Brasília no PushDialog (v0.48.0)
 
-## Fase 2.x — Master Control: Feature Flags GUI (✅ concluída)
+## Fase 2.x — Master Control: Feature Flags GUI (✅ concluída — v0.59.6)
 
 - [x] **Master Control** (CEO-only) — tela de Feature Flags
   - [x] Tela acessível apenas para role `ceo`
   - [x] Interface com toggles para todas as feature flags (fork_subagent, worktree_isolation, autonomous_mode, etc.)
   - [x] Persistência das configurações no banco de dados
   - [x] Histórico de alterações (quem ligou/desligou e quando)
-  - [x] Botão "Apply & Restart" quando necessário para flags que requerem restart
+  - [x] Dialog de confirmação antes do restart (com warning visual)
+  - [x] Restart via SIGTERM — serviço reinicia automaticamente via systemd
+  - [x] Botão "Requires Restart" badge nos cards e banner
+  - [x] Tooltips explicativos no hover de cada flag
+  - [x] Nomes amigáveis e descrições claras em português
   - [x] Design limpo e profissional (dark mode, estilo Linear/Vercel)
 
 ## Fase 3 — Multi-Produto e Governança (🟡 em andamento)
