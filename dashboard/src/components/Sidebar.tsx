@@ -20,7 +20,7 @@ import {
   LayoutDashboard, ShieldCheck, Users, Building2, FolderKanban,
   BookOpen, ClipboardList, FileText, Coins, Brain, Wrench,
   UserCircle, Settings, LogOut, ChevronRight, Rocket, Bot, UserCog, Code2, Target,
-  ChevronLeft, Menu, X,
+  ChevronLeft, Menu, X, Zap,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -274,6 +274,49 @@ function SidebarContent({ collapsed, onToggle, onClose, isMobile }: SidebarConte
             )}
           </NavLink>
         ))}
+
+        {/* CEO-only: Master Control */}
+        {usuario && usuario.papeis?.includes('ceo') && (
+          <NavLink
+            to="/master-control"
+            className="group flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg text-[13px] transition-all duration-150"
+            style={({ isActive }) => ({
+              background: isActive ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.04)',
+              color: isActive ? '#a78bfa' : 'rgba(139,92,246,0.6)',
+              fontWeight: isActive ? 500 : 400,
+              borderTop: '1px solid rgba(139,92,246,0.1)',
+              marginTop: '4px',
+              paddingTop: '10px',
+            })}
+            onClick={onClose}
+            title={collapsed ? 'Master Control' : undefined}
+          >
+            {({ isActive }) => (
+              <>
+                <Zap
+                  size={16}
+                  strokeWidth={isActive ? 2 : 1.5}
+                  className="flex-shrink-0"
+                  style={{ color: isActive ? '#a78bfa' : 'rgba(139,92,246,0.5)' }}
+                />
+                {!collapsed && (
+                  <>
+                    <span className="truncate">Master Control</span>
+                    <span
+                      className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0"
+                      style={{
+                        background: 'rgba(139,92,246,0.15)',
+                        color: '#a78bfa',
+                      }}
+                    >
+                      CEO
+                    </span>
+                  </>
+                )}
+              </>
+            )}
+          </NavLink>
+        )}
       </nav>
 
       {/* User card — sempre no bottom do sidebar visivel */}

@@ -8,6 +8,8 @@ Tabelas:
 - agentes_catalogo: Prateleira de templates de agentes reutilizáveis
 - agentes_atribuidos: Vínculo catálogo → usuário
 - solicitacoes_agente: Pedidos de novos agentes por usuários
+- feature_flags: Flags de funcionalidades (CEO-only)
+- feature_flag_history: Histórico de alterações de flags
 """
 
 from datetime import datetime
@@ -807,3 +809,47 @@ class RelatorioDiarioDB(Base):
 
     def __repr__(self):
         return f"<Relatorio {self.data}: {self.workflows_concluidos} workflows, ${self.custo_total_usd:.2f}>"
+
+
+class FeatureFlagDB(Base):
+    """
+    Feature flags do sistema — controle de funcionalidades.
+
+    Cada registro representa uma flag que pode ser ligada/desligada
+    pelo CEO via interface Master Control.
+    """
+    __tablename__ = "feature_flags"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String(100), unique=True, nullable=False, index=True)
+    habilitado = Column(Boolean, default=False)
+    descricao = Column(String(255), default="")
+    requer_restart = Column(Boolean, default=False)
+    atualizado_por = Column(String(255), default="")
+    atualizado_em = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        status = "ON" if self.habilitado else "OFF"
+        return f"<FeatureFlag {self.nome}: {status}>"
+
+
+class FeatureFlagHistoryDB(Base):
+    """
+    Histórico de alterações de feature flags.
+
+    Registra cada toggle (ON→OFF ou OFF→ON) com usuário e timestamp.
+    """
+    __tablename__ = "feature_flag_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    flag_nome = Column(String(100), nullable=False, index=True)
+    usuario_id = Column(Integer, nullable=True)
+    usuario_email = Column(String(255), default="")
+    valor_anterior = Column(Boolean, nullable=False)
+    valor_novo = Column(Boolean, nullable=False)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        de = "ON" if self.valor_anterior else "OFF"
+        para = "ON" if self.valor_novo else "OFF"
+        return f"<FeatureFlagHistory {self.flag_nome}: {de} → {para} por {self.usuario_email}>"

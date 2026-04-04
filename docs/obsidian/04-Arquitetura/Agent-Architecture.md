@@ -4,6 +4,8 @@
 
 **Fase:** 2.2 | **Versão:** v0.59.4 | **Última atualização:** 04/Abr/2026
 
+> **v0.59.4:** Master Control implementado — Feature Flags GUI disponível em `/master-control` (CEO only).
+
 ---
 
 ## Visão Geral

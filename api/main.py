@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.dependencias import inicializar_fabrica, inicializar_banco
-from api.routes import status, squads, aprovacoes, rag, standup, usuarios, auth, convites, tarefas, skills, projetos, propostas, uploads, consumo, llm, deploy, videocall, catalogo, luna, code_studio, continuous_factory, mission_control
+from api.routes import status, squads, aprovacoes, rag, standup, usuarios, auth, convites, tarefas, skills, projetos, propostas, uploads, consumo, llm, deploy, videocall, catalogo, luna, code_studio, continuous_factory, mission_control, master_control
 
 # Configuração de logging
 logging.basicConfig(
@@ -117,6 +117,7 @@ app.include_router(luna.router)
 app.include_router(code_studio.router)
 app.include_router(continuous_factory.router)
 app.include_router(mission_control.router)
+app.include_router(master_control.router)
 
 
 @app.get("/", tags=["Root"])

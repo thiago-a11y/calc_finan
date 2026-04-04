@@ -4,6 +4,43 @@
 
 ---
 
+## v0.59.5 — Master Control: Feature Flags GUI (04/Abr/2026)
+
+### Novo: Master Control (CEO-only)
+
+**Tela CEO-only para controle de feature flags:**
+
+- **Backend** (`api/routes/master_control.py`):
+  - `GET /api/master-control/flags` — lista todas as flags
+  - `POST /api/master-control/flags/{nome}/toggle` — toggle uma flag (CEO only)
+  - `GET /api/master-control/flags/history` — histórico de alterações
+  - `POST /api/master-control/flags/{nome}/restart` — solicita restart
+
+- **Frontend** (`dashboard/src/pages/MasterControl.tsx`):
+  - Cards por flag com toggle visual (estilo Linear/Vercel)
+  - Ícones e cores por flag
+  - Badge de "restart" para flags que requerem restart
+  - Aviso vermelho quando há flags pendentes de restart
+  - Aba de histórico com tabela de alterações
+  - Tabs "Feature Flags" / "Histórico"
+
+- **Sidebar** (`dashboard/src/components/Sidebar.tsx`):
+  - Menu "Master Control" visível apenas para CEOs
+  - Badge "CEO" roxo ao lado do link
+
+- **Database** (`database/models.py`):
+  - `FeatureFlagDB` — 6 flags seedadas: fork_subagent, worktree_isolation, autonomous_mode, brief_mode, continuous_factory, visible_execution
+  - `FeatureFlagHistoryDB` — registro de cada toggle
+
+- **Migração** (`scripts/migrate_feature_flags.py`):
+  - Cria as duas tabelas se não existirem
+  - Seed das 6 flags iniciais
+
+### Alterações
+
+- `api/main.py` — Added `master_control` router
+- `dashboard/src/App.tsx` — Added `/master-control` route
+
 ## v0.59.3 — Opus 1M Context + Minimax Fix (04/Abr/2026)
 
 ### Alterações de LLM Provider

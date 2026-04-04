@@ -34,6 +34,7 @@ import Luna from './pages/Luna'
 import CodeStudio from './pages/CodeStudio'
 import CommandCenter from './pages/CommandCenter'
 import MissionControl from './pages/MissionControl'
+import MasterControl from './pages/MasterControl'
 
 /* Rota protegida — redireciona para /login se não autenticado */
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -266,6 +267,14 @@ function AppRoutes() {
             <ErrorBoundary>
               <LayoutPrincipal><MissionControl /></LayoutPrincipal>
             </ErrorBoundary>
+          </RotaProtegida>
+        }
+      />
+      <Route
+        path="/master-control"
+        element={
+          <RotaProtegida>
+            <LayoutPrincipal><MasterControl /></LayoutPrincipal>
           </RotaProtegida>
         }
       />
