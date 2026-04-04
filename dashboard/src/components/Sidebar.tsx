@@ -369,7 +369,7 @@ function SidebarContent({ collapsed, onToggle, onClose, isMobile }: SidebarConte
 
       {/* Version */}
       <div className="px-4 pb-3 flex-shrink-0">
-        <p className="text-[10px]" style={{ color: 'var(--sf-text-4)' }}>v0.58.4</p>
+        <p className="text-[10px]" style={{ color: 'var(--sf-text-4)' }}>v0.59.5</p>
       </div>
     </div>
   )
