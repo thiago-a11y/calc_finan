@@ -1,4 +1,27 @@
-# Pendencias do Ultimo Chat — 03/Abr/2026
+# Pendencias do Ultimo Chat — 04/Abr/2026
+
+## Sessao 53 (04/Abr/2026) — Master Control Implementado (v0.59.5)
+
+### v0.59.5 — Master Control: Feature Flags GUI (CEO-only)
+- [x] `api/routes/master_control.py` — 4 endpoints (GET flags, POST toggle, GET history, POST restart)
+- [x] `dashboard/src/pages/MasterControl.tsx` — UI premium com toggles visuais e histórico
+- [x] `database/models.py` — FeatureFlagDB + FeatureFlagHistoryDB
+- [x] `scripts/migrate_feature_flags.py` — migração + seed das 6 flags
+- [x] `dashboard/src/components/Sidebar.tsx` — menu CEO-only com badge
+- [x] `dashboard/src/App.tsx` — rota /master-control
+- [x] `api/main.py` — include_router master_control
+- [x] TypeScript build: OK
+- [x] API testada localmente: todas as flags listadas, toggle funciona, histórico registra
+- [x] Deploy produção: API + frontend + migração + restart
+- [x] Documentação: Changelog, Roadmap (Fase 2.x ✅), Agent-Architecture.md (seção 7)
+
+### Flags seedadas
+- fork_subagent, worktree_isolation, autonomous_mode, brief_mode, continuous_factory (restart), visible_execution
+
+### Pendencias
+- [ ] Nada — Master Control concluído
+
+---
 
 ## Sessao 50 (03/Abr/2026) — Code Studio + API Fixes (v0.59.1)
 

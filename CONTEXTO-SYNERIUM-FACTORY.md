@@ -350,6 +350,48 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.21.0** — LiveKit Video Call + Escritório estilo Sowork + Auto-timeout de reuniões
 - **v0.22.0** — Guia de Deploy + LiveKit no Consumo + Sala de Reunião Premium
 - **v0.23.0** — **Deploy em produção AWS Lightsail** (https://synerium-factory.objetivasolucao.com.br)
+- **v0.24.0** — LiveKit Video Call + Escritório Sowork + Auto-timeout reuniões
+- **v0.25.0** — CI corrigido + Deploy pipeline completo 8 etapas
+- **v0.26.0** — Luna Assistente IA integrada (streaming SSE + fallback chain)
+- **v0.27.0** — Sistema de Convites por email (Amazon SES) + Audit log LGPD
+- **v0.28.0** — Deploy produção Bootstrap AWS completo
+- **v0.29.0** — Catálogo de Agentes (templates reutilizáveis) + Atribuição dinâmica
+- **v0.30.0** — Live Agents (progresso rotativo, balão status, shimmer)
+- **v0.31.0** — Redesign Premium Dark Mode (#0a0a0f, lucide-react, zero emojis)
+- **v0.32.0** — Autonomous Squads (Workflow BMAD completo, 4 fases)
+- **v0.33.0** — Self-Evolving Factory (Review sessions, Factory Optimizer, EvolucaoFactoryDB)
+- **v0.34.0** — Command Center CEO (KPIs, comando estratégico, spawn squads)
+- **v0.35.0** — Vision-to-Product (PM Central gera roadmap com estimativa custo/prazo)
+- **v0.36.0** — LLM Fallback centralizado (Anthropic → Groq → OpenAI)
+- **v0.37.0** — Code Studio Multi-Projeto + auto-clone VCS
+- **v0.38.0** — Histórico de atividades + feedback detalhado com diff
+- **v0.39.0** — Company Context Total (3 níveis + RAG integrado)
+- **v0.40.0** — Chat resiliente (timeout 30min, retomar conversa)
+- **v0.41.0** — One-Click Apply+Deploy (pipeline: backup → Test Master → commit → push)
+- **v0.42.0** — Push & PR & Merge direto do Code Studio via GitHub API
+- **v0.43.0** — Live Agents (progresso rotativo, balão status, shimmer)
+- **v0.44.0** — Painéis redimensionáveis com drag handle
+- **v0.45.0** — Conversas separadas no AgentPanel com persistência localStorage
+- **v0.46.0** — 3 Agentes Elite (Test Master, GitHub Master, GitBucket Master) + BMAD completo
+- **v0.47.0** — Botão Novo Projeto + modal de criação
+- **v0.48.0** — Preview de arquivos por commit + horário Brasília
+- **v0.49.0** — Autonomous Squads + Command Center + Dynamic Team Assembly
+- **v0.50.0** — Vision-to-Product + LLM Fallback + Fila automática
+- **v0.51.0** — Minimax como LLM principal (GPT-4o-mini)
+- **v0.52.0** — Smart Router Dinâmico por Mensagem (6 pontos atualizados)
+- **v0.53.0** — Pipeline completo: Agente → Proposta → Build → Deploy
+- **v0.54.0** — Continuous Factory 24/7 (auto-gates, relatório diário)
+- **v0.55.0** — Mission Control (painel triplo: Editor + Terminal + Artifacts)
+- **v0.56.0** — Suporte 16 agentes + Escritório 16 posições
+- **v0.57.0** — Visible Live Execution (typewriter, shimmer, streaming)
+- **v0.57.5** — Visible Live Execution refinada (2 linhas/200ms, pulso, cursor)
+- **v0.58.0** — Agentes Multimodais (Vision routing, GPT-4o-mini/GPT-4o)
+- **v0.58.1** — Vision real para Squad Agents (pré-processamento com GPT-4o-mini)
+- **v0.59.0** — Sistema Unificado de Prompts Modulares (Fase 2.1)
+- **v0.59.2** — Advanced Agent Architecture (Fork Subagent, Tool Registry, Worktree, Brief Mode)
+- **v0.59.3** — Opus 1M Context (claude-opus-4-6) + Minimax base_url fix
+- **v0.59.4** — Fase 2.2 completa (AgentSpawner, LifecycleManager)
+- **v0.59.5** — **Master Control: Feature Flags GUI** (CEO-only, 6 flags, toggle, histórico)
 
 ---
 
