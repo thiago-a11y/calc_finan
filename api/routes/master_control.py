@@ -200,6 +200,16 @@ def restart_servico(
         f"[MasterControl] Restart solicitado para '{nome}' por {usuario.email}"
     )
 
+    # Limpar requer_restart de TODAS as flags que têm essa flag como true
+    # (após restart, nenhuma flag precisa de restart — o serviço já reiniciou)
+    flags_para_limpar = db.query(FeatureFlagDB).filter(
+        FeatureFlagDB.requer_restart == True
+    ).all()
+    for f in flags_para_limpar:
+        f.requer_restart = False
+    if flags_para_limpar:
+        logger.info(f"[MasterControl] Flags com requer_restart limpos: {[f.nome for f in flags_para_limpar]}")
+
     # Executar o restart — mata o processo atual (SIGTERM).
     # systemd vai automaticamente reiniciar após RestartSec=5.
     # O response é enviado ANTES do kill para garantir que o usuário receba a confirmação.
