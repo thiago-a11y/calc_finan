@@ -4,6 +4,35 @@
 
 ---
 
+## v0.59.7 — FeatureFlagService: Integração com ForkManager (04/Abr/2026)
+
+### Novo: core/feature_flags.py
+
+**FeatureFlagService — leitura centralizada de feature flags com cache TTL:**
+
+- Singleton com `cachetools.TTLCache` (30s TTL, max 100 entries)
+- Método `is_enabled(flag_name: str) -> bool` — retorna valor do banco com cache
+- Método `invalidate(flag_name)` — limpa cache após toggle
+- Método `get_flag_info(flag_name)` — info completa da flag
+- Fallback fail-closed: flag inexistente = False
+
+**Integração com ForkManager:**
+- `ForkManager.is_fork_subagent_enabled()` agora usa `feature_flag_service.is_enabled("fork_subagent")`
+- `ForkManager.is_worktree_isolation_enabled()` usa `feature_flag_service.is_enabled("worktree_isolation")`
+- Substitui leitura via env vars `CLAURST_FEATURE_FORK_SUBAGENT`
+
+**Integração com Master Control:**
+- Endpoint de toggle agora invoca `feature_flag_service.invalidate(nome)` após commit
+- Garante que próximo `is_enabled()` lê valor real do banco
+
+### Alterações
+
+- `core/feature_flags.py` — novo arquivo (161 linhas)
+- `core/agents/fork.py` — `is_fork_subagent_enabled()` e `is_worktree_isolation_enabled()` agora usam `FeatureFlagService`
+- `api/routes/master_control.py` — `invalidate()` após toggle
+
+---
+
 ## v0.59.6 — Master Control: Tooltips, Dialog e Melhorias Visuais (04/Abr/2026)
 
 ### Melhorias no Master Control

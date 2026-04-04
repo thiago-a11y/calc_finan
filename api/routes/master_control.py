@@ -126,6 +126,10 @@ def toggle_flag(
     db.add(historico)
     db.commit()
 
+    # Invalidar cache para garantir que próximo is_enabled() leia do banco
+    from core.feature_flags import feature_flag_service
+    feature_flag_service.invalidate(nome)
+
     logger.info(
         f"[MasterControl] Flag '{nome}' alterada de {valor_anterior} para "
         f"{flag.habilitado} por {usuario.email}"

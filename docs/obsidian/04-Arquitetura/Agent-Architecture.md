@@ -2,9 +2,9 @@
 
 > Arquitetura de agentes avançados: fork subagent, tool registry, worktree isolation, e modo brief.
 
-**Fase:** 2.2 | **Versão:** v0.59.6 | **Última atualização:** 04/Abr/2026
+**Fase:** 2.3 | **Versão:** v0.59.7 | **Última atualização:** 04/Abr/2026
 
-> **v0.59.6:** Master Control finalizado — tooltips, dialog de restart, nomes amigáveis, badges "Requires Restart", histórico melhorado.
+> **v0.59.7:** FeatureFlagService com cache TTL 30s — integração com ForkManager. Flags agora lidas do banco em vez de env vars.
 
 ---
 
@@ -478,7 +478,57 @@ Tela "Master Control" (CEO-only) que expõe todas as feature flags do sistema co
 
 ---
 
-## Métricas de Sucesso
+## 8. FeatureFlagService — Serviço Centralizado de Flags
+
+### Conceito
+
+`core/feature_flags.py` — Singleton com cache TTL 30s que lê flags do banco (FeatureFlagDB). Substitui a leitura via env vars do antigo `_is_feature_enabled()`.
+
+### Interface
+
+```python
+from core.feature_flags import FeatureFlagService, feature_flag_service
+
+# Singleton
+service = FeatureFlagService()
+
+# Verificar flag (com cache)
+if service.is_enabled("fork_subagent"):
+    print("Fork ativado!")
+
+# Forçar releitura do banco
+service.invalidate("fork_subagent")
+
+# Info completa
+info = service.get_flag_info("fork_subagent")
+# {'nome': 'fork_subagent', 'habilitado': True, 'descricao': '...', ...}
+```
+
+### Integração
+
+| Componente | Como usa |
+|-----------|---------|
+| `ForkManager.is_fork_subagent_enabled()` | `feature_flag_service.is_enabled("fork_subagent")` |
+| `ForkManager.is_worktree_isolation_enabled()` | `feature_flag_service.is_enabled("worktree_isolation")` |
+| `MasterControl /toggle` | `feature_flag_service.invalidate(nome)` após commit |
+
+### Cache
+
+- **TTL**: 30 segundos — evita hits excessivos no SQLite
+- **Max size**: 100 entries
+- **Thread-safe**: lock para operações de cache
+- **Fail-closed**: flag inexistente = False
+
+### Fluxo de Toggle
+
+```
+1. CEO toggla no Master Control
+2. API: UPDATE FeatureFlagDB + insert HistoryDB
+3. API: feature_flag_service.invalidate(nome)  ← limpa cache
+4. Próxima leitura: cache miss → banco → novo valor em cache
+```
+
+---
 
 - [ ] Fork subagent reduz latência de spawn em >50% (cache hit)
 - [ ] Worktree isolation permite execução paralela sem conflitos

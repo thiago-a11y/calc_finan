@@ -55,6 +55,7 @@ from core.agents.base import (
     ForkContext,
     IsolationMode,
 )
+from core.feature_flags import feature_flag_service
 
 logger = logging.getLogger("synerium.agents.fork")
 
@@ -200,17 +201,17 @@ class ForkManager:
         """
         Verifica se fork subagent está habilitado.
 
-        Feature gate via env var CLAURST_FEATURE_FORK_SUBAGENT.
-        Mutualmente exclusivo com coordinator mode.
+        Lê do banco de dados via FeatureFlagService (cache TTL 30s).
+        Fallback seguro: se a flag não existe, retorna False.
 
         Returns:
             True se fork está habilitado
         """
-        enabled = _is_feature_enabled("fork_subagent")
+        enabled = feature_flag_service.is_enabled("fork_subagent")
         logger.debug(
             f"is_fork_subagent_enabled: {enabled}"
             if not enabled
-            else "Fork subagent enabled via feature gate"
+            else "Fork subagent enabled (via FeatureFlagService)"
         )
         return enabled
 
@@ -218,12 +219,13 @@ class ForkManager:
         """
         Verifica se worktree isolation está habilitado.
 
-        Feature gate via env var CLAURST_FEATURE_WORKTREE_ISOLATION.
+        Lê do banco de dados via FeatureFlagService (cache TTL 30s).
+        Fallback seguro: se a flag não existe, retorna False.
 
         Returns:
             True se worktree isolation está habilitado
         """
-        return _is_feature_enabled("worktree_isolation")
+        return feature_flag_service.is_enabled("worktree_isolation")
 
     # =========================================================================
     # Fork Guard (Anti-Recursive)

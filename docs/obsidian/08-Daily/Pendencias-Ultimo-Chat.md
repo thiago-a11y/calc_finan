@@ -1,13 +1,29 @@
 # Pendencias do Ultimo Chat — 04/Abr/2026
 
-## Sessao 53 (04/Abr/2026) — Master Control Implementado (v0.59.5)
+## Sessao 54 (04/Abr/2026) — FeatureFlagService + Integração ForkManager (v0.59.7)
 
-### v0.59.5 — Master Control: Feature Flags GUI (CEO-only)
-- [x] `api/routes/master_control.py` — 4 endpoints (GET flags, POST toggle, GET history, POST restart)
-- [x] `dashboard/src/pages/MasterControl.tsx` — UI premium com toggles visuais e histórico
-- [x] `database/models.py` — FeatureFlagDB + FeatureFlagHistoryDB
-- [x] `scripts/migrate_feature_flags.py` — migração + seed das 6 flags
-- [x] `dashboard/src/components/Sidebar.tsx` — menu CEO-only com badge
+### v0.59.7 — FeatureFlagService: Integração com ForkManager
+- [x] `core/feature_flags.py` — FeatureFlagService singleton com cache TTL 30s (cachetools)
+- [x] `core/agents/fork.py` — ForkManager agora usa FeatureFlagService (não mais env vars)
+- [x] `api/routes/master_control.py` — invalidate() após toggle para limpar cache
+- [x] FeatureFlagService testado: fork_subagent=True, worktree_isolation=False ✅
+- [x] ForkManager testado: retorna valores corretos do banco ✅
+- [x] Documentação: Changelog v0.59.7, Roadmap Fase 2.3, Agent-Architecture seção 8
+
+### Pendencias
+- [ ] Nada — FeatureFlagService concluído
+
+---
+
+## Sessao 53 (04/Abr/2026) — Master Control Implementado (v0.59.6)
+
+### v0.59.6 — Master Control: Tooltips, Dialog e Melhorias Visuais
+- [x] Nomes amigáveis em português
+- [x] Tooltips no hover de cada card
+- [x] Badge "Requires Restart" nos cards
+- [x] Dialog de restart mais profissional
+- [x] Botão Atualizar no header
+- [x] Bug #53 resolvido (banner não desaparecia após restart)
 - [x] `dashboard/src/App.tsx` — rota /master-control
 - [x] `api/main.py` — include_router master_control
 - [x] TypeScript build: OK

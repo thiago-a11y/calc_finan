@@ -178,6 +178,18 @@
   - [x] Nomes amigáveis e descrições claras em português
   - [x] Design limpo e profissional (dark mode, estilo Linear/Vercel)
 
+## Fase 2.3 — Integração Feature Flags + ForkManager (✅ concluída — v0.59.7)
+
+- [x] **FeatureFlagService** — core/feature_flags.py com cache TTL 30s
+  - Leitura centralizada de flags do banco (FeatureFlagDB)
+  - Singleton thread-safe com cachetools
+  - Fallback fail-closed (flag inexistente = False)
+- [x] **Integração ForkManager** — fork.py agora usa FeatureFlagService
+  - `is_fork_subagent_enabled()` → `feature_flag_service.is_enabled("fork_subagent")`
+  - `is_worktree_isolation_enabled()` → `feature_flag_service.is_enabled("worktree_isolation")`
+- [x] **Cache invalidation** — toggle no Master Control limpa cache imediatamente
+- [x] **Testes** — FeatureFlagService e ForkManager verificados localmente
+
 ## Fase 3 — Multi-Produto e Governança (🟡 em andamento)
 
 - [x] Sistema de Projetos com proprietário, líder técnico e membros
