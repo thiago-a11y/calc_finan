@@ -164,6 +164,16 @@
 - [x] Botão Novo Projeto + modal de criação (v0.47.0)
 - [x] Preview de arquivos por commit + horário Brasília no PushDialog (v0.48.0)
 
+## Fase 2.x — Master Control: Feature Flags GUI (🟡 nova)
+
+- [ ] **Master Control** (CEO-only) — tela de Feature Flags
+  - [ ] Tela acessível apenas para role `ceo`
+  - [ ] Interface com toggles para todas as feature flags (fork_subagent, worktree_isolation, autonomous_mode, etc.)
+  - [ ] Persistência das configurações no banco de dados
+  - [ ] Histórico de alterações (quem ligou/desligou e quando)
+  - [ ] Botão "Apply & Restart" quando necessário para flags que requerem restart
+  - [ ] Design limpo e profissional (dark mode, estilo Linear/Vercel)
+
 ## Fase 3 — Multi-Produto e Governança (🟡 em andamento)
 
 - [x] Sistema de Projetos com proprietário, líder técnico e membros
@@ -220,8 +230,9 @@
 
 | # | Item | Impacto | Esforço | Status |
 |---|------|---------|---------|--------|
-| 1 | 🔴 Mapear e cadastrar 45 funcionários da Objetiva | Alto — escala real | Baixo | **Próximo** |
-| 2 | 🔴 Manual do Synerium Factory — 12 capítulos | Alto — documentação interna | Médio | Planejado |
+| 1 | 🔴 Master Control (CEO-only) — Feature Flags GUI | Alto — controle de features | Baixo | **Próximo** |
+| 2 | 🔴 Mapear e cadastrar 45 funcionários da Objetiva | Alto — escala real | Baixo | Planejado |
+| 3 | 🔴 Manual do Synerium Factory — 12 capítulos | Alto — documentação interna | Médio | Planejado |
 | 3 | 🟡 Multi-tenant real (company_id por cliente) | Alto — licenciamento SaaS | Alto | Planejado |
 | 4 | 🟡 WhatsApp Business API — notificações | Médio | Médio | Planejado |
 | 5 | 🟢 2FA | Médio — segurança | Baixo | Planejado |
@@ -231,4 +242,4 @@
 
 ---
 
-> Última atualização: 2026-04-01
+> Última atualização: 2026-04-04

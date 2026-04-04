@@ -2,7 +2,7 @@
 
 > Arquitetura de agentes avançados: fork subagent, tool registry, worktree isolation, e modo brief.
 
-**Fase:** 2.2 | **Versão:** v0.59.2 | **Última atualização:** 03/Abr/2026
+**Fase:** 2.2 | **Versão:** v0.59.4 | **Última atualização:** 04/Abr/2026
 
 ---
 
@@ -411,6 +411,68 @@ core/tools/
 | **Luna Engine** | Agent spawning via tool call |
 | **BMAD** | Agentes como crewAI agents com fork capability |
 | **Code Studio** | Tools de edição integradas ao ToolRegistry |
+
+---
+
+## 7. Master Control — Feature Flags GUI
+
+### Conceito
+
+Tela "Master Control" (CEO-only) que expõe todas as feature flags do sistema como toggles visuais. Elimina a necessidade de acessar `.env` via SSH para alterar configurações.
+
+### Feature Flags Expostas
+
+| Flag | Descrição | Restart? |
+|------|-----------|----------|
+| `fork_subagent` | Fork implícito com herança de contexto | Não |
+| `worktree_isolation` | Git worktree para isolamento de agentes | Não |
+| `autonomous_mode` | Modo autônomo sem approval gates | Não |
+| `brief_mode` | Forçar output via Brief tool | Não |
+| `vision_routing` | Roteamento inteligente de imagens | Não |
+| `continuous_factory` | Modo contínuo 24/7 | Sim |
+| `visible_execution` | Streaming ao vivo no Mission Control | Não |
+
+### Fluxo
+
+```
+1. CEO acessa /master-control
+2. Verifica role = ceo → renderiza toggles
+3. Toggle muda → persiste no banco → log em audit
+4. Se flag requer restart → botão "Apply & Restart" aparece
+5. CEO clica → systemctl restart synerium-factory
+```
+
+### Interface
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ ⚡ Master Control                        CEO Only        │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  🔀 Fork Subagent                          [ON ] ●────  │
+│     Fork implícito com herança de contexto               │
+│                                                          │
+│  🌿 Worktree Isolation                     [OFF] ○────  │
+│     Git worktree para isolamento de agentes               │
+│                                                          │
+│  🤖 Autonomous Mode                        [OFF] ○────  │
+│     Modo autônomo sem approval gates                     │
+│                                                          │
+│  📝 Brief Mode                          [ON ] ●────  │
+│     Forçar output via Brief tool                         │
+│                                                          │
+│  👁 Vision Routing                       [ON ] ●────  │
+│     Roteamento inteligente de imagens                     │
+│                                                          │
+│  ⚙️ Continuous Factory                   [ON ] ●────  │
+│     Modo contínuo 24/7                        [Restart] │
+│                                                          │
+├──────────────────────────────────────────────────────────┤
+│ Histórico:                                                │
+│  • 04/Abr 10:35 — thiago@ — fork_subagent: ON          │
+│  • 04/Abr 09:20 — thiago@ — worktree: OFF              │
+└──────────────────────────────────────────────────────────┘
+```
 
 ---
 

@@ -574,6 +574,30 @@ O padrão de factory também permite:
 - Aliases para renomeação sem quebrar código existente
 - Feature flags por tool (`is_enabled` é callable)
 
+## Por que Feature Flags via tela GUI (não apenas .env)?
+
+Feature gates atualmente são lidos de variáveis de ambiente (`CLAURST_FEATURE_<NOME>`) via `_is_feature_enabled()` em `fork.py`. Isso funciona mas tem problemas práticos em produção:
+
+1. **Sem visibilidade**: o CEO/Diretor não sabe quais features estão ligadas sem acessar o servidor
+2. **Sem audit trail**: não há registro de quem ligou/desligou cada flag
+3. **Requer restart**: qualquer mudança no `.env` exige reiniciar o serviço
+4. **Risco operacional**: engineers precisam ter acesso SSH ao servidor para trocar uma flag
+
+**Decisão:** Criar tela "Master Control" (CEO-only) que expõe todas as feature flags como toggles, persiste em banco, registra alterações em audit log, e oferece "Apply & Restart" quando necessário.
+
+**Feature flags a serem expostas:**
+- `fork_subagent` — Fork implícito com herança de contexto
+- `worktree_isolation` — Git worktree para isolamento de agentes
+- `autonomous_mode` — Modo autônomo sem approval gates
+- `brief_mode` — Forçar output via Brief tool
+- `vision_routing` — Roteamento inteligente de imagens
+- `continuous_factory` — Modo contínuo 24/7
+- `visible_execution` — Streaming ao vivo no Mission Control
+
+**Alternativa descartada:** Manter só em `.env` — rejeitado porque oculta a configuração e exige acesso SSH.
+
+---
+
 ## Por que Brief Mode?
 
 Kairos Mode requer output controlada. Toda visible output deve passar pela Brief tool para:
