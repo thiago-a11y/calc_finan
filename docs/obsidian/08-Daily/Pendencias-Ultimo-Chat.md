@@ -29,9 +29,15 @@
 - [x] Non-blocking via `threading.Thread` (endpoints síncronos)
 - [x] Testado: snapshot de criar_sessao capturado ✅
 
+### v0.60.3 — AutoDream no startup da API
+- [x] `api/main.py` — `kairos_service.iniciar_auto_dream()` no lifespan startup
+- [x] `api/main.py` — `kairos_service.parar_auto_dream()` no lifespan shutdown (graceful)
+- [x] Primeiro ciclo executou automaticamente: 3 snapshots → 3 memórias consolidadas ✅
+- [x] Tipos corretos: semântica (0.7), estratégica (0.95), episódica (0.3)
+- [x] Loop configurado para 60min (configurável via KairosConfig)
+
 ### Pendencias
 - [ ] API REST para consulta/status do Kairos no dashboard
-- [ ] Auto-dream no startup da API (iniciar_auto_dream no main.py)
 
 ---
 

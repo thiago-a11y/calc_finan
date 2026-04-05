@@ -4,6 +4,21 @@
 
 ---
 
+## v0.60.3 — AutoDream no Startup da API (05/Abr/2026)
+
+### AutoDream ativado automaticamente ao iniciar a API
+
+- `api/main.py` lifespan startup: `kairos_service.iniciar_auto_dream()`
+- `api/main.py` lifespan shutdown: `kairos_service.parar_auto_dream()` (graceful)
+- Primeiro ciclo executa imediatamente no startup, depois a cada 60 minutos
+- Primeiro dream real: 3 snapshots → 3 memórias consolidadas (semântica, estratégica, episódica)
+
+### Alterações
+
+- `api/main.py` — startup + shutdown do AutoDream no lifespan
+
+---
+
 ## v0.60.2 — Integração Kairos + Mission Control (05/Abr/2026)
 
 ### Mission Control agora captura snapshots de memória automaticamente

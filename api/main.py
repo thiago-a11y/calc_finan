@@ -58,12 +58,33 @@ async def lifespan(app: FastAPI):
         except Exception as ce:
             logger.warning(f"[API] Recovery do Modo Contínuo falhou: {ce}")
 
+        # Kairos: iniciar AutoDream em background (consolidação de memórias)
+        try:
+            from core.memory.kairos.service import kairos_service
+            kairos_service.iniciar_auto_dream()
+            status_k = kairos_service.status()
+            logger.info(
+                f"[API] Kairos AutoDream ativado "
+                f"(intervalo: {status_k['config']['dream_interval_min']}min, "
+                f"snapshots pendentes: {status_k['snapshots_pendentes']})"
+            )
+        except Exception as ke:
+            logger.warning(f"[API] Kairos AutoDream não iniciou: {ke}")
+
         logger.info("[API] API pronta para receber requisições.")
     except Exception as e:
         logger.error(f"[API] Erro ao inicializar: {e}")
         raise
 
     yield
+
+    # Shutdown: parar AutoDream gracefully
+    try:
+        from core.memory.kairos.service import kairos_service
+        kairos_service.parar_auto_dream()
+        logger.info("[API] Kairos AutoDream parado.")
+    except Exception:
+        pass
 
     logger.info("[API] Encerrando Synerium Factory API.")
 
