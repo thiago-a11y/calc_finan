@@ -4,6 +4,23 @@
 
 ---
 
+## v0.60.1 — Integração Kairos + Luna (05/Abr/2026)
+
+### Luna agora captura snapshots de memória automaticamente
+
+- Novo método `_capturar_snapshot_kairos()` em `core/luna_engine.py`
+- Captura non-blocking após cada troca (pergunta + resposta) — nunca atrasa a resposta
+- Fluxo normal: `agente_id="luna"` | Fluxo sub-agente: `agente_id="luna:{tipo}"`
+- Conteúdo: `[Usuário]: ... + [Luna]: ...` truncado a 5000 chars
+- Contexto: `conversa_id`, `usuario_id`, `modelo`, `provider`, `subagente`
+- Erro silencioso: falha no Kairos apenas loga warning, nunca quebra a Luna
+
+### Alterações
+
+- `core/luna_engine.py` — import `kairos_service` + `_capturar_snapshot_kairos()` + 2 chamadas (fluxo normal + sub-agente)
+
+---
+
 ## v0.60.0 — Kairos: Sistema de Memória Auto-Evolutiva (05/Abr/2026)
 
 ### Fase 3.1: Self-Evolving Memory System

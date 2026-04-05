@@ -210,7 +210,7 @@
 - [x] `core/memory/kairos/registry.py` — MemoryRegistry (CRUD + busca textual + tracking acessos)
 - [x] `core/memory/kairos/service.py` — KairosService singleton orquestrador
 - [x] `database/models.py` — MemorySnapshotDB + MemoryEntryDB
-- [ ] Integrar Kairos com Luna (snapshots automáticos de conversas)
+- [x] Integrar Kairos com Luna (snapshots automáticos de conversas) — v0.60.1
 - [ ] Integrar Kairos com Mission Control (snapshots de sessões)
 - [ ] API REST para dashboard (consulta/status Kairos)
 - [ ] Auto-dream no startup da API

@@ -14,8 +14,14 @@
 - [x] 11 testes de import + integração: TODOS PASSARAM ✅
 - [x] Documentação: Changelog v0.60.0, Pendencias sessão 56
 
+### v0.60.1 — Integração Kairos + Luna
+- [x] `core/luna_engine.py` — import `kairos_service` + método `_capturar_snapshot_kairos()`
+- [x] Captura non-blocking após cada troca (mensagem + resposta) no fluxo normal
+- [x] Captura non-blocking no fluxo de sub-agente (fork real) com agente_id="luna:{tipo}"
+- [x] Truncamento a 5000 chars para não sobrecarregar o dream
+- [x] Testado: 2 snapshots capturados (conversa normal + sub-agente tech_lead) ✅
+
 ### Pendencias
-- [ ] Integrar Kairos com Luna (capturar snapshots automaticamente das conversas)
 - [ ] Integrar Kairos com Mission Control (snapshots de sessões)
 - [ ] API REST para consulta/status do Kairos no dashboard
 - [ ] Auto-dream no startup da API (iniciar_auto_dream no main.py)

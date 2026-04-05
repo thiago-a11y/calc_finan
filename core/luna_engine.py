@@ -38,6 +38,7 @@ from core.agents.fork import fork_manager
 from core.agents.spawn import agent_spawner
 from core.agents.registry import AgentRegistry
 from core.agents.base import AgentSpawnParams
+from core.memory.kairos.service import kairos_service
 from database.models import (
     LunaConversaDB, LunaMensagemDB, UsageTrackingDB, AuditLogDB
 )
@@ -464,6 +465,71 @@ class LunaEngine:
         return None  # Cadeia de fallback default
 
     # =================================================================
+    # Kairos — Captura de snapshots de memória (Fase 3.1)
+    # =================================================================
+
+    async def _capturar_snapshot_kairos(
+        self,
+        conversa_id: str,
+        mensagem_usuario: str,
+        resposta_luna: str,
+        usuario_id: int,
+        modelo: str = "",
+        provider: str = "",
+        subagente: str | None = None,
+    ) -> None:
+        """
+        Captura um snapshot de memória no Kairos após cada troca de mensagens.
+
+        Non-blocking: erros são logados mas nunca interrompem o fluxo da Luna.
+        O snapshot inclui a mensagem do usuário + resposta da Luna para
+        contexto completo na consolidação posterior (AutoDream).
+
+        Args:
+            conversa_id: ID da conversa Luna
+            mensagem_usuario: mensagem original do usuário
+            resposta_luna: resposta completa da Luna (ou do sub-agente)
+            usuario_id: ID do usuário
+            modelo: modelo LLM usado
+            provider: provider usado
+            subagente: tipo do sub-agente (se fork real), None se fluxo normal
+        """
+        try:
+            # Montar conteúdo do snapshot: pergunta + resposta
+            conteudo = (
+                f"[Usuário]: {mensagem_usuario}\n\n"
+                f"[Luna{f' via {subagente}' if subagente else ''}]: {resposta_luna}"
+            )
+
+            # Limitar tamanho para não sobrecarregar o dream
+            if len(conteudo) > 5000:
+                conteudo = conteudo[:4900] + "\n\n[...truncado para snapshot]"
+
+            await kairos_service.criar_snapshot(
+                agente_id="luna" if not subagente else f"luna:{subagente}",
+                source="luna",
+                conteudo=conteudo,
+                contexto={
+                    "conversa_id": conversa_id,
+                    "usuario_id": usuario_id,
+                    "modelo": modelo,
+                    "provider": provider,
+                    "subagente": subagente,
+                },
+                tenant_id=1,
+                relevancia=0.5,
+            )
+
+            logger.debug(
+                f"[Luna] Snapshot Kairos capturado (conversa={conversa_id}, "
+                f"tamanho={len(conteudo)} chars)"
+            )
+
+        except Exception as e:
+            # Non-blocking: nunca quebrar o fluxo da Luna por causa do Kairos
+            logger.warning(f"[Luna] Falha ao capturar snapshot Kairos: {e}")
+
+    # =================================================================
     # Detecção e execução de sub-agentes (Fase 2.3 — Fork Real)
     # =================================================================
 
@@ -787,6 +853,17 @@ Você está sendo executado como sub-agente via fork real do sistema de agentes.
                         yield {"tipo": "titulo", "titulo": titulo}
 
                 db.commit()
+
+                # ─── Kairos: snapshot do sub-agente (non-blocking) ───────
+                await self._capturar_snapshot_kairos(
+                    conversa_id=conversa_id,
+                    mensagem_usuario=conteudo,
+                    resposta_luna=resposta_subagente,
+                    usuario_id=usuario_id,
+                    modelo=f"subagente:{agent_type}",
+                    provider="fork_real",
+                    subagente=agent_type,
+                )
             return
         # ─── Fim da interceptação de sub-agente ──────────────────────────
 
@@ -880,6 +957,16 @@ Você está sendo executado como sub-agente via fork real do sistema de agentes.
         self._registrar_uso(
             db, provider_usado, modelo_usado, tokens_in, tokens_out,
             custo, duracao_ms, usuario_id, usuario_nome
+        )
+
+        # ─── Kairos: capturar snapshot da troca (non-blocking) ───────
+        await self._capturar_snapshot_kairos(
+            conversa_id=conversa_id,
+            mensagem_usuario=conteudo,
+            resposta_luna=resposta_completa,
+            usuario_id=usuario_id,
+            modelo=modelo_usado,
+            provider=provider_usado,
         )
 
         yield {
