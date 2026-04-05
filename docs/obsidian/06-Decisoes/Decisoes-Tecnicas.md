@@ -119,6 +119,10 @@ Baseado em neurociência cognitiva: memória episódica (eventos), semântica (c
 
 Snapshots são texto livre de múltiplas fontes (conversas, reuniões, workflows). Regras heurísticas não capturam nuance semântica. O LLM consegue: (1) detectar duplicatas semânticas; (2) mesclar informações complementares; (3) classificar corretamente o tipo; (4) gerar títulos e tags relevantes. O custo é baixo: consolidação roda 1x/hora com Sonnet, processando ~50 snapshots por ciclo.
 
+## Por que threading.Thread para snapshots no Mission Control (não asyncio)?
+
+Os endpoints do Mission Control são síncronos (def, não async def). Usar `await kairos_service.criar_snapshot()` direto não é possível sem converter tudo para async. A solução mais limpa: `threading.Thread(target=lambda: asyncio.run(...), daemon=True)` dispara o snapshot sem bloquear a resposta HTTP. A thread daemon morre automaticamente no shutdown. Já a Luna usa `await` direto porque `stream_resposta` é async generator.
+
 ### Por que regex e não ML para detecção de intenção?
 
 O router precisa decidir em tempo real (< 1ms). Um modelo de ML adicionaria latência, dependência de inferência e complexidade de treinamento. Regex com 13 categorias de intenção resolve o problema com tempo médio de 0.12ms, zero dependência externa e manutenção trivial (adicionar/editar padrões). Se no futuro a acurácia for insuficiente, migrar para um classificador leve (fasttext, regex + embeddings) é possível sem mudar a interface.

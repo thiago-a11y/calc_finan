@@ -2,7 +2,7 @@
 
 > Memória de longo prazo para agentes IA do Synerium Factory.
 
-**Fase:** 3.1 | **Versão:** v0.60.0 | **Última atualização:** 05/Abr/2026
+**Fase:** 3.1 | **Versão:** v0.60.4 | **Última atualização:** 05/Abr/2026
 
 ---
 
@@ -140,10 +140,38 @@ resultado = await kairos_service.dream()
 status = kairos_service.status()
 ```
 
+## Integrações Ativas (v0.60.1–v0.60.4)
+
+### Luna (v0.60.1)
+- `core/luna_engine.py` → `_capturar_snapshot_kairos()` após cada troca (pergunta + resposta)
+- Fluxo normal: `agente_id="luna"` | Fork sub-agente: `agente_id="luna:{tipo}"`
+- Non-blocking (await no async generator), trunca a 5000 chars
+
+### Mission Control (v0.60.2)
+- `api/routes/mission_control.py` → helper `_kairos_snapshot()` via `threading.Thread`
+- 3 pontos: `criar_sessao` (rel=0.3), `fase_decisao` (rel=0.8), `disparar_agente` (rel=0.6)
+- Non-blocking (thread daemon), endpoints síncronos não precisam de await
+
+### AutoDream (v0.60.3)
+- `api/main.py` lifespan → `kairos_service.iniciar_auto_dream()` no startup
+- Graceful shutdown → `kairos_service.parar_auto_dream()` no yield
+- Loop: executa dream imediatamente no startup, depois a cada 60min
+
+### API REST (v0.60.4)
+- `api/routes/kairos.py` — 4 endpoints protegidos por JWT:
+
+| Endpoint | Descrição |
+|----------|-----------|
+| `GET /api/kairos/status` | Status geral + contadores por source/agente |
+| `GET /api/kairos/snapshots` | Paginação + filtros (agente, source, consolidado) |
+| `GET /api/kairos/memories` | Busca textual + filtros (tipo, agente, relevância) |
+| `POST /api/kairos/dream/manual` | Disparo manual de consolidação |
+
 ## Próximos Passos
 
-- [ ] Integrar com Luna (capturar snapshots automaticamente)
-- [ ] Integrar com Mission Control
-- [ ] API REST para dashboard
-- [ ] Auto-dream no startup da API
+- [x] Integrar com Luna — v0.60.1
+- [x] Integrar com Mission Control — v0.60.2
+- [x] Auto-dream no startup da API — v0.60.3
+- [x] API REST para dashboard — v0.60.4
+- [ ] Página Kairos no dashboard (React)
 - [ ] Embeddings para busca semântica (ChromaDB)

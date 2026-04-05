@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.60.0 (05/Abr/2026)
+**Versão Atual:** v0.60.4 (05/Abr/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -233,7 +233,8 @@ Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 │       ├── llm.py               # Gestão de LLM providers
 │       ├── continuous_factory.py # Modo Contínuo 24/7 (v0.54.0)
 │       ├── mission_control.py   # Code Studio 2.0 — Mission Control (v0.55.0)
-│       └── master_control.py    # Master Control — GUI de feature flags CEO-only (v0.59.5)
+│       ├── master_control.py    # Master Control — GUI de feature flags CEO-only (v0.59.5)
+│       └── kairos.py            # API REST do Kairos — status, snapshots, memories, dream (v0.60.4)
 ├── dashboard/                   # Frontend React
 │   └── src/
 │       ├── App.tsx              # Roteamento principal
@@ -492,6 +493,10 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.58.1** — **Vision Real para Agentes de Squad** — Pré-processamento de imagens com GPT-4o-mini vision (`_analisar_imagens_com_vision()`), ChatFloating envia URLs reais de upload, Luna Engine com path resolution absoluto e fallback não-silencioso
 - **v0.58.0** — **Agentes Multimodais (Vision)** — Flag `vision` em todos os providers, novo parâmetro `tem_imagem` no classificador, roteamento SIMPLES/MEDIO→GPT-4o-mini e COMPLEXO→GPT-4o quando imagem presente, fallback chain filtra providers sem vision, `_mensagens_tem_imagem()` no LLM Fallback
 - **v0.57.6** — **True Live Typing & Execution Feeling** — True character-by-character typing no editor com cursor verde piscando e highlight de linha, badge STREAMING com glow vermelho, badge "Em execução" com glow verde forte, barra de progresso com glow intenso, texto descritivo "Fase X/5" com emoji, agent-pulse mais forte (scale 1.3x), terminal com cursor verde e texto "agente executando..."
+- **v0.60.4** — **API REST do Kairos** — 4 endpoints JWT: GET status/snapshots/memories + POST dream/manual. Paginação, filtros, busca textual. `api/routes/kairos.py` registrado no main.py
+- **v0.60.3** — **AutoDream no startup da API** — `api/main.py` lifespan: iniciar_auto_dream() no startup + parar_auto_dream() no shutdown. Loop 60min. Primeiro ciclo: 3 snapshots → 3 memórias consolidadas
+- **v0.60.2** — **Integração Kairos + Mission Control** — `_kairos_snapshot()` non-blocking via threading.Thread em criar_sessao (rel=0.3), fase_decisao (rel=0.8), disparar_agente (rel=0.6)
+- **v0.60.1** — **Integração Kairos + Luna** — `_capturar_snapshot_kairos()` non-blocking após cada troca. agente_id="luna" (normal) / "luna:{tipo}" (sub-agente). Trunca 5000 chars
 - **v0.60.0** — **Kairos: Self-Evolving Memory System (Fase 3.1)** — Módulo `core/memory/kairos/` com 8 arquivos: AutoDream (consolidação background via LLM), SnapshotManager (captura de 6 fontes), MemoryRegistry (CRUD + busca textual + tracking de acessos), ConsolidationLock (arquivo + TTL + PID), KairosService singleton. Modelos DB: MemorySnapshotDB + MemoryEntryDB. 4 tipos de memória (episódica, semântica, procedural, estratégica), multi-tenant, soft delete.
 - **v0.59.8** — **Fork REAL de Sub-Agentes na Luna (Fase 2.3 concluída)** — `_detectar_subagente()` com 6 padrões regex, `_executar_subagente()` via AgentSpawner + LLM com system prompt especializado, interceptação em `stream_resposta()` (fork_subagent=True → fork real, False → fluxo antigo), resposta salva no banco (modelo="subagente:{tipo}", provider="fork_real")
 - **v0.59.7** — **FeatureFlagService: Integração com ForkManager** — `core/feature_flags.py` singleton com cachetools TTL 30s, `is_enabled(flag)` lê do banco com cache, `invalidate()` após toggle, ForkManager agora usa FeatureFlagService (não mais env vars)
@@ -686,4 +691,4 @@ Cadeia centralizada em `core/llm_fallback.py`:
 
 ---
 
-> Ultima atualizacao: 2026-04-05 (v0.60.0)
+> Ultima atualizacao: 2026-04-05 (v0.60.4)
