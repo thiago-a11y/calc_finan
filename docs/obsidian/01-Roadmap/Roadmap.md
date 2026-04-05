@@ -223,7 +223,7 @@
 - [x] PlanAgent: gera planos via LLM em modo somente-leitura
 - [x] Snapshots Kairos automáticos ao entrar/sair
 - [x] Integrar Plan Mode com Luna (detectar "modo plano") — v0.61.1
-- [ ] Integrar Plan Mode com Mission Control (botão Plan Mode)
+- [x] Integrar Plan Mode com Mission Control (3 endpoints) — v0.61.2
 - [ ] API REST para Plan Mode no dashboard
 - [x] Auto-dream no startup da API — v0.60.3
 

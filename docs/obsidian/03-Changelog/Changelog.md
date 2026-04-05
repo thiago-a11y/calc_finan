@@ -4,6 +4,22 @@
 
 ---
 
+## v0.61.2 — Integração Plan Mode + Mission Control (05/Abr/2026)
+
+### CEO pode ativar/desativar Plan Mode dentro de sessões Mission Control
+
+- `POST /api/mission-control/sessao/{id}/plan-mode/entrar` — ativa Plan Mode com motivo
+- `POST /api/mission-control/sessao/{id}/plan-mode/sair` — desativa e retorna resumo
+- `GET /api/mission-control/plan-mode/status` — status atual do Plan Mode
+- Helper `_plan_mode_action()` — executa transições de forma síncrona (asyncio.run)
+- Snapshot Kairos capturado automaticamente ao entrar/sair
+
+### Alterações
+
+- `api/routes/mission_control.py` — import `plan_mode_service` + schema `PlanModeRequest` + helper + 3 endpoints
+
+---
+
 ## v0.61.1 — Integração Plan Mode + Luna (05/Abr/2026)
 
 ### Luna detecta "modo plano" automaticamente na conversa

@@ -76,8 +76,16 @@ O Plan Mode permite que agentes e CEO operem em modo somente-leitura: podem anal
 - Interceptação em `stream_resposta()` antes do fork de sub-agente
 - Snapshot Kairos capturado automaticamente na transição
 
+## Integração Mission Control (v0.61.2)
+
+- `POST /sessao/{id}/plan-mode/entrar` — ativa Plan Mode com motivo
+- `POST /sessao/{id}/plan-mode/sair` — desativa e retorna resumo (duração, bloqueios)
+- `GET /plan-mode/status` — status atual (modo, sessão, guard stats)
+- Helper `_plan_mode_action()` — síncrono via `asyncio.run()` (endpoints não-async)
+- Snapshots Kairos automáticos ao entrar/sair
+
 ## Próximos Passos
 
 - [x] Integrar Plan Mode com Luna — v0.61.1
-- [ ] Integrar com Mission Control (botão Plan Mode)
-- [ ] API REST para Plan Mode no dashboard
+- [x] Integrar com Mission Control — v0.61.2
+- [ ] API REST dedicada para Plan Mode no dashboard

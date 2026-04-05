@@ -77,9 +77,14 @@
 - [x] 11 testes de detecção: entrar/sair/neutro ✅
 - [x] Teste real: "entrar em modo plano" → ativado | "sair do modo plano" → desativado ✅
 
+### v0.61.2 — Integração Plan Mode + Mission Control
+- [x] `api/routes/mission_control.py` — 3 endpoints: entrar, sair, status
+- [x] Helper `_plan_mode_action()` non-blocking
+- [x] Snapshots Kairos ao entrar/sair
+- [x] Testado: entrar → status (em_plan_mode=true) → sair ✅
+
 ### Pendencias
-- [ ] Integrar Plan Mode com Mission Control (botão Plan Mode na sessão)
-- [ ] API REST para Plan Mode no dashboard
+- [ ] API REST dedicada para Plan Mode no dashboard
 - [ ] Deploy produção
 
 ---

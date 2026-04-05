@@ -40,6 +40,7 @@ from database.session import get_db, SessionLocal
 from sqlalchemy.orm.attributes import flag_modified
 
 from core.memory.kairos.service import kairos_service
+from core.governance.plan_mode.service import plan_mode_service
 
 logger = logging.getLogger("synerium.mission_control")
 
@@ -105,6 +106,11 @@ class FaseDecisaoRequest(BaseModel):
     acao: str  # 'aprovar' | 'regenerar' | 'rejeitar' | 'revisar'
 
 
+class PlanModeRequest(BaseModel):
+    """Motivo para entrar em Plan Mode (opcional)."""
+    motivo: str = ""
+
+
 # =====================================================================
 # Helpers
 # =====================================================================
@@ -145,6 +151,47 @@ def _kairos_snapshot(
             logger.warning(f"[MISSION/Kairos] Falha ao capturar snapshot: {e}")
 
     threading.Thread(target=_run, daemon=True).start()
+
+
+def _plan_mode_action(acao: str, usuario_id: int, usuario_nome: str, sessao_id: str, motivo: str = "", tenant_id: int = 1) -> dict:
+    """
+    Executa entrar/sair do Plan Mode de forma síncrona (para endpoints não-async).
+
+    Non-blocking: usa asyncio.run() e captura snapshot Kairos automaticamente.
+    """
+    import asyncio
+
+    try:
+        if acao == "entrar":
+            sessao = asyncio.run(plan_mode_service.entrar(
+                usuario_id=usuario_id,
+                usuario_nome=usuario_nome,
+                motivo=motivo or f"Ativado via Mission Control (sessao {sessao_id})",
+            ))
+            logger.info(f"[MISSION/PlanMode] ATIVADO por {usuario_nome} (sessao_mc={sessao_id})")
+            return {
+                "sucesso": True,
+                "acao": "entrar",
+                "plan_sessao_id": sessao.id,
+                "mensagem": f"Plan Mode ativado. Sessao: {sessao.id}",
+            }
+        elif acao == "sair":
+            resumo = asyncio.run(plan_mode_service.sair(usuario_nome=usuario_nome))
+            logger.info(f"[MISSION/PlanMode] DESATIVADO por {usuario_nome} (sessao_mc={sessao_id})")
+            return {
+                "sucesso": resumo.get("sucesso", False),
+                "acao": "sair",
+                "duracao_segundos": resumo.get("duracao_segundos", 0),
+                "acoes_bloqueadas": resumo.get("acoes_bloqueadas", 0),
+                "mensagem": "Plan Mode desativado. Modo Normal restaurado.",
+            }
+        else:
+            return {"sucesso": False, "erro": f"Acao invalida: {acao}"}
+    except RuntimeError as e:
+        return {"sucesso": False, "erro": str(e)}
+    except Exception as e:
+        logger.warning(f"[MISSION/PlanMode] Erro: {e}")
+        return {"sucesso": False, "erro": str(e)}
 
 
 COMANDOS_BLOQUEADOS = [
@@ -1007,6 +1054,80 @@ EQUIPE_AGENTES = [
     {"nome": "Frontend Dev", "perfil": "frontend", "emoji": "🎨"},
     {"nome": "QA Engineer", "perfil": "qa", "emoji": "🛡️"},
 ]
+
+
+# =====================================================================
+# PLAN MODE — Endpoints para ativar/desativar Plan Mode na sessão
+# =====================================================================
+
+@router.post("/sessao/{sessao_id}/plan-mode/entrar")
+def plan_mode_entrar(
+    sessao_id: str,
+    req: PlanModeRequest = PlanModeRequest(),
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Ativa Plan Mode (somente-leitura) dentro de uma sessão Mission Control."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    resultado = _plan_mode_action(
+        "entrar", usuario.id, usuario.nome, sessao_id,
+        motivo=req.motivo, tenant_id=usuario.company_id or 1,
+    )
+
+    # Snapshot Kairos
+    if resultado.get("sucesso"):
+        _kairos_snapshot(
+            agente_id="ceo",
+            conteudo=f"Plan Mode ativado na sessao Mission Control {sessao_id} por {usuario.nome}. Motivo: {req.motivo or 'nao informado'}",
+            contexto={"sessao_id": sessao_id, "tipo_acao": "plan_mode_entrar", "usuario_id": usuario.id},
+            tenant_id=usuario.company_id or 1,
+            relevancia=0.7,
+        )
+
+    return resultado
+
+
+@router.post("/sessao/{sessao_id}/plan-mode/sair")
+def plan_mode_sair(
+    sessao_id: str,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Desativa Plan Mode e volta ao Modo Normal."""
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    resultado = _plan_mode_action(
+        "sair", usuario.id, usuario.nome, sessao_id,
+        tenant_id=usuario.company_id or 1,
+    )
+
+    if resultado.get("sucesso"):
+        _kairos_snapshot(
+            agente_id="ceo",
+            conteudo=f"Plan Mode desativado na sessao Mission Control {sessao_id} por {usuario.nome}. Duracao: {resultado.get('duracao_segundos', 0):.0f}s",
+            contexto={"sessao_id": sessao_id, "tipo_acao": "plan_mode_sair", "usuario_id": usuario.id},
+            tenant_id=usuario.company_id or 1,
+            relevancia=0.5,
+        )
+
+    return resultado
+
+
+@router.get("/plan-mode/status")
+def plan_mode_status(
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+):
+    """Retorna status atual do Plan Mode."""
+    return plan_mode_service.status()
 
 
 # =====================================================================
