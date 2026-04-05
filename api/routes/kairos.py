@@ -208,6 +208,43 @@ def listar_memorias(
 
 
 # =====================================================================
+# POST /snapshot/teste — Cria snapshot de teste para validar o dream
+# =====================================================================
+
+@router.post("/snapshot/teste")
+async def criar_snapshot_teste(
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+):
+    """Cria um snapshot de teste para validar o fluxo do AutoDream."""
+    from datetime import datetime
+
+    logger.info(f"[Kairos/API] Snapshot de teste criado por {usuario.nome}")
+
+    snapshot = await kairos_service.criar_snapshot(
+        agente_id="teste",
+        source="manual",
+        conteudo=(
+            f"Snapshot de teste criado manualmente por {usuario.nome} "
+            f"em {datetime.now().strftime('%d/%m/%Y %H:%M')}. "
+            f"Usado para validar o fluxo de consolidacao do AutoDream."
+        ),
+        contexto={
+            "tipo_acao": "teste_manual",
+            "usuario_id": usuario.id,
+            "usuario_nome": usuario.nome,
+        },
+        tenant_id=usuario.company_id or 1,
+        relevancia=0.3,
+    )
+
+    return {
+        "sucesso": True,
+        "snapshot_id": snapshot.id,
+        "mensagem": f"Snapshot de teste criado: {snapshot.id}",
+    }
+
+
+# =====================================================================
 # POST /dream/manual — Dispara ciclo de dream manualmente
 # =====================================================================
 

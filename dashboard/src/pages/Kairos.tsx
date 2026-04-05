@@ -194,6 +194,8 @@ export default function Kairos() {
   // Dream
   const [dreamResult, setDreamResult] = useState<DreamResult | null>(null)
   const [dreaming, setDreaming] = useState(false)
+  const [creatingSnap, setCreatingSnap] = useState(false)
+  const [snapCreated, setSnapCreated] = useState(false)
 
   // ─── Fetchers ───────────────────────────────────────────────────
 
@@ -579,20 +581,53 @@ export default function Kairos() {
                 Dispara um ciclo de consolidacao imediato. O AutoDream processa todos os
                 snapshots pendentes e gera memorias consolidadas via LLM.
               </p>
-              <button
-                onClick={triggerDream}
-                disabled={dreaming}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-                style={{
-                  background: dreaming ? 'rgba(168,85,247,0.3)' : 'rgba(168,85,247,0.15)',
-                  color: '#a855f7',
-                  border: '1px solid rgba(168,85,247,0.3)',
-                  cursor: dreaming ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {dreaming ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-                {dreaming ? 'Processando...' : 'Disparar Dream'}
-              </button>
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                <button
+                  onClick={async () => {
+                    setCreatingSnap(true)
+                    setSnapCreated(false)
+                    try {
+                      const minDelay = new Promise(r => setTimeout(r, 800))
+                      const [res] = await Promise.all([
+                        fetch(`${API}/api/kairos/snapshot/teste`, { method: 'POST', headers: headers() }),
+                        minDelay,
+                      ])
+                      if (res.ok) {
+                        setSnapCreated(true)
+                        fetchStatus()
+                        fetchSnapshots()
+                        setTimeout(() => setSnapCreated(false), 2000)
+                      }
+                    } catch { /* silenciar */ }
+                    finally { setCreatingSnap(false) }
+                  }}
+                  disabled={creatingSnap}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                  style={{
+                    background: snapCreated ? 'rgba(16,185,129,0.15)' : 'rgba(96,165,250,0.15)',
+                    color: snapCreated ? '#10b981' : '#60a5fa',
+                    border: `1px solid ${snapCreated ? 'rgba(16,185,129,0.3)' : 'rgba(96,165,250,0.3)'}`,
+                    cursor: creatingSnap ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {creatingSnap ? <Loader2 size={16} className="animate-spin" /> : snapCreated ? <CheckCircle size={16} /> : <Database size={16} />}
+                  {creatingSnap ? 'Criando...' : snapCreated ? 'Snapshot criado!' : 'Criar Snapshot de Teste'}
+                </button>
+                <button
+                  onClick={triggerDream}
+                  disabled={dreaming}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                  style={{
+                    background: dreaming ? 'rgba(168,85,247,0.3)' : 'rgba(168,85,247,0.15)',
+                    color: '#a855f7',
+                    border: '1px solid rgba(168,85,247,0.3)',
+                    cursor: dreaming ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {dreaming ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+                  {dreaming ? 'Processando...' : 'Disparar Dream'}
+                </button>
+              </div>
             </div>
 
             {/* Resultado do dream */}
