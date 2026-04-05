@@ -88,6 +88,11 @@
 - [x] Estados: planMode, planLoading, planToast + fetchPlanStatus + togglePlanMode
 - [x] Build TypeScript: OK ✅
 
+### v0.61.4 — Correção de Intermitência no Botão Plan Mode
+- [x] Botão desabilitado sem sessao_id + toast erro vermelho + guard duplo
+- [x] Headers inline + re-fetch após toggle + dependências useEffect corrigidas
+- [x] Build TypeScript: OK ✅
+
 ### Pendencias
 - [ ] Deploy produção
 

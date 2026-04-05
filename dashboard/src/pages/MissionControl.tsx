@@ -111,8 +111,11 @@ export default function MissionControl() {
 
   // Plan Mode helpers
   const fetchPlanStatus = useCallback(async () => {
+    if (!token) return
     try {
-      const res = await fetch(`${API}/api/mission-control/plan-mode/status`, { headers })
+      const res = await fetch(`${API}/api/mission-control/plan-mode/status`, {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      })
       if (res.ok) {
         const data = await res.json()
         setPlanMode(data.em_plan_mode)
@@ -121,7 +124,7 @@ export default function MissionControl() {
   }, [token])
 
   const togglePlanMode = async () => {
-    if (!sessao) return
+    if (!sessao?.sessao_id || planLoading) return
     setPlanLoading(true)
     setPlanToast('')
     const acao = planMode ? 'sair' : 'entrar'
@@ -129,21 +132,34 @@ export default function MissionControl() {
       const minDelay = new Promise(r => setTimeout(r, 600))
       const [res] = await Promise.all([
         fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/plan-mode/${acao}`, {
-          method: 'POST', headers,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ motivo: 'Via Mission Control UI' }),
         }),
         minDelay,
       ])
-      if (res.ok) {
-        const data = await res.json()
-        if (data.sucesso) {
-          setPlanMode(acao === 'entrar')
-          setPlanToast(acao === 'entrar' ? 'Plan Mode ativado' : 'Modo Normal restaurado')
-          setTimeout(() => setPlanToast(''), 2500)
-        }
+      if (!res.ok) {
+        setPlanToast('Erro ao alterar Plan Mode')
+        setTimeout(() => setPlanToast(''), 3000)
+        return
       }
-    } catch { /* silenciar */ }
-    finally { setPlanLoading(false) }
+      const data = await res.json()
+      if (data.sucesso) {
+        setPlanMode(acao === 'entrar')
+        setPlanToast(acao === 'entrar' ? 'Plan Mode ativado' : 'Modo Normal restaurado')
+        setTimeout(() => setPlanToast(''), 2500)
+        // Re-fetch para confirmar estado real do servidor
+        setTimeout(() => fetchPlanStatus(), 500)
+      } else {
+        setPlanToast(data.erro || 'Erro ao alterar Plan Mode')
+        setTimeout(() => setPlanToast(''), 3000)
+      }
+    } catch {
+      setPlanToast('Falha de conexao')
+      setTimeout(() => setPlanToast(''), 3000)
+    } finally {
+      setPlanLoading(false)
+    }
   }
 
   function tempoRelativo(iso: string | null): string {
@@ -283,7 +299,7 @@ export default function MissionControl() {
     fetchPlanStatus()
     const timer = setInterval(carregarFaseStatus, 2000)
     return () => clearInterval(timer)
-  }, [sessao?.sessao_id, carregarFaseStatus])
+  }, [sessao?.sessao_id, carregarFaseStatus, fetchPlanStatus])
 
   /* ============================================================
      Execute command
@@ -434,22 +450,35 @@ export default function MissionControl() {
         {/* Plan Mode toggle */}
         <button
           onClick={togglePlanMode}
-          disabled={planLoading}
+          disabled={planLoading || !sessao?.sessao_id}
           title={planMode ? 'Sair do Plan Mode (somente-leitura)' : 'Entrar em Plan Mode (somente-leitura)'}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
           style={{
             background: planToast
-              ? 'rgba(16,185,129,0.12)'
+              ? (planToast.includes('Erro') || planToast.includes('Falha')
+                ? 'rgba(239,68,68,0.12)'
+                : 'rgba(16,185,129,0.12)')
               : planMode
                 ? 'rgba(168,85,247,0.15)'
                 : 'rgba(100,116,139,0.1)',
             color: planToast
-              ? '#10b981'
+              ? (planToast.includes('Erro') || planToast.includes('Falha')
+                ? '#ef4444'
+                : '#10b981')
               : planMode
                 ? '#c084fc'
                 : 'var(--sf-text-secondary)',
-            border: `1px solid ${planToast ? 'rgba(16,185,129,0.25)' : planMode ? 'rgba(168,85,247,0.3)' : 'transparent'}`,
-            cursor: planLoading ? 'not-allowed' : 'pointer',
+            border: `1px solid ${
+              planToast
+                ? (planToast.includes('Erro') || planToast.includes('Falha')
+                  ? 'rgba(239,68,68,0.25)'
+                  : 'rgba(16,185,129,0.25)')
+                : planMode
+                  ? 'rgba(168,85,247,0.3)'
+                  : 'transparent'
+            }`,
+            cursor: (planLoading || !sessao?.sessao_id) ? 'not-allowed' : 'pointer',
+            opacity: !sessao?.sessao_id ? 0.4 : 1,
           }}
         >
           {planLoading

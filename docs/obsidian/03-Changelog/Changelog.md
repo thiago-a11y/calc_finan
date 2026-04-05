@@ -4,6 +4,18 @@
 
 ---
 
+## v0.61.4 — Correção de Intermitência no Botão Plan Mode (05/Abr/2026)
+
+- Botão desabilitado quando `sessao_id` não existe (opacity 0.4 + cursor not-allowed)
+- Toast de erro vermelho quando API falha ou retorna `sucesso=false`
+- `togglePlanMode` com guard duplo (`!sessao?.sessao_id || planLoading`)
+- Headers construídos inline (não reusa objeto mutável) para evitar stale token
+- `fetchPlanStatus` re-chamado 500ms após toggle para confirmar estado real do servidor
+- `useEffect` com `fetchPlanStatus` nas dependências para evitar race condition
+- Guard `if (!token) return` no `fetchPlanStatus`
+
+---
+
 ## v0.61.3 — Botão Visual Plan Mode no Mission Control (05/Abr/2026)
 
 ### CEO pode ativar/desativar Plan Mode direto no header do Mission Control
