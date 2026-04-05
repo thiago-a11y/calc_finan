@@ -39,6 +39,7 @@ from core.agents.spawn import agent_spawner
 from core.agents.registry import AgentRegistry
 from core.agents.base import AgentSpawnParams
 from core.memory.kairos.service import kairos_service
+from core.governance.plan_mode.service import plan_mode_service
 from database.models import (
     LunaConversaDB, LunaMensagemDB, UsageTrackingDB, AuditLogDB
 )
@@ -530,6 +531,113 @@ class LunaEngine:
             logger.warning(f"[Luna] Falha ao capturar snapshot Kairos: {e}")
 
     # =================================================================
+    # Plan Mode — Detecção e ativação/desativação (Fase 3.2)
+    # =================================================================
+
+    def _detectar_plan_mode(self, mensagem: str) -> str | None:
+        """
+        Detecta se a mensagem é um pedido de entrar ou sair do Plan Mode.
+
+        Returns:
+            "entrar" se quer ativar Plan Mode,
+            "sair" se quer desativar,
+            None se não é sobre Plan Mode.
+        """
+        import re
+        msg = mensagem.lower().strip()
+
+        # Padrões de saída (verificar antes de entrada)
+        sair_padroes = [
+            r"sair\s+(?:do\s+)?(?:modo\s+)?(?:plan[oe]|plan\s*mode)",
+            r"desativar\s+(?:o\s+)?(?:modo\s+)?(?:plan[oe]|plan\s*mode)",
+            r"(?:voltar|retornar)\s+(?:ao?\s+)?modo\s+normal",
+            r"exit\s+plan\s*mode",
+        ]
+        for p in sair_padroes:
+            if re.search(p, msg):
+                return "sair"
+
+        # Padrões de entrada
+        entrar_padroes = [
+            r"(?:entrar?|ativar?|iniciar?)\s+(?:em\s+|no\s+|o\s+)?(?:modo\s+)?plan[oe]",
+            r"modo\s+plan[oe]",
+            r"(?:quero|vamos|preciso)\s+planejar",
+            r"plan\s*mode",
+            r"(?:entrar?|ativar?)\s+(?:em\s+)?modo\s+(?:somente[_\-\s]?leitura|read[_\-\s]?only)",
+        ]
+        for p in entrar_padroes:
+            if re.search(p, msg):
+                return "entrar"
+
+        return None
+
+    async def _handle_plan_mode(
+        self,
+        acao: str,
+        conversa_id: str,
+        usuario_id: int,
+        usuario_nome: str,
+    ) -> AsyncGenerator[dict, None]:
+        """
+        Processa entrada ou saída do Plan Mode.
+
+        Yields chunks de resposta confirmando a transição.
+        """
+        if acao == "entrar":
+            if plan_mode_service.em_plan_mode:
+                yield {
+                    "tipo": "chunk",
+                    "conteudo": (
+                        "Voce ja esta em **Plan Mode** (somente-leitura).\n\n"
+                        "Posso gerar planos, analisar contexto e sugerir acoes — "
+                        "sem executar nada. O que deseja planejar?"
+                    ),
+                }
+            else:
+                try:
+                    sessao = await plan_mode_service.entrar(
+                        usuario_id=usuario_id,
+                        usuario_nome=usuario_nome,
+                        motivo="Ativado via Luna",
+                    )
+                    yield {
+                        "tipo": "chunk",
+                        "conteudo": (
+                            "**Plan Mode ativado** (somente-leitura).\n\n"
+                            f"Sessao: `{sessao.id}`\n\n"
+                            "Neste modo posso:\n"
+                            "- Analisar codigo e arquitetura\n"
+                            "- Gerar planos estruturados\n"
+                            "- Consultar documentacao e memorias\n"
+                            "- Identificar riscos e dependencias\n\n"
+                            "**Bloqueado:** escrita, execucao, deploy, push, email.\n\n"
+                            "O que deseja planejar?"
+                        ),
+                    }
+                except RuntimeError as e:
+                    yield {"tipo": "chunk", "conteudo": f"Erro ao ativar Plan Mode: {e}"}
+
+        elif acao == "sair":
+            if not plan_mode_service.em_plan_mode:
+                yield {
+                    "tipo": "chunk",
+                    "conteudo": "Voce ja esta em **Modo Normal**. Todas as ferramentas estao disponiveis.",
+                }
+            else:
+                resumo = await plan_mode_service.sair(usuario_nome=usuario_nome)
+                yield {
+                    "tipo": "chunk",
+                    "conteudo": (
+                        "**Plan Mode desativado** — de volta ao Modo Normal.\n\n"
+                        f"Duracao: {resumo.get('duracao_segundos', 0):.0f}s | "
+                        f"Acoes bloqueadas: {resumo.get('acoes_bloqueadas', 0)}\n\n"
+                        "Todas as ferramentas estao disponiveis novamente."
+                    ),
+                }
+
+        yield {"tipo": "fim", "mensagem_id": 0, "modelo": "plan_mode", "provider": "system"}
+
+    # =================================================================
     # Detecção e execução de sub-agentes (Fase 2.3 — Fork Real)
     # =================================================================
 
@@ -812,6 +920,42 @@ Você está sendo executado como sub-agente via fork real do sistema de agentes.
         )
         db.add(msg_usuario)
         db.commit()
+
+        # ─── Fase 3.2: Interceptação de Plan Mode ────────────────────────
+        plan_acao = self._detectar_plan_mode(conteudo)
+        if plan_acao:
+            logger.info(f"[Luna] Plan Mode detectado: acao={plan_acao}")
+            resposta_plan = ""
+            async for evento in self._handle_plan_mode(
+                plan_acao, conversa_id, usuario_id, usuario_nome
+            ):
+                if evento.get("tipo") == "chunk":
+                    resposta_plan += evento.get("conteudo", "")
+                yield evento
+
+            # Salvar resposta no banco
+            if resposta_plan:
+                msg_plan = LunaMensagemDB(
+                    conversa_id=conversa_id,
+                    papel="assistant",
+                    conteudo=resposta_plan,
+                    modelo_usado="plan_mode",
+                    provider_usado="system",
+                )
+                db.add(msg_plan)
+                conversa.atualizado_em = datetime.utcnow()
+                db.commit()
+
+                await self._capturar_snapshot_kairos(
+                    conversa_id=conversa_id,
+                    mensagem_usuario=conteudo,
+                    resposta_luna=resposta_plan,
+                    usuario_id=usuario_id,
+                    modelo="plan_mode",
+                    provider="system",
+                )
+            return
+        # ─── Fim da interceptação de Plan Mode ───────────────────────────
 
         # ─── Fase 2.3: Interceptação de sub-agente (fork real) ──────────
         # Se a mensagem pede um sub-agente E fork está habilitado no banco,

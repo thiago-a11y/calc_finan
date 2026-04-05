@@ -4,6 +4,23 @@
 
 ---
 
+## v0.61.1 — Integração Plan Mode + Luna (05/Abr/2026)
+
+### Luna detecta "modo plano" automaticamente na conversa
+
+- Novo método `_detectar_plan_mode(mensagem)` — 5 padrões de entrada + 4 de saída
+- Novo método `_handle_plan_mode(acao, ...)` — processa entrar/sair com resposta confirmando
+- Interceptação em `stream_resposta()` antes do fork de sub-agente
+- Resposta salva no banco (`modelo_usado="plan_mode"`, `provider="system"`)
+- Snapshot Kairos capturado automaticamente
+- 11 testes de detecção passaram (entrar/sair/neutro)
+
+### Alterações
+
+- `core/luna_engine.py` — import `plan_mode_service` + 2 métodos + interceptação
+
+---
+
 ## v0.61.0 — Plan Mode: Governança Avançada (05/Abr/2026)
 
 ### Fase 3.2: Plan Mode com permissões granulares

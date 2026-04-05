@@ -222,7 +222,7 @@
 - [x] PermissionGuard: 30+ ferramentas classificadas (SAFE/WRITE/EXECUTE/DESTRUCTIVE/EXTERNAL)
 - [x] PlanAgent: gera planos via LLM em modo somente-leitura
 - [x] Snapshots Kairos automáticos ao entrar/sair
-- [ ] Integrar Plan Mode com Luna (detectar "modo plano")
+- [x] Integrar Plan Mode com Luna (detectar "modo plano") — v0.61.1
 - [ ] Integrar Plan Mode com Mission Control (botão Plan Mode)
 - [ ] API REST para Plan Mode no dashboard
 - [x] Auto-dream no startup da API — v0.60.3

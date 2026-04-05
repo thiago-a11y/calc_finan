@@ -69,8 +69,15 @@ O Plan Mode permite que agentes e CEO operem em modo somente-leitura: podem anal
 | `plan_agent.py` | PlanAgent: planos via LLM |
 | `service.py` | PlanModeService singleton |
 
+## Integração Luna (v0.61.1)
+
+- `_detectar_plan_mode(mensagem)` — 9 padrões regex (5 entrada + 4 saída)
+- `_handle_plan_mode(acao, ...)` — processa entrar/sair com resposta confirmando
+- Interceptação em `stream_resposta()` antes do fork de sub-agente
+- Snapshot Kairos capturado automaticamente na transição
+
 ## Próximos Passos
 
-- [ ] Integrar Plan Mode com Luna (detectar "modo plano")
+- [x] Integrar Plan Mode com Luna — v0.61.1
 - [ ] Integrar com Mission Control (botão Plan Mode)
 - [ ] API REST para Plan Mode no dashboard

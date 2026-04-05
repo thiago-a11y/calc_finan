@@ -72,8 +72,12 @@
 - [x] `core/governance/plan_mode/service.py` — PlanModeService singleton
 - [x] 11 testes de import + verificação: TODOS PASSARAM ✅
 
+### v0.61.1 — Integração Plan Mode + Luna
+- [x] `core/luna_engine.py` — `_detectar_plan_mode()` + `_handle_plan_mode()` + interceptação
+- [x] 11 testes de detecção: entrar/sair/neutro ✅
+- [x] Teste real: "entrar em modo plano" → ativado | "sair do modo plano" → desativado ✅
+
 ### Pendencias
-- [ ] Integrar Plan Mode com Luna (detectar "modo plano" na conversa)
 - [ ] Integrar Plan Mode com Mission Control (botão Plan Mode na sessão)
 - [ ] API REST para Plan Mode no dashboard
 - [ ] Deploy produção
