@@ -2,7 +2,7 @@
 
 > Memória de longo prazo para agentes IA do Synerium Factory.
 
-**Fase:** 3.1 | **Versão:** v0.60.4 | **Última atualização:** 05/Abr/2026
+**Fase:** 3.1 | **Versão:** v0.60.5 | **Última atualização:** 05/Abr/2026
 
 ---
 
@@ -173,5 +173,13 @@ status = kairos_service.status()
 - [x] Integrar com Mission Control — v0.60.2
 - [x] Auto-dream no startup da API — v0.60.3
 - [x] API REST para dashboard — v0.60.4
-- [ ] Página Kairos no dashboard (React)
+- [x] Página Kairos no dashboard (React) — v0.60.5
 - [ ] Embeddings para busca semântica (ChromaDB)
+
+### Dashboard (v0.60.5)
+- `dashboard/src/pages/Kairos.tsx` — 4 tabs CEO-only
+- Tab **Status**: 4 stat cards + distribuição por source/agente + config
+- Tab **Snapshots**: tabela com filtros (source, consolidado)
+- Tab **Memories**: cards com busca textual, filtro tipo, relevância colorida, tags
+- Tab **Dream**: botão disparo manual + resultado visual (snapshots/criadas/atualizadas)
+- Rota `/kairos` no App.tsx, link Brain + badge CEO no Sidebar

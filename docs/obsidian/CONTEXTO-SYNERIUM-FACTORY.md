@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.60.4 (05/Abr/2026)
+**Versão Atual:** v0.60.5 (05/Abr/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -493,6 +493,7 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.58.1** — **Vision Real para Agentes de Squad** — Pré-processamento de imagens com GPT-4o-mini vision (`_analisar_imagens_com_vision()`), ChatFloating envia URLs reais de upload, Luna Engine com path resolution absoluto e fallback não-silencioso
 - **v0.58.0** — **Agentes Multimodais (Vision)** — Flag `vision` em todos os providers, novo parâmetro `tem_imagem` no classificador, roteamento SIMPLES/MEDIO→GPT-4o-mini e COMPLEXO→GPT-4o quando imagem presente, fallback chain filtra providers sem vision, `_mensagens_tem_imagem()` no LLM Fallback
 - **v0.57.6** — **True Live Typing & Execution Feeling** — True character-by-character typing no editor com cursor verde piscando e highlight de linha, badge STREAMING com glow vermelho, badge "Em execução" com glow verde forte, barra de progresso com glow intenso, texto descritivo "Fase X/5" com emoji, agent-pulse mais forte (scale 1.3x), terminal com cursor verde e texto "agente executando..."
+- **v0.60.5** — **Página Kairos no Dashboard** — `dashboard/src/pages/Kairos.tsx` CEO-only com 4 tabs (Status, Snapshots, Memories, Dream). Dark mode premium, busca textual, filtros por tipo/source/consolidado, disparo manual de dream. Rota `/kairos` no App.tsx, link com Brain icon no Sidebar
 - **v0.60.4** — **API REST do Kairos** — 4 endpoints JWT: GET status/snapshots/memories + POST dream/manual. Paginação, filtros, busca textual. `api/routes/kairos.py` registrado no main.py
 - **v0.60.3** — **AutoDream no startup da API** — `api/main.py` lifespan: iniciar_auto_dream() no startup + parar_auto_dream() no shutdown. Loop 60min. Primeiro ciclo: 3 snapshots → 3 memórias consolidadas
 - **v0.60.2** — **Integração Kairos + Mission Control** — `_kairos_snapshot()` non-blocking via threading.Thread em criar_sessao (rel=0.3), fase_decisao (rel=0.8), disparar_agente (rel=0.6)
@@ -691,4 +692,4 @@ Cadeia centralizada em `core/llm_fallback.py`:
 
 ---
 
-> Ultima atualizacao: 2026-04-05 (v0.60.4)
+> Ultima atualizacao: 2026-04-05 (v0.60.5)

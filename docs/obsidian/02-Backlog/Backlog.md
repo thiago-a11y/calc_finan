@@ -41,7 +41,7 @@
 - [x] ~~Integrar Kairos com Mission Control~~ — v0.60.2
 - [x] ~~Auto-dream no startup da API~~ — v0.60.3
 - [x] ~~API REST para consulta/status do Kairos~~ — v0.60.4
-- [ ] Página Kairos no dashboard (React) — visualização de memórias e snapshots
+- [x] ~~Página Kairos no dashboard~~ — v0.60.5
 - [ ] Embeddings para busca semântica no Kairos (ChromaDB)
 - [ ] Dashboard web para acompanhar status dos squads
 - [ ] Integração com WhatsApp Business para notificações
