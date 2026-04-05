@@ -4,6 +4,41 @@
 
 ---
 
+## v0.59.8 — Fork Real de Sub-Agentes na Luna (04/Abr/2026)
+
+### Fase 2.3 Finalizada: Fork Real ativado
+
+**Problema:** Ao pedir "Inicie um sub-agente tech_lead...", a Luna respondia com simulação do LLM ("Vou preparar um pedido... aguarde") em vez de executar o fork real.
+
+**Solução: Interceptação de sub-agente em `core/luna_engine.py`**
+
+- Novo método `_detectar_subagente(mensagem)` — detecta pedidos de sub-agente via regex (6 padrões) + fallback por tipo no registry
+- Novo método `_executar_subagente(agent_type, diretiva, ...)` — execução REAL via `AgentSpawner` + chamada LLM com system prompt especializado do agente
+- Novo método `_construir_prompt_subagente(definition, diretiva)` — prompt dinâmico baseado na definição do agente no registry
+- Interceptação em `stream_resposta()`: se `fork_subagent=True` no banco → fork real; se `False` → fluxo antigo (retrocompatível)
+- Resposta do sub-agente é salva no banco da conversa (`modelo_usado="subagente:{tipo}"`, `provider_usado="fork_real"`)
+
+### Fluxo
+
+```
+Usuário → "Inicie um sub-agente tech_lead para ..."
+       ↓
+Luna._detectar_subagente() → ("tech_lead", "diretiva...")
+       ↓
+fork_manager.is_fork_subagent_enabled() → True (banco)
+       ↓
+Luna._executar_subagente() → AgentSpawner.spawn() + LLM streaming
+       ↓
+Resposta do sub-agente em streaming via SSE
+```
+
+### Alterações
+
+- `core/luna_engine.py` — imports de `fork_manager`, `agent_spawner`, `AgentRegistry`, `AgentSpawnParams`, `feature_flag_service` + 3 novos métodos + interceptação em `stream_resposta()`
+- Zero mudanças no frontend, API, ou banco — 100% retrocompatível
+
+---
+
 ## v0.59.7 — FeatureFlagService: Integração com ForkManager (04/Abr/2026)
 
 ### Novo: core/feature_flags.py

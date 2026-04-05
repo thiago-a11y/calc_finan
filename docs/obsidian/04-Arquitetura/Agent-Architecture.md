@@ -2,9 +2,46 @@
 
 > Arquitetura de agentes avançados: fork subagent, tool registry, worktree isolation, e modo brief.
 
-**Fase:** 2.3 | **Versão:** v0.59.7 | **Última atualização:** 04/Abr/2026
+**Fase:** 2.3 ✅ | **Versão:** v0.59.8 | **Última atualização:** 04/Abr/2026
+
+> **v0.59.8:** Fork REAL de sub-agentes na Luna. `stream_resposta()` agora intercepta pedidos de sub-agente, valida `fork_subagent` no banco via `FeatureFlagService`, e executa via `AgentSpawner` + chamada LLM com system prompt especializado. Fase 2.3 concluída.
 
 > **v0.59.7:** FeatureFlagService com cache TTL 30s — integração com ForkManager. Flags agora lidas do banco em vez de env vars.
+
+---
+
+## Integração Luna ↔ AgentSpawner (v0.59.8)
+
+A Luna agora intercepta pedidos de sub-agente e executa fork REAL:
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                    LUNA ENGINE — stream_resposta()                        │
+│                                                                          │
+│  Mensagem do usuário                                                     │
+│       │                                                                  │
+│       ▼                                                                  │
+│  _detectar_subagente(msg)                                                │
+│       │                                                                  │
+│       ├── agent_type=None → Fluxo normal (LLM streaming)                │
+│       │                                                                  │
+│       ├── agent_type="tech_lead" + fork_subagent=False → Fluxo normal   │
+│       │                                                                  │
+│       └── agent_type="tech_lead" + fork_subagent=True  → FORK REAL:     │
+│                │                                                         │
+│                ▼                                                         │
+│           AgentSpawner.spawn(params) → tracking                          │
+│                │                                                         │
+│                ▼                                                         │
+│           _construir_prompt_subagente(definition)                        │
+│                │                                                         │
+│                ▼                                                         │
+│           LLM streaming com system prompt do agente                      │
+│                │                                                         │
+│                ▼                                                         │
+│           Resposta salva no banco + SSE para frontend                    │
+└──────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 

@@ -12,6 +12,7 @@ Nenhum bug ativo no momento.
 
 | # | Descrição | Causa | Solução | Data |
 |---|---|---|---|---|
+| 54 | Luna simulava sub-agente em vez de executar fork real — respondia "Vou preparar um pedido... aguarde" | `stream_resposta()` enviava mensagem direto ao LLM sem interceptar pedidos de sub-agente, mesmo com `fork_subagent=True` no banco | Interceptação em `stream_resposta()`: detecta sub-agente via regex + valida feature flag + executa via `AgentSpawner` + LLM com system prompt do agente | 2026-04-04 |
 | 53 | Banner de restart não desaparecia após restart — `requer_restart=True` não era limpo no banco após restart via SIGTERM | O endpoint de restart apenas enviava SIGTERM mas não atualizava o campo `requer_restart` da flag no banco | Endpoint agora limpa `requer_restart=False` em todas as flags ANTES de enviar o SIGTERM. Flags com restart pendente são "consumidas" após cada restart. | 2026-04-04 |
 
 | # | Descrição | Causa | Solução | Data |

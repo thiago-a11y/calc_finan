@@ -33,6 +33,11 @@ from sqlalchemy.orm import Session
 from config.settings import settings
 from core.llm_router import smart_router, MODELOS_CLAUDE, ModeloClaudeTier
 from config.llm_providers import PROVIDERS, ProviderID
+from core.feature_flags import feature_flag_service
+from core.agents.fork import fork_manager
+from core.agents.spawn import agent_spawner
+from core.agents.registry import AgentRegistry
+from core.agents.base import AgentSpawnParams
 from database.models import (
     LunaConversaDB, LunaMensagemDB, UsageTrackingDB, AuditLogDB
 )
@@ -458,6 +463,239 @@ class LunaEngine:
             return "minimax"
         return None  # Cadeia de fallback default
 
+    # =================================================================
+    # Detecção e execução de sub-agentes (Fase 2.3 — Fork Real)
+    # =================================================================
+
+    def _detectar_subagente(self, mensagem: str) -> tuple[str | None, str]:
+        """
+        Detecta se a mensagem é um pedido de sub-agente.
+
+        Padrões reconhecidos:
+        - "Inicie um sub-agente tech_lead para ..."
+        - "iniciar um sub-agente backend_dev ..."
+        - "iniciando sub-agente qa_engineer ..."
+        - "sub-agente tech_lead: ..."
+
+        Returns:
+            (agent_type, diretiva) — agent_type=None se não for pedido de sub-agente.
+        """
+        import re
+
+        msg = mensagem.strip()
+        msg_lower = msg.lower()
+
+        # Padrões de detecção
+        padroes = [
+            # "Inicie um sub-agente tech_lead para me dizer..."
+            r"(?:inici[ea]r?|lançar?|spawnar?|criar?|rodar?)\s+(?:um\s+)?sub[_\-\s]?agente\s+(\w+)\s+(?:para\s+)?(.+)",
+            # "sub-agente tech_lead: faça isso"
+            r"sub[_\-\s]?agente\s+(\w+)[:\s]+(.+)",
+            # "iniciando sub-agente tech_lead..."
+            r"iniciando\s+sub[_\-\s]?agente\s+(\w+)\s*[:\-]?\s*(.+)",
+        ]
+
+        for padrao in padroes:
+            match = re.search(padrao, msg, re.IGNORECASE | re.DOTALL)
+            if match:
+                agent_type = match.group(1).lower().strip()
+                diretiva = match.group(2).strip()
+                if diretiva:
+                    logger.info(
+                        f"[Luna] Sub-agente detectado: type={agent_type}, "
+                        f"diretiva='{diretiva[:80]}...'"
+                    )
+                    return agent_type, diretiva
+
+        # Fallback: verificação simples por palavras-chave
+        if "sub-agente" in msg_lower or "sub_agente" in msg_lower or "subagente" in msg_lower:
+            # Tentar extrair tipo de agente do texto
+            registry = AgentRegistry.get_instance()
+            for agent_type_key in registry.list_agent_types():
+                if agent_type_key in msg_lower:
+                    # Usar toda a mensagem como diretiva
+                    logger.info(
+                        f"[Luna] Sub-agente detectado (fallback): type={agent_type_key}"
+                    )
+                    return agent_type_key, msg
+
+        return None, msg
+
+    async def _executar_subagente(
+        self,
+        agent_type: str,
+        diretiva: str,
+        conversa_id: str,
+        usuario_id: int,
+        usuario_nome: str,
+    ) -> AsyncGenerator[dict, None]:
+        """
+        Executa um sub-agente REAL via AgentSpawner + chamada LLM.
+
+        Fluxo:
+        1. Busca definição do agente no registry
+        2. Cria spawn via AgentSpawner (tracking)
+        3. Executa chamada LLM com system prompt especializado
+        4. Faz streaming da resposta do sub-agente
+
+        Yields:
+            Dicts com tipo "chunk", "fim", ou "erro" (mesmo formato de stream_resposta).
+        """
+        inicio = time.time()
+
+        # 1. Buscar definição do agente
+        registry = AgentRegistry.get_instance()
+        definition = registry.get(agent_type)
+
+        if not definition:
+            tipos_disponiveis = ", ".join(registry.list_agent_types())
+            yield {
+                "tipo": "chunk",
+                "conteudo": (
+                    f"⚠️ Tipo de sub-agente `{agent_type}` não encontrado no catálogo.\n\n"
+                    f"**Tipos disponíveis:** {tipos_disponiveis}"
+                ),
+            }
+            yield {"tipo": "fim", "mensagem_id": 0, "modelo": "none", "provider": "none"}
+            return
+
+        # 2. Registrar spawn via AgentSpawner (tracking de progresso)
+        params = AgentSpawnParams(
+            prompt=diretiva,
+            description=f"Sub-agente {definition.name}",
+            agent_type=agent_type,
+        )
+        spawn_result = await agent_spawner.spawn(params, context={
+            "usuario_id": usuario_id,
+            "conversa_id": conversa_id,
+        })
+
+        logger.info(
+            f"[Luna] Sub-agente spawned: {agent_type} (id={spawn_result.agent_id}, "
+            f"status={spawn_result.status})"
+        )
+
+        # 3. Emitir indicador de início
+        yield {
+            "tipo": "chunk",
+            "conteudo": (
+                f"🤖 **Iniciando sub-agente {definition.name}**\n"
+                f"Tipo: `{agent_type}` | Modelo: `{definition.model or 'auto'}`\n\n"
+                f"---\n\n"
+            ),
+        }
+
+        # 4. Construir system prompt do sub-agente
+        system_prompt = self._construir_prompt_subagente(definition, diretiva)
+
+        # 5. Executar LLM com o contexto do sub-agente
+        # Decidir modelo baseado na definição do agente
+        modelo_agente = definition.model or "sonnet"
+        if modelo_agente == "opus":
+            forcar = "opus"
+        elif modelo_agente == "sonnet":
+            forcar = "sonnet"
+        else:
+            forcar = None
+
+        cadeia = _obter_cadeia_fallback(forcar)
+
+        mensagens_llm = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=diretiva),
+        ]
+
+        resposta_completa = ""
+        provider_usado = ""
+        modelo_usado = ""
+
+        for provider_id, modelo_nome, factory_fn in cadeia:
+            try:
+                logger.info(f"[Luna] Sub-agente {agent_type} → provider: {provider_id}")
+                llm = factory_fn()
+
+                async for chunk in llm.astream(mensagens_llm):
+                    texto = ""
+                    if hasattr(chunk, "content") and chunk.content:
+                        texto = chunk.content
+                    elif isinstance(chunk, str):
+                        texto = chunk
+
+                    if texto:
+                        resposta_completa += texto
+                        yield {"tipo": "chunk", "conteudo": texto}
+
+                provider_usado = provider_id
+                modelo_usado = modelo_nome
+                break
+
+            except Exception as e:
+                logger.warning(f"[Luna] Sub-agente {agent_type} — falha {provider_id}: {e}")
+                continue
+
+        if not resposta_completa:
+            yield {"tipo": "erro", "mensagem": f"Sub-agente {agent_type}: todos os providers falharam."}
+            return
+
+        # 6. Completar spawn
+        if spawn_result.agent_id:
+            await agent_spawner.complete_spawn(spawn_result.agent_id)
+
+        # 7. Calcular métricas
+        tokens_in = len(diretiva) // CHARS_POR_TOKEN
+        tokens_out = len(resposta_completa) // CHARS_POR_TOKEN
+        custo = self._calcular_custo(provider_usado, tokens_in, tokens_out)
+        duracao_ms = (time.time() - inicio) * 1000
+
+        logger.info(
+            f"[Luna] Sub-agente {agent_type} concluído em {duracao_ms:.0f}ms "
+            f"via {provider_usado} (~{tokens_out} tokens)"
+        )
+
+        yield {
+            "tipo": "fim",
+            "mensagem_id": 0,
+            "modelo": modelo_usado,
+            "provider": provider_usado,
+            "tokens_input": tokens_in,
+            "tokens_output": tokens_out,
+            "custo_usd": custo,
+            "subagente": agent_type,
+        }
+
+    def _construir_prompt_subagente(self, definition, diretiva: str) -> str:
+        """
+        Constrói o system prompt especializado para o sub-agente.
+
+        Usa o get_system_prompt do AgentDefinition se disponível,
+        caso contrário monta um prompt genérico baseado na descrição.
+        """
+        # Se o agente tem factory de system prompt, usar
+        if definition.get_system_prompt:
+            try:
+                return definition.get_system_prompt()
+            except Exception:
+                pass
+
+        # Prompt genérico baseado na definição do agente
+        return f"""Você é o **{definition.name}** do Synerium Factory.
+
+Sua especialidade: {definition.description}
+
+REGRAS:
+1. Responda DIRETAMENTE a tarefa solicitada — sem perguntas, sem meta-comentários.
+2. Seja conciso, factual e profissional.
+3. Use português brasileiro.
+4. Estruture a resposta de forma clara (listas, seções quando apropriado).
+5. Se a tarefa pede prioridades ou análise, baseie-se no contexto do Synerium Factory:
+   - Fábrica de SaaS impulsionada por agentes IA
+   - Baseado no SyneriumX (PHP 7.4 + React + multi-tenant + LGPD)
+   - Arquitetura: Python 3.13, CrewAI, LangGraph, FastAPI, React 18
+   - Objetivo: criar novos produtos 10x mais rápido com agentes IA
+6. Mantenha sua resposta focada no escopo — não divague.
+
+Você está sendo executado como sub-agente via fork real do sistema de agentes."""
+
     async def stream_resposta(
         self,
         db: Session,
@@ -508,6 +746,49 @@ class LunaEngine:
         )
         db.add(msg_usuario)
         db.commit()
+
+        # ─── Fase 2.3: Interceptação de sub-agente (fork real) ──────────
+        # Se a mensagem pede um sub-agente E fork está habilitado no banco,
+        # desvia para execução real via AgentSpawner em vez do fluxo normal.
+        agent_type, diretiva = self._detectar_subagente(conteudo)
+        if agent_type and fork_manager.is_fork_subagent_enabled():
+            logger.info(
+                f"[Luna] Fork REAL ativado para sub-agente '{agent_type}' "
+                f"(fork_subagent=True no banco)"
+            )
+            resposta_subagente = ""
+            async for evento in self._executar_subagente(
+                agent_type, diretiva, conversa_id, usuario_id, usuario_nome
+            ):
+                if evento.get("tipo") == "chunk":
+                    resposta_subagente += evento.get("conteudo", "")
+                yield evento
+
+            # Salvar resposta do sub-agente no banco da conversa
+            if resposta_subagente:
+                msg_sub = LunaMensagemDB(
+                    conversa_id=conversa_id,
+                    papel="assistant",
+                    conteudo=resposta_subagente,
+                    modelo_usado=f"subagente:{agent_type}",
+                    provider_usado="fork_real",
+                )
+                db.add(msg_sub)
+                conversa.atualizado_em = datetime.utcnow()
+
+                # Gerar título se for a primeira troca
+                total_msgs = db.query(LunaMensagemDB).filter(
+                    LunaMensagemDB.conversa_id == conversa_id
+                ).count()
+                if total_msgs <= 2:
+                    titulo = await self._gerar_titulo(conteudo)
+                    if titulo:
+                        conversa.titulo = titulo
+                        yield {"tipo": "titulo", "titulo": titulo}
+
+                db.commit()
+            return
+        # ─── Fim da interceptação de sub-agente ──────────────────────────
 
         # Decidir modelo (v0.58.0: passa anexos para detectar imagens → vision)
         forcar = self._decidir_modelo(conteudo, conversa.modelo_preferido, anexos=anexos_json)

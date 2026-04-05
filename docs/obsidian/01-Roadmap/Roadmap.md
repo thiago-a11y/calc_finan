@@ -100,6 +100,16 @@
 - [x] LifecycleManager: tracking global de lifecycles
 - [x] Opus 1M context: `claude-opus-4-6` em todos os 4 providers
 
+### Fase 2.3 — Fork Real de Sub-Agentes (✅ concluída)
+- [x] Master Control: GUI de feature flags para CEO (v0.59.5)
+- [x] Master Control: tooltips, dialog, melhorias visuais (v0.59.6)
+- [x] FeatureFlagService: cache TTL 30s + integração ForkManager (v0.59.7)
+- [x] Fork REAL na Luna: interceptação de sub-agente em `stream_resposta()` (v0.59.8)
+- [x] `_detectar_subagente()` — 6 padrões regex + fallback por registry
+- [x] `_executar_subagente()` — AgentSpawner + LLM com system prompt especializado
+- [x] Retrocompatível: fork_subagent=False → fluxo antigo preservado
+- [x] Resposta salva no banco da conversa (modelo_usado="subagente:{tipo}")
+
 ### Fase 2.6 — Redesign Premium Completo ✅
 - [x] Dark mode verdadeiro em TODAS as páginas (#0a0a0f)
 - [x] Zero emojis — lucide-react em todo o dashboard

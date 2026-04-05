@@ -1,5 +1,22 @@
 # Pendencias do Ultimo Chat — 04/Abr/2026
 
+## Sessao 55 (04/Abr/2026) — Fork Real de Sub-Agentes na Luna (v0.59.8)
+
+### v0.59.8 — Fase 2.3 Finalizada: Fork Real ativado
+- [x] `core/luna_engine.py` — `_detectar_subagente()` com 6 padrões regex + fallback por registry
+- [x] `core/luna_engine.py` — `_executar_subagente()` com AgentSpawner + LLM streaming real
+- [x] `core/luna_engine.py` — `_construir_prompt_subagente()` — prompt dinâmico por definição do agente
+- [x] `core/luna_engine.py` — interceptação em `stream_resposta()` (fork_subagent=True → fork real)
+- [x] Retrocompatível: fork_subagent=False → fluxo antigo preservado (zero impacto)
+- [x] Resposta salva no banco da conversa (modelo_usado="subagente:{tipo}", provider="fork_real")
+- [x] Bug #54 resolvido: Luna não simulava mais, executa fork real
+- [x] Documentação: Changelog v0.59.8, Roadmap Fase 2.3 ✅, Agent-Architecture, Bugs #54
+
+### Pendencias
+- [ ] Nada — Fase 2.3 concluída
+
+---
+
 ## Sessao 54 (04/Abr/2026) — FeatureFlagService + Integração ForkManager (v0.59.7)
 
 ### v0.59.7 — FeatureFlagService: Integração com ForkManager
