@@ -4,6 +4,23 @@
 
 ---
 
+## v0.60.5 — Página Kairos no Dashboard (05/Abr/2026)
+
+### Página visual para o sistema de memória auto-evolutiva
+
+- `dashboard/src/pages/Kairos.tsx` — 4 tabs: Status, Snapshots, Memories, Dream
+- `dashboard/src/App.tsx` — rota `/kairos`
+- `dashboard/src/components/Sidebar.tsx` — link CEO-only com icone Brain e badge CEO
+
+**Tab Status:** 4 stat cards (ativo, pendentes, consolidadas, AutoDream) + distribuicao por source + memorias por agente + config
+**Tab Snapshots:** tabela com filtros por source e status de consolidacao
+**Tab Memories:** cards com busca textual, filtro por tipo, relevancia colorida, tags, contagem de acessos
+**Tab Dream:** botao de disparo manual com resultado visual (snapshots/criadas/atualizadas/duracao)
+
+Design: dark mode premium, mesmo estilo do Master Control (lucide-react, var(--sf-*))
+
+---
+
 ## v0.60.4 — API REST do Kairos (05/Abr/2026)
 
 ### 4 endpoints para consulta e controle do sistema de memória

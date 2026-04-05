@@ -213,6 +213,7 @@
 - [x] Integrar Kairos com Luna (snapshots automáticos de conversas) — v0.60.1
 - [x] Integrar Kairos com Mission Control (snapshots de sessões) — v0.60.2
 - [x] API REST para dashboard (consulta/status Kairos) — v0.60.4
+- [x] Página Kairos no dashboard (React) — v0.60.5
 - [x] Auto-dream no startup da API — v0.60.3
 
 ## Fase 3 — Multi-Produto e Governança (🟡 em andamento)

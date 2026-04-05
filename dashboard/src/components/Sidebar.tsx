@@ -317,6 +317,46 @@ function SidebarContent({ collapsed, onToggle, onClose, isMobile }: SidebarConte
             )}
           </NavLink>
         )}
+
+        {/* CEO-only: Kairos */}
+        {usuario && usuario.papeis?.includes('ceo') && (
+          <NavLink
+            to="/kairos"
+            className="group flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg text-[13px] transition-all duration-150"
+            style={({ isActive }) => ({
+              background: isActive ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.04)',
+              color: isActive ? '#c084fc' : 'rgba(168,85,247,0.6)',
+              fontWeight: isActive ? 500 : 400,
+            })}
+            onClick={onClose}
+            title={collapsed ? 'Kairos' : undefined}
+          >
+            {({ isActive }) => (
+              <>
+                <Brain
+                  size={16}
+                  strokeWidth={isActive ? 2 : 1.5}
+                  className="flex-shrink-0"
+                  style={{ color: isActive ? '#c084fc' : 'rgba(168,85,247,0.5)' }}
+                />
+                {!collapsed && (
+                  <>
+                    <span className="truncate">Kairos</span>
+                    <span
+                      className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0"
+                      style={{
+                        background: 'rgba(168,85,247,0.15)',
+                        color: '#c084fc',
+                      }}
+                    >
+                      CEO
+                    </span>
+                  </>
+                )}
+              </>
+            )}
+          </NavLink>
+        )}
       </nav>
 
       {/* User card — sempre no bottom do sidebar visivel */}

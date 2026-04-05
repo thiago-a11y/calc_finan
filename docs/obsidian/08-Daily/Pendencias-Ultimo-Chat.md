@@ -45,8 +45,18 @@
 - [x] POST /api/kairos/dream/manual — disparo manual de consolidação
 - [x] Todos 5 testes com curl: APROVADOS ✅
 
+### v0.60.5 — Página Kairos no Dashboard
+- [x] `dashboard/src/pages/Kairos.tsx` — página completa com 4 tabs
+- [x] `dashboard/src/App.tsx` — rota /kairos
+- [x] `dashboard/src/components/Sidebar.tsx` — link CEO-only com icone Brain
+- [x] Tab Status: 4 stat cards + distribuicao por source + memorias por agente
+- [x] Tab Snapshots: tabela com filtros (source, consolidado)
+- [x] Tab Memories: cards com busca textual + filtro por tipo + relevancia colorida
+- [x] Tab Dream: botao disparar dream manual + resultado visual
+- [x] Build TypeScript: OK ✅
+
 ### Pendencias
-- [ ] Página Kairos no dashboard (React) — visualização de memórias e snapshots
+- [ ] Deploy produção v0.60.5
 
 ---
 

@@ -35,6 +35,7 @@ import CodeStudio from './pages/CodeStudio'
 import CommandCenter from './pages/CommandCenter'
 import MissionControl from './pages/MissionControl'
 import MasterControl from './pages/MasterControl'
+import Kairos from './pages/Kairos'
 
 /* Rota protegida — redireciona para /login se não autenticado */
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -275,6 +276,14 @@ function AppRoutes() {
         element={
           <RotaProtegida>
             <LayoutPrincipal><MasterControl /></LayoutPrincipal>
+          </RotaProtegida>
+        }
+      />
+      <Route
+        path="/kairos"
+        element={
+          <RotaProtegida>
+            <LayoutPrincipal><Kairos /></LayoutPrincipal>
           </RotaProtegida>
         }
       />
