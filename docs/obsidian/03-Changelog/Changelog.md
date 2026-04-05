@@ -4,6 +4,13 @@
 
 ---
 
+## v0.60.5.2 — Botão Criar Snapshot de Teste no Kairos (05/Abr/2026)
+
+- Novo endpoint `POST /api/kairos/snapshot/teste` — cria snapshot de teste para validar o dream
+- Novo botão "Criar Snapshot de Teste" na aba Dream (ao lado do Disparar Dream)
+- Feedback visual: loading 800ms + mensagem verde "Snapshot criado!" por 2s
+- Após criar, atualiza automaticamente status e lista de snapshots
+
 ## v0.60.5.1 — Fix: Botão Atualizar do Kairos (05/Abr/2026)
 
 - Botão "Atualizar" não dava feedback visual ao clicar

@@ -58,6 +58,10 @@
 ### v0.60.5.1 — Fix: Botão Atualizar do Kairos
 - [x] Bug #55: botão Atualizar sem feedback visual → spinner + await + disabled
 
+### v0.60.5.2 — Botão Criar Snapshot de Teste
+- [x] `api/routes/kairos.py` — endpoint POST /api/kairos/snapshot/teste
+- [x] `dashboard/src/pages/Kairos.tsx` — botão na aba Dream com feedback visual
+
 ### Pendencias
 - [ ] Deploy produção v0.60.5
 
