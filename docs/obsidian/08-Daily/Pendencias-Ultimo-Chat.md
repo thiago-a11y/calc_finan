@@ -21,8 +21,15 @@
 - [x] Truncamento a 5000 chars para não sobrecarregar o dream
 - [x] Testado: 2 snapshots capturados (conversa normal + sub-agente tech_lead) ✅
 
+### v0.60.2 — Integração Kairos + Mission Control
+- [x] `api/routes/mission_control.py` — import `kairos_service` + helper `_kairos_snapshot()`
+- [x] Snapshot em `criar_sessao` (agente=mission_control, relevância=0.3)
+- [x] Snapshot em `fase_decisao` (agente=ceo, relevância=0.8 — decisões estratégicas)
+- [x] Snapshot em `disparar_agente` (agente=mission_control, relevância=0.6)
+- [x] Non-blocking via `threading.Thread` (endpoints síncronos)
+- [x] Testado: snapshot de criar_sessao capturado ✅
+
 ### Pendencias
-- [ ] Integrar Kairos com Mission Control (snapshots de sessões)
 - [ ] API REST para consulta/status do Kairos no dashboard
 - [ ] Auto-dream no startup da API (iniciar_auto_dream no main.py)
 

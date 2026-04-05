@@ -39,6 +39,8 @@ from database.models import (
 from database.session import get_db, SessionLocal
 from sqlalchemy.orm.attributes import flag_modified
 
+from core.memory.kairos.service import kairos_service
+
 logger = logging.getLogger("synerium.mission_control")
 
 router = APIRouter(prefix="/api/mission-control", tags=["Mission Control"])
@@ -109,6 +111,40 @@ class FaseDecisaoRequest(BaseModel):
 
 def _gerar_id() -> str:
     return uuid.uuid4().hex[:12]
+
+
+# ─── Kairos: captura de snapshots non-blocking (Fase 3.1) ───────────
+
+def _kairos_snapshot(
+    agente_id: str,
+    conteudo: str,
+    contexto: dict,
+    tenant_id: int = 1,
+    relevancia: float = 0.5,
+) -> None:
+    """
+    Captura snapshot de memória no Kairos de forma non-blocking.
+
+    Como os endpoints do Mission Control são síncronos, usamos
+    asyncio.run() numa thread separada para não bloquear a resposta.
+    Erros são logados mas nunca propagados ao endpoint.
+    """
+    import asyncio
+
+    def _run():
+        try:
+            asyncio.run(kairos_service.criar_snapshot(
+                agente_id=agente_id,
+                source="mission_control",
+                conteudo=conteudo[:5000],
+                contexto=contexto,
+                tenant_id=tenant_id,
+                relevancia=relevancia,
+            ))
+        except Exception as e:
+            logger.warning(f"[MISSION/Kairos] Falha ao capturar snapshot: {e}")
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 COMANDOS_BLOQUEADOS = [
@@ -220,6 +256,20 @@ def criar_sessao(
     db.refresh(sessao)
 
     logger.info(f"[MISSION] Sessao {sessao_id} criada por {usuario.nome}: {req.titulo}")
+
+    # ─── Kairos: snapshot de criação de sessão ───────────────────────
+    _kairos_snapshot(
+        agente_id="mission_control",
+        conteudo=f"Sessão Mission Control criada: '{req.titulo}' por {usuario.nome}",
+        contexto={
+            "sessao_id": sessao_id,
+            "tipo_acao": "criar_sessao",
+            "usuario_id": usuario.id,
+            "projeto_id": req.projeto_id,
+        },
+        tenant_id=usuario.company_id or 1,
+        relevancia=0.3,
+    )
 
     return {
         "sessao_id": sessao_id,
@@ -395,6 +445,25 @@ def fase_decisao(
     }
 
     logger.info(f"[MISSION/FaseDecisao] {usuario.email}: fase {req.fase} = {req.acao}")
+
+    # ─── Kairos: snapshot de decisão de fase (alta relevância) ───────
+    _kairos_snapshot(
+        agente_id="ceo",
+        conteudo=(
+            f"Decisão Mission Control — Fase {req.fase}: {req.acao.upper()}\n"
+            f"Decidido por: {usuario.nome} ({usuario.email})\n"
+            f"Sessão: {sessao_id}"
+        ),
+        contexto={
+            "sessao_id": sessao_id,
+            "tipo_acao": "fase_decisao",
+            "fase": req.fase,
+            "acao": req.acao,
+            "usuario_id": usuario.id,
+        },
+        tenant_id=usuario.company_id or 1,
+        relevancia=0.8,
+    )
 
     return {
         "sucesso": True,
@@ -903,6 +972,26 @@ def disparar_agente(
     ).start()
 
     logger.info(f"[MISSION] Agente {agente_nome} disparado na sessao {sessao_id}: {req.instrucao[:80]}")
+
+    # ─── Kairos: snapshot de disparo de agente ───────────────────────
+    _kairos_snapshot(
+        agente_id="mission_control",
+        conteudo=(
+            f"Agente disparado no Mission Control: {agente_nome}\n"
+            f"Instrução: {req.instrucao[:500]}\n"
+            f"Tipo: {req.tipo}"
+        ),
+        contexto={
+            "sessao_id": sessao_id,
+            "tipo_acao": "disparar_agente",
+            "agente_nome": agente_nome,
+            "agente_mc_id": agente_id,
+            "tipo": req.tipo,
+            "usuario_id": usuario.id,
+        },
+        tenant_id=usuario.company_id or 1,
+        relevancia=0.6,
+    )
 
     return {
         "agente_id": agente_id,

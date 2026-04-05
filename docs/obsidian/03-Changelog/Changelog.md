@@ -4,6 +4,22 @@
 
 ---
 
+## v0.60.2 — Integração Kairos + Mission Control (05/Abr/2026)
+
+### Mission Control agora captura snapshots de memória automaticamente
+
+- Helper `_kairos_snapshot()` — non-blocking via `threading.Thread` (endpoints síncronos)
+- `criar_sessao` → snapshot com `agente_id="mission_control"` (relevância 0.3)
+- `fase_decisao` → snapshot com `agente_id="ceo"` (relevância 0.8 — decisões estratégicas)
+- `disparar_agente` → snapshot com `agente_id="mission_control"` (relevância 0.6)
+- Contexto inclui: `sessao_id`, `tipo_acao`, `usuario_id`, `fase`, `acao`, `agente_nome`
+
+### Alterações
+
+- `api/routes/mission_control.py` — import `kairos_service` + helper `_kairos_snapshot()` + 3 chamadas
+
+---
+
 ## v0.60.1 — Integração Kairos + Luna (05/Abr/2026)
 
 ### Luna agora captura snapshots de memória automaticamente
