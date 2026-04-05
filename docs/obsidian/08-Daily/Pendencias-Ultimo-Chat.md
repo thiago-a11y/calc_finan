@@ -55,6 +55,9 @@
 - [x] Tab Dream: botao disparar dream manual + resultado visual
 - [x] Build TypeScript: OK ✅
 
+### v0.60.5.1 — Fix: Botão Atualizar do Kairos
+- [x] Bug #55: botão Atualizar sem feedback visual → spinner + await + disabled
+
 ### Pendencias
 - [ ] Deploy produção v0.60.5
 

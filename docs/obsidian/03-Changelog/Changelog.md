@@ -4,6 +4,15 @@
 
 ---
 
+## v0.60.5.1 — Fix: Botão Atualizar do Kairos (05/Abr/2026)
+
+- Botão "Atualizar" não dava feedback visual ao clicar
+- Adicionado estado `refreshing` com spinner `Loader2` + texto "Atualizando..."
+- `onClick` agora usa `async/await` com `Promise.all` (espera os 3 fetchers antes de liberar)
+- Botão `disabled` durante refresh para evitar cliques duplos
+
+---
+
 ## v0.60.5 — Página Kairos no Dashboard (05/Abr/2026)
 
 ### Página visual para o sistema de memória auto-evolutiva
