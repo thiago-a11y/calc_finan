@@ -174,6 +174,7 @@ export default function Kairos() {
   useAuth()
   const [tab, setTab] = useState<Tab>('status')
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Status
   const [status, setStatus] = useState<KairosStatus | null>(null)
@@ -290,15 +291,25 @@ export default function Kairos() {
           </div>
         </div>
         <button
-          onClick={() => {
-            fetchStatus()
-            fetchSnapshots()
-            fetchMemories()
+          onClick={async () => {
+            setRefreshing(true)
+            await Promise.all([fetchStatus(), fetchSnapshots(), fetchMemories()])
+            setRefreshing(false)
           }}
+          disabled={refreshing}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-          style={{ background: 'var(--sf-bg-2)', color: 'var(--sf-text-2)', border: '1px solid var(--sf-border-subtle)' }}
+          style={{
+            background: 'var(--sf-bg-2)',
+            color: refreshing ? 'var(--sf-text-3)' : 'var(--sf-text-2)',
+            border: '1px solid var(--sf-border-subtle)',
+            cursor: refreshing ? 'not-allowed' : 'pointer',
+          }}
         >
-          <RefreshCw size={13} /> Atualizar
+          {refreshing
+            ? <Loader2 size={13} className="animate-spin" />
+            : <RefreshCw size={13} />
+          }
+          {refreshing ? 'Atualizando...' : 'Atualizar'}
         </button>
       </div>
 
