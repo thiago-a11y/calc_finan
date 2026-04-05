@@ -107,6 +107,18 @@ O SmartRouter antigo (`llm_router.py`) foi projetado para decidir entre Opus e S
 - `llm_router.py` — Roteamento Opus/Sonnet para agentes CrewAI (escopo interno)
 - `smart_router_global.py` — Roteamento global multi-provider + multi-ferramenta (escopo externo)
 
+## Por que lock de consolidação por arquivo (não banco)?
+
+O Kairos (sistema de memória, v0.60.0) usa lock baseado em arquivo com TTL em vez de advisory locks do PostgreSQL. Razões: (1) SQLite não suporta advisory locks; (2) single-server na fase atual; (3) detecção de processo morto via PID é simples e confiável. Quando migrarmos para PostgreSQL multi-node, trocar para `pg_advisory_lock()` é trivial (alterar `ConsolidationLock` sem mudar a interface).
+
+## Por que 4 tipos de memória no Kairos (episódica, semântica, procedural, estratégica)?
+
+Baseado em neurociência cognitiva: memória episódica (eventos), semântica (conceitos), procedural (processos) e estratégica (decisões). A categorização permite consultas especializadas — um agente tech_lead busca memórias procedurais para workflows, enquanto o PM busca estratégicas para roadmap. O LLM categoriza automaticamente durante o dream.
+
+## Por que consolidação via LLM (não regras heurísticas)?
+
+Snapshots são texto livre de múltiplas fontes (conversas, reuniões, workflows). Regras heurísticas não capturam nuance semântica. O LLM consegue: (1) detectar duplicatas semânticas; (2) mesclar informações complementares; (3) classificar corretamente o tipo; (4) gerar títulos e tags relevantes. O custo é baixo: consolidação roda 1x/hora com Sonnet, processando ~50 snapshots por ciclo.
+
 ### Por que regex e não ML para detecção de intenção?
 
 O router precisa decidir em tempo real (< 1ms). Um modelo de ML adicionaria latência, dependência de inferência e complexidade de treinamento. Regex com 13 categorias de intenção resolve o problema com tempo médio de 0.12ms, zero dependência externa e manutenção trivial (adicionar/editar padrões). Se no futuro a acurácia for insuficiente, migrar para um classificador leve (fasttext, regex + embeddings) é possível sem mudar a interface.

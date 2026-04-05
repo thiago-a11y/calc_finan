@@ -37,6 +37,11 @@
 
 ## Prioridade Média
 
+- [ ] Integrar Kairos com Luna (capturar snapshots automaticamente das conversas)
+- [ ] Integrar Kairos com Mission Control (snapshots de sessões de desenvolvimento)
+- [ ] API REST para consulta/status do Kairos no dashboard
+- [ ] Auto-dream no startup da API (iniciar_auto_dream no main.py)
+- [ ] Embeddings para busca semântica no Kairos (ChromaDB)
 - [ ] Dashboard web para acompanhar status dos squads
 - [ ] Integração com WhatsApp Business para notificações
 - [ ] Integração com Telegram Bot

@@ -200,6 +200,21 @@
 - [x] **Cache invalidation** — toggle no Master Control limpa cache imediatamente
 - [x] **Testes** — FeatureFlagService e ForkManager verificados localmente
 
+### Fase 3.1 — Kairos: Self-Evolving Memory System (✅ concluída — v0.60.0)
+
+- [x] `core/memory/kairos/types.py` — 4 enums + 5 dataclasses (MemoryType, SnapshotSource, etc.)
+- [x] `core/memory/kairos/consolidation_lock.py` — lock arquivo + TTL 10min + PID detection
+- [x] `core/memory/kairos/memory_snapshot.py` — SnapshotManager (captura, listagem, limpeza)
+- [x] `core/memory/kairos/consolidation_prompt.py` — prompts LLM para consolidação e mesclagem
+- [x] `core/memory/kairos/auto_dream.py` — AutoDream (consolidação background + ciclo único)
+- [x] `core/memory/kairos/registry.py` — MemoryRegistry (CRUD + busca textual + tracking acessos)
+- [x] `core/memory/kairos/service.py` — KairosService singleton orquestrador
+- [x] `database/models.py` — MemorySnapshotDB + MemoryEntryDB
+- [ ] Integrar Kairos com Luna (snapshots automáticos de conversas)
+- [ ] Integrar Kairos com Mission Control (snapshots de sessões)
+- [ ] API REST para dashboard (consulta/status Kairos)
+- [ ] Auto-dream no startup da API
+
 ## Fase 3 — Multi-Produto e Governança (🟡 em andamento)
 
 - [x] Sistema de Projetos com proprietário, líder técnico e membros

@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.59.8 (04/Abr/2026)
+**Versão Atual:** v0.60.0 (05/Abr/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -199,6 +199,15 @@ Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 │   │   ├── fork.py              # ForkManager — fork subagent com FeatureFlagService, worktree isolation
 │   │   ├── spawn.py             # AgentSpawner — spawn fork/named com progress tracking
 │   │   └── lifecycle.py         # AgentLifecycle — callbacks, timeout, context manager
+│   ├── memory/                  # Sistema de memória auto-evolutiva (Fase 3.1 — v0.60.0)
+│   │   └── kairos/
+│   │       ├── types.py         # Dataclasses e enums (MemoryType, SnapshotSource, etc.)
+│   │       ├── consolidation_lock.py  # Lock arquivo + TTL 10min + PID detection
+│   │       ├── memory_snapshot.py     # SnapshotManager — captura e persistência
+│   │       ├── consolidation_prompt.py # Prompts LLM para consolidação
+│   │       ├── auto_dream.py    # AutoDream — consolidação background
+│   │       ├── registry.py      # MemoryRegistry — CRUD + busca + tracking
+│   │       └── service.py       # KairosService singleton orquestrador
 ├── api/                         # API REST (FastAPI)
 │   ├── main.py                  # App principal
 │   ├── security.py              # JWT + bcrypt
@@ -483,6 +492,7 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.58.1** — **Vision Real para Agentes de Squad** — Pré-processamento de imagens com GPT-4o-mini vision (`_analisar_imagens_com_vision()`), ChatFloating envia URLs reais de upload, Luna Engine com path resolution absoluto e fallback não-silencioso
 - **v0.58.0** — **Agentes Multimodais (Vision)** — Flag `vision` em todos os providers, novo parâmetro `tem_imagem` no classificador, roteamento SIMPLES/MEDIO→GPT-4o-mini e COMPLEXO→GPT-4o quando imagem presente, fallback chain filtra providers sem vision, `_mensagens_tem_imagem()` no LLM Fallback
 - **v0.57.6** — **True Live Typing & Execution Feeling** — True character-by-character typing no editor com cursor verde piscando e highlight de linha, badge STREAMING com glow vermelho, badge "Em execução" com glow verde forte, barra de progresso com glow intenso, texto descritivo "Fase X/5" com emoji, agent-pulse mais forte (scale 1.3x), terminal com cursor verde e texto "agente executando..."
+- **v0.60.0** — **Kairos: Self-Evolving Memory System (Fase 3.1)** — Módulo `core/memory/kairos/` com 8 arquivos: AutoDream (consolidação background via LLM), SnapshotManager (captura de 6 fontes), MemoryRegistry (CRUD + busca textual + tracking de acessos), ConsolidationLock (arquivo + TTL + PID), KairosService singleton. Modelos DB: MemorySnapshotDB + MemoryEntryDB. 4 tipos de memória (episódica, semântica, procedural, estratégica), multi-tenant, soft delete.
 - **v0.59.8** — **Fork REAL de Sub-Agentes na Luna (Fase 2.3 concluída)** — `_detectar_subagente()` com 6 padrões regex, `_executar_subagente()` via AgentSpawner + LLM com system prompt especializado, interceptação em `stream_resposta()` (fork_subagent=True → fork real, False → fluxo antigo), resposta salva no banco (modelo="subagente:{tipo}", provider="fork_real")
 - **v0.59.7** — **FeatureFlagService: Integração com ForkManager** — `core/feature_flags.py` singleton com cachetools TTL 30s, `is_enabled(flag)` lê do banco com cache, `invalidate()` após toggle, ForkManager agora usa FeatureFlagService (não mais env vars)
 - **v0.59.6** — **Master Control: Tooltips, Dialog e Melhorias** — Nomes amigáveis em português, tooltips explicativos, badge "Requires Restart", dialog de restart profissional, botão Atualizar, histórico com nomes amigáveis, Bug #53 resolvido
@@ -676,4 +686,4 @@ Cadeia centralizada em `core/llm_fallback.py`:
 
 ---
 
-> Ultima atualizacao: 2026-04-04 (v0.59.8)
+> Ultima atualizacao: 2026-04-05 (v0.60.0)
