@@ -175,6 +175,7 @@ export default function Kairos() {
   const [tab, setTab] = useState<Tab>('status')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshed, setRefreshed] = useState(false)
 
   // Status
   const [status, setStatus] = useState<KairosStatus | null>(null)
@@ -293,23 +294,29 @@ export default function Kairos() {
         <button
           onClick={async () => {
             setRefreshing(true)
-            await Promise.all([fetchStatus(), fetchSnapshots(), fetchMemories()])
+            setRefreshed(false)
+            const minDelay = new Promise(r => setTimeout(r, 800))
+            await Promise.all([fetchStatus(), fetchSnapshots(), fetchMemories(), minDelay])
             setRefreshing(false)
+            setRefreshed(true)
+            setTimeout(() => setRefreshed(false), 2000)
           }}
           disabled={refreshing}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
           style={{
-            background: 'var(--sf-bg-2)',
-            color: refreshing ? 'var(--sf-text-3)' : 'var(--sf-text-2)',
-            border: '1px solid var(--sf-border-subtle)',
+            background: refreshed ? 'rgba(16,185,129,0.1)' : 'var(--sf-bg-2)',
+            color: refreshed ? '#10b981' : refreshing ? 'var(--sf-text-3)' : 'var(--sf-text-2)',
+            border: `1px solid ${refreshed ? 'rgba(16,185,129,0.25)' : 'var(--sf-border-subtle)'}`,
             cursor: refreshing ? 'not-allowed' : 'pointer',
           }}
         >
           {refreshing
             ? <Loader2 size={13} className="animate-spin" />
-            : <RefreshCw size={13} />
+            : refreshed
+              ? <CheckCircle size={13} />
+              : <RefreshCw size={13} />
           }
-          {refreshing ? 'Atualizando...' : 'Atualizar'}
+          {refreshing ? 'Atualizando...' : refreshed ? 'Atualizado!' : 'Atualizar'}
         </button>
       </div>
 
