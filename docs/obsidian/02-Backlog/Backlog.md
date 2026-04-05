@@ -44,7 +44,7 @@
 - [x] ~~Página Kairos no dashboard~~ — v0.60.5
 - [x] ~~Integrar Plan Mode com Luna~~ — v0.61.1
 - [x] ~~Integrar Plan Mode com Mission Control~~ — v0.61.2
-- [ ] API REST para Plan Mode no dashboard
+- [x] ~~Botão visual Plan Mode no Mission Control~~ — v0.61.3
 - [ ] Embeddings para busca semântica no Kairos (ChromaDB)
 - [ ] Dashboard web para acompanhar status dos squads
 - [ ] Integração com WhatsApp Business para notificações

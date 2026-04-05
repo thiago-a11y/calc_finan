@@ -9,6 +9,7 @@ import {
   Rocket, Loader2, Bot, Terminal, Code2, MessageSquare,
   Package, Sparkles, Plus, X,
   Clock, ArrowRight, Play, Send, Copy, Download,
+  Shield, ShieldOff,
 } from 'lucide-react'
 import PhaseDecisionControls from '../components/PhaseDecisionControls'
 import MissionCompleteActions from '../components/MissionCompleteActions'
@@ -94,6 +95,11 @@ export default function MissionControl() {
   const [artifactModal, setArtifactModal] = useState<Artifact | null>(null)
   const [abaPainel3, setAbaPainel3] = useState<'chat' | 'artifacts'>('chat')
 
+  // Plan Mode state
+  const [planMode, setPlanMode] = useState(false)
+  const [planLoading, setPlanLoading] = useState(false)
+  const [planToast, setPlanToast] = useState('')
+
   // Editor state
   const [editorConteudo, setEditorConteudo] = useState('')
   const [editorArquivo, setEditorArquivo] = useState('novo-arquivo.tsx')
@@ -101,6 +107,43 @@ export default function MissionControl() {
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
+  }
+
+  // Plan Mode helpers
+  const fetchPlanStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/api/mission-control/plan-mode/status`, { headers })
+      if (res.ok) {
+        const data = await res.json()
+        setPlanMode(data.em_plan_mode)
+      }
+    } catch { /* silenciar */ }
+  }, [token])
+
+  const togglePlanMode = async () => {
+    if (!sessao) return
+    setPlanLoading(true)
+    setPlanToast('')
+    const acao = planMode ? 'sair' : 'entrar'
+    try {
+      const minDelay = new Promise(r => setTimeout(r, 600))
+      const [res] = await Promise.all([
+        fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/plan-mode/${acao}`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ motivo: 'Via Mission Control UI' }),
+        }),
+        minDelay,
+      ])
+      if (res.ok) {
+        const data = await res.json()
+        if (data.sucesso) {
+          setPlanMode(acao === 'entrar')
+          setPlanToast(acao === 'entrar' ? 'Plan Mode ativado' : 'Modo Normal restaurado')
+          setTimeout(() => setPlanToast(''), 2500)
+        }
+      }
+    } catch { /* silenciar */ }
+    finally { setPlanLoading(false) }
   }
 
   function tempoRelativo(iso: string | null): string {
@@ -237,6 +280,7 @@ export default function MissionControl() {
   useEffect(() => {
     if (!sessao?.sessao_id) return
     carregarFaseStatus()
+    fetchPlanStatus()
     const timer = setInterval(carregarFaseStatus, 2000)
     return () => clearInterval(timer)
   }, [sessao?.sessao_id, carregarFaseStatus])
@@ -386,6 +430,46 @@ export default function MissionControl() {
           <span><Terminal className="w-3.5 h-3.5 inline mr-1" />{sessao.total_comandos}</span>
           <span><MessageSquare className="w-3.5 h-3.5 inline mr-1" />{chatMsgs.length}</span>
         </div>
+
+        {/* Plan Mode toggle */}
+        <button
+          onClick={togglePlanMode}
+          disabled={planLoading}
+          title={planMode ? 'Sair do Plan Mode (somente-leitura)' : 'Entrar em Plan Mode (somente-leitura)'}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+          style={{
+            background: planToast
+              ? 'rgba(16,185,129,0.12)'
+              : planMode
+                ? 'rgba(168,85,247,0.15)'
+                : 'rgba(100,116,139,0.1)',
+            color: planToast
+              ? '#10b981'
+              : planMode
+                ? '#c084fc'
+                : 'var(--sf-text-secondary)',
+            border: `1px solid ${planToast ? 'rgba(16,185,129,0.25)' : planMode ? 'rgba(168,85,247,0.3)' : 'transparent'}`,
+            cursor: planLoading ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {planLoading
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            : planMode
+              ? <Shield className="w-3.5 h-3.5" />
+              : <ShieldOff className="w-3.5 h-3.5" />
+          }
+          {planToast
+            ? planToast
+            : planLoading
+              ? '...'
+              : planMode
+                ? 'Plan Mode'
+                : 'Plan Mode'
+          }
+          {planMode && !planToast && !planLoading && (
+            <span className="w-1.5 h-1.5 rounded-full ml-0.5" style={{ background: '#c084fc' }} />
+          )}
+        </button>
       </header>
 
       {/* Instrucoes do Agente */}

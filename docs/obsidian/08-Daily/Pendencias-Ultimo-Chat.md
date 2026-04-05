@@ -83,8 +83,12 @@
 - [x] Snapshots Kairos ao entrar/sair
 - [x] Testado: entrar → status (em_plan_mode=true) → sair ✅
 
+### v0.61.3 — Botão Visual Plan Mode no Mission Control
+- [x] `dashboard/src/pages/MissionControl.tsx` — botão toggle no header da sessão
+- [x] Estados: planMode, planLoading, planToast + fetchPlanStatus + togglePlanMode
+- [x] Build TypeScript: OK ✅
+
 ### Pendencias
-- [ ] API REST dedicada para Plan Mode no dashboard
 - [ ] Deploy produção
 
 ---

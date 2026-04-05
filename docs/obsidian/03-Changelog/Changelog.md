@@ -4,6 +4,22 @@
 
 ---
 
+## v0.61.3 — Botão Visual Plan Mode no Mission Control (05/Abr/2026)
+
+### CEO pode ativar/desativar Plan Mode direto no header do Mission Control
+
+- Botão Plan Mode no header da sessão (ao lado das métricas)
+- Inativo: icone ShieldOff cinza | Ativo: icone Shield roxo com dot pulsante
+- Toggle com loading mínimo 600ms + toast de sucesso 2.5s
+- Fetch automático do status ao carregar sessão
+- Chama endpoints existentes (POST entrar/sair)
+
+### Alterações
+
+- `dashboard/src/pages/MissionControl.tsx` — imports Shield/ShieldOff + estados planMode/planLoading/planToast + fetchPlanStatus() + togglePlanMode() + botão no header
+
+---
+
 ## v0.61.2 — Integração Plan Mode + Mission Control (05/Abr/2026)
 
 ### CEO pode ativar/desativar Plan Mode dentro de sessões Mission Control

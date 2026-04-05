@@ -84,8 +84,15 @@ O Plan Mode permite que agentes e CEO operem em modo somente-leitura: podem anal
 - Helper `_plan_mode_action()` — síncrono via `asyncio.run()` (endpoints não-async)
 - Snapshots Kairos automáticos ao entrar/sair
 
+## Dashboard UI (v0.61.3)
+
+- Botão toggle no header do Mission Control (ao lado das métricas)
+- Inativo: ShieldOff cinza | Ativo: Shield roxo + dot pulsante
+- Loading 600ms + toast verde "Plan Mode ativado" / "Modo Normal restaurado" 2.5s
+- Fetch automático do status ao carregar sessão
+
 ## Próximos Passos
 
 - [x] Integrar Plan Mode com Luna — v0.61.1
-- [x] Integrar com Mission Control — v0.61.2
-- [ ] API REST dedicada para Plan Mode no dashboard
+- [x] Integrar com Mission Control (endpoints) — v0.61.2
+- [x] Botão visual no Mission Control — v0.61.3

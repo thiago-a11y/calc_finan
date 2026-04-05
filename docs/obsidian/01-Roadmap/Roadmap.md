@@ -224,7 +224,7 @@
 - [x] Snapshots Kairos automáticos ao entrar/sair
 - [x] Integrar Plan Mode com Luna (detectar "modo plano") — v0.61.1
 - [x] Integrar Plan Mode com Mission Control (3 endpoints) — v0.61.2
-- [ ] API REST para Plan Mode no dashboard
+- [x] Botão visual Plan Mode no Mission Control — v0.61.3
 - [x] Auto-dream no startup da API — v0.60.3
 
 ## Fase 3 — Multi-Produto e Governança (🟡 em andamento)
