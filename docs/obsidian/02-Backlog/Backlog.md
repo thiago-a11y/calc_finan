@@ -42,6 +42,9 @@
 - [x] ~~Auto-dream no startup da API~~ — v0.60.3
 - [x] ~~API REST para consulta/status do Kairos~~ — v0.60.4
 - [x] ~~Página Kairos no dashboard~~ — v0.60.5
+- [ ] Integrar Plan Mode com Luna (detectar "modo plano" na conversa)
+- [ ] Integrar Plan Mode com Mission Control (botão Plan Mode na sessão)
+- [ ] API REST para Plan Mode no dashboard
 - [ ] Embeddings para busca semântica no Kairos (ChromaDB)
 - [ ] Dashboard web para acompanhar status dos squads
 - [ ] Integração com WhatsApp Business para notificações

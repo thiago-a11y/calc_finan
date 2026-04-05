@@ -62,8 +62,21 @@
 - [x] `api/routes/kairos.py` — endpoint POST /api/kairos/snapshot/teste
 - [x] `dashboard/src/pages/Kairos.tsx` — botão na aba Dream com feedback visual
 
+### v0.61.0 — Plan Mode: Governança Avançada (Fase 3.2)
+- [x] `core/governance/plan_mode/types.py` — 3 enums + 4 dataclasses
+- [x] `core/governance/plan_mode/modes.py` — 3 modos (Normal, Plan, Restricted)
+- [x] `core/governance/plan_mode/permission_guard.py` — guard com 30+ ferramentas classificadas
+- [x] `core/governance/plan_mode/enter_plan_mode.py` — ativa Plan Mode + snapshot Kairos
+- [x] `core/governance/plan_mode/exit_plan_mode.py` — desativa + resumo + snapshot Kairos
+- [x] `core/governance/plan_mode/plan_agent.py` — PlanAgent (planos via LLM)
+- [x] `core/governance/plan_mode/service.py` — PlanModeService singleton
+- [x] 11 testes de import + verificação: TODOS PASSARAM ✅
+
 ### Pendencias
-- [ ] Deploy produção v0.60.5
+- [ ] Integrar Plan Mode com Luna (detectar "modo plano" na conversa)
+- [ ] Integrar Plan Mode com Mission Control (botão Plan Mode na sessão)
+- [ ] API REST para Plan Mode no dashboard
+- [ ] Deploy produção
 
 ---
 

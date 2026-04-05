@@ -214,6 +214,17 @@
 - [x] Integrar Kairos com Mission Control (snapshots de sessões) — v0.60.2
 - [x] API REST para dashboard (consulta/status Kairos) — v0.60.4
 - [x] Página Kairos no dashboard (React) — v0.60.5
+
+### Fase 3.2 — Plan Mode: Governança Avançada (🟡 em andamento — v0.61.0)
+
+- [x] `core/governance/plan_mode/` — 7 arquivos (types, modes, guard, enter, exit, agent, service)
+- [x] 3 modos: Normal, Plan, Restricted com categorias de risco
+- [x] PermissionGuard: 30+ ferramentas classificadas (SAFE/WRITE/EXECUTE/DESTRUCTIVE/EXTERNAL)
+- [x] PlanAgent: gera planos via LLM em modo somente-leitura
+- [x] Snapshots Kairos automáticos ao entrar/sair
+- [ ] Integrar Plan Mode com Luna (detectar "modo plano")
+- [ ] Integrar Plan Mode com Mission Control (botão Plan Mode)
+- [ ] API REST para Plan Mode no dashboard
 - [x] Auto-dream no startup da API — v0.60.3
 
 ## Fase 3 — Multi-Produto e Governança (🟡 em andamento)

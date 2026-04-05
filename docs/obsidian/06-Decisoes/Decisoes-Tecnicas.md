@@ -119,6 +119,14 @@ Baseado em neurociência cognitiva: memória episódica (eventos), semântica (c
 
 Snapshots são texto livre de múltiplas fontes (conversas, reuniões, workflows). Regras heurísticas não capturam nuance semântica. O LLM consegue: (1) detectar duplicatas semânticas; (2) mesclar informações complementares; (3) classificar corretamente o tipo; (4) gerar títulos e tags relevantes. O custo é baixo: consolidação roda 1x/hora com Sonnet, processando ~50 snapshots por ciclo.
 
+## Por que 5 categorias de risco no Plan Mode (não apenas permitido/bloqueado)?
+
+Binário (permitido/bloqueado) não captura nuance. Um `Read` é diferente de um `Push` que é diferente de um `rm -rf`. As 5 categorias (SAFE, WRITE, EXECUTE, DESTRUCTIVE, EXTERNAL) permitem configuração granular por modo: Plan Mode bloqueia WRITE+EXECUTE+DESTRUCTIVE+EXTERNAL mas permite SAFE. Um futuro "Modo Revisão" poderia permitir SAFE+WRITE mas bloquear o resto. A classificação é extensível — adicionar nova ferramenta é uma linha no dicionário.
+
+## Por que PermissionRequest ao invés de bloqueio silencioso?
+
+Bloquear sem registro deixa o CEO cego sobre o que os agentes tentaram fazer. O PermissionRequest cria um trail auditável: qual ferramenta, quem tentou, quando, e quem aprovou/rejeitou. Isso alimenta o Kairos com dados de governança e permite análise posterior de padrões (ex: "agente X tentou 15 pushes bloqueados na última semana").
+
 ## Por que threading.Thread para snapshots no Mission Control (não asyncio)?
 
 Os endpoints do Mission Control são síncronos (def, não async def). Usar `await kairos_service.criar_snapshot()` direto não é possível sem converter tudo para async. A solução mais limpa: `threading.Thread(target=lambda: asyncio.run(...), daemon=True)` dispara o snapshot sem bloquear a resposta HTTP. A thread daemon morre automaticamente no shutdown. Já a Luna usa `await` direto porque `stream_resposta` é async generator.

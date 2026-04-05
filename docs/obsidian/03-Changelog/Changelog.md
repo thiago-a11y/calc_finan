@@ -4,6 +4,29 @@
 
 ---
 
+## v0.61.0 — Plan Mode: Governança Avançada (05/Abr/2026)
+
+### Fase 3.2: Plan Mode com permissões granulares
+
+**Novo módulo `core/governance/plan_mode/` — 7 arquivos:**
+
+- `types.py` — 3 enums (AgentMode, ToolCategory, PermissionStatus) + 4 dataclasses (PlanModeConfig, PlanSession, PermissionRequest)
+- `modes.py` — 3 modos pré-definidos (Normal, Plan, Restricted) com categorias permitidas
+- `permission_guard.py` — PermissionGuard singleton: classifica 30+ ferramentas por risco (SAFE/WRITE/EXECUTE/DESTRUCTIVE/EXTERNAL), bloqueia conforme modo ativo, cria PermissionRequest para aprovação
+- `enter_plan_mode.py` — Ativa Plan Mode com sessão + snapshot Kairos
+- `exit_plan_mode.py` — Desativa Plan Mode com resumo (duração, bloqueios) + snapshot Kairos
+- `plan_agent.py` — PlanAgent: gera planos estruturados via LLM (somente-leitura)
+- `service.py` — PlanModeService singleton: orquestra tudo (entrar/sair/verificar/gerar plano/status)
+
+**Comportamento:**
+- Plan Mode: permite Read, Grep, Glob, Search — bloqueia Bash, Write, Edit, Delete, Deploy, Push, Email
+- Transição segura entre modos com tracking de sessão
+- Snapshots Kairos automáticos ao entrar/sair
+- PlanAgent com prompt especializado para planejamento (nunca executa)
+- 11 testes de import + verificação de permissões: TODOS PASSARAM
+
+---
+
 ## v0.60.5.2 — Botão Criar Snapshot de Teste no Kairos (05/Abr/2026)
 
 - Novo endpoint `POST /api/kairos/snapshot/teste` — cria snapshot de teste para validar o dream
