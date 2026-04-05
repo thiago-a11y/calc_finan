@@ -13,7 +13,7 @@ Este documento resume todo o histórico de desenvolvimento do Synerium Factory p
 **Pasta servidor:** `/opt/synerium-factory`
 **Dashboard local:** `http://localhost:5173`
 **API local:** `http://localhost:8000`
-**Versão Atual:** v0.58.14 (02/Abr/2026)
+**Versão Atual:** v0.59.8 (04/Abr/2026)
 **Stack:** Python 3.13 + FastAPI (backend) | React 18 + Vite 6 + TypeScript + Tailwind CSS 4 (frontend) | SQLite + SQLAlchemy (banco) | CrewAI + LangGraph + LangSmith (agentes IA)
 **Objetivo:** Fábrica de SaaS impulsionada por agentes IA. Cada funcionário da empresa tem seu próprio squad de agentes para multiplicar eficiência por 10x.
 
@@ -187,11 +187,18 @@ Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 │   ├── syneriumx_tools.py       # Ler/editar código do SyneriumX
 │   └── gstack/                  # 28 skills do Y Combinator
 ├── core/                        # Motores e lógica central
-│   ├── luna_engine.py           # Motor da Luna: streaming + fallback (Opus→Sonnet→Groq→Fireworks→Together)
+│   ├── luna_engine.py           # Motor da Luna: streaming + fallback + interceptação de sub-agentes (fork real v0.59.8)
+│   ├── feature_flags.py         # FeatureFlagService — leitura de flags do banco com cache TTL 30s (v0.59.7)
 │   ├── llm_router.py            # Smart Router multi-provider
 │   ├── classificador_mensagem.py # Smart Router Dinâmico — classifica por complexidade (SIMPLES/MEDIO/COMPLEXO/TOOLS)
 │   ├── llm_fallback.py          # LLM Fallback centralizado (Minimax → Groq → Anthropic → OpenAI)
-│   └── vcs_service.py           # Serviço VCS (GitHub/GitBucket) com Fernet + Build Gate (validação pré-push)
+│   ├── vcs_service.py           # Serviço VCS (GitHub/GitBucket) com Fernet + Build Gate (validação pré-push)
+│   ├── agents/                  # Arquitetura avançada de agentes (Fase 2.2-2.3)
+│   │   ├── base.py              # AgentDefinition, AgentSpawnParams, AgentResult, enums
+│   │   ├── registry.py          # AgentRegistry singleton — 12 agentes built-in (tech_lead, backend_dev, etc.)
+│   │   ├── fork.py              # ForkManager — fork subagent com FeatureFlagService, worktree isolation
+│   │   ├── spawn.py             # AgentSpawner — spawn fork/named com progress tracking
+│   │   └── lifecycle.py         # AgentLifecycle — callbacks, timeout, context manager
 ├── api/                         # API REST (FastAPI)
 │   ├── main.py                  # App principal
 │   ├── security.py              # JWT + bcrypt
@@ -216,7 +223,8 @@ Opus → Sonnet → GPT-4o → Gemini → Groq → Fireworks → Together
 │       ├── consumo.py           # Dashboard de consumo
 │       ├── llm.py               # Gestão de LLM providers
 │       ├── continuous_factory.py # Modo Contínuo 24/7 (v0.54.0)
-│       └── mission_control.py   # Code Studio 2.0 — Mission Control (v0.55.0)
+│       ├── mission_control.py   # Code Studio 2.0 — Mission Control (v0.55.0)
+│       └── master_control.py    # Master Control — GUI de feature flags CEO-only (v0.59.5)
 ├── dashboard/                   # Frontend React
 │   └── src/
 │       ├── App.tsx              # Roteamento principal
@@ -475,6 +483,12 @@ cd ~/synerium-factory/dashboard && npm run dev -- --host 0.0.0.0
 - **v0.58.1** — **Vision Real para Agentes de Squad** — Pré-processamento de imagens com GPT-4o-mini vision (`_analisar_imagens_com_vision()`), ChatFloating envia URLs reais de upload, Luna Engine com path resolution absoluto e fallback não-silencioso
 - **v0.58.0** — **Agentes Multimodais (Vision)** — Flag `vision` em todos os providers, novo parâmetro `tem_imagem` no classificador, roteamento SIMPLES/MEDIO→GPT-4o-mini e COMPLEXO→GPT-4o quando imagem presente, fallback chain filtra providers sem vision, `_mensagens_tem_imagem()` no LLM Fallback
 - **v0.57.6** — **True Live Typing & Execution Feeling** — True character-by-character typing no editor com cursor verde piscando e highlight de linha, badge STREAMING com glow vermelho, badge "Em execução" com glow verde forte, barra de progresso com glow intenso, texto descritivo "Fase X/5" com emoji, agent-pulse mais forte (scale 1.3x), terminal com cursor verde e texto "agente executando..."
+- **v0.59.8** — **Fork REAL de Sub-Agentes na Luna (Fase 2.3 concluída)** — `_detectar_subagente()` com 6 padrões regex, `_executar_subagente()` via AgentSpawner + LLM com system prompt especializado, interceptação em `stream_resposta()` (fork_subagent=True → fork real, False → fluxo antigo), resposta salva no banco (modelo="subagente:{tipo}", provider="fork_real")
+- **v0.59.7** — **FeatureFlagService: Integração com ForkManager** — `core/feature_flags.py` singleton com cachetools TTL 30s, `is_enabled(flag)` lê do banco com cache, `invalidate()` após toggle, ForkManager agora usa FeatureFlagService (não mais env vars)
+- **v0.59.6** — **Master Control: Tooltips, Dialog e Melhorias** — Nomes amigáveis em português, tooltips explicativos, badge "Requires Restart", dialog de restart profissional, botão Atualizar, histórico com nomes amigáveis, Bug #53 resolvido
+- **v0.59.5** — **Master Control: Feature Flags GUI** — Tela CEO-only para toggle de feature flags, `api/routes/master_control.py` (4 endpoints), `dashboard/src/pages/MasterControl.tsx`, cards toggle estilo Linear/Vercel, aba de histórico, menu sidebar CEO-only
+- **v0.59.2** — **Advanced Agent Architecture (Fase 2.2)** — `core/agents/` com base.py, registry.py (12 agentes), fork.py (ForkManager), spawn.py (AgentSpawner), lifecycle.py; `core/tools/` com ToolRegistry + BriefTool
+- **v0.59.0** — **Prompt System Modular** — `core/prompts/` com composers, registry, cache, base, luna, agents, bmad, rules, tools, output_styles, utils; compose_luna_prompt() substitui SYSTEM_PROMPT hardcoded
 - **v0.58.14** — **isInitializing Depende de Carregando** — isInitializing so vira false quando carregando=false (auth terminado), nao depende mais da existencia do token
 - **v0.58.13** — **TaskTray com getStoredToken Seguro** — TaskTray recebe mesmo tratamento de protecao localStorage
 - **v0.58.12** — **Protecao localStorage no Mission Control** — localStorage access envolvido em try-catch
@@ -662,4 +676,4 @@ Cadeia centralizada em `core/llm_fallback.py`:
 
 ---
 
-> Ultima atualizacao: 2026-04-02 (v0.58.6)
+> Ultima atualizacao: 2026-04-04 (v0.59.8)
