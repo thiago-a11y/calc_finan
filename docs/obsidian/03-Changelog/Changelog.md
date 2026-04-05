@@ -4,6 +4,22 @@
 
 ---
 
+## v0.60.4 — API REST do Kairos (05/Abr/2026)
+
+### 4 endpoints para consulta e controle do sistema de memória
+
+- `GET /api/kairos/status` — status geral + contadores por source/agente
+- `GET /api/kairos/snapshots` — lista com paginação + filtros (agente_id, source, consolidado)
+- `GET /api/kairos/memories` — busca textual + filtros (tipo, agente, relevância mínima)
+- `POST /api/kairos/dream/manual` — disparo manual de consolidação
+
+### Alterações
+
+- `api/routes/kairos.py` — novo arquivo (4 endpoints)
+- `api/main.py` — import + include_router
+
+---
+
 ## v0.60.3 — AutoDream no Startup da API (05/Abr/2026)
 
 ### AutoDream ativado automaticamente ao iniciar a API

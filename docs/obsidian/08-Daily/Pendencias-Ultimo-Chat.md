@@ -36,8 +36,17 @@
 - [x] Tipos corretos: semântica (0.7), estratégica (0.95), episódica (0.3)
 - [x] Loop configurado para 60min (configurável via KairosConfig)
 
+### v0.60.4 — API REST do Kairos
+- [x] `api/routes/kairos.py` — 4 endpoints: status, snapshots, memories, dream/manual
+- [x] `api/main.py` — import + include_router kairos
+- [x] GET /api/kairos/status — status geral + contadores por source e agente
+- [x] GET /api/kairos/snapshots — paginação + filtros (agente, source, consolidado)
+- [x] GET /api/kairos/memories — busca textual + filtros (tipo, agente, relevância)
+- [x] POST /api/kairos/dream/manual — disparo manual de consolidação
+- [x] Todos 5 testes com curl: APROVADOS ✅
+
 ### Pendencias
-- [ ] API REST para consulta/status do Kairos no dashboard
+- [ ] Página Kairos no dashboard (React) — visualização de memórias e snapshots
 
 ---
 
