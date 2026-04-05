@@ -4,6 +4,43 @@
 
 ---
 
+## v0.60.0 — Kairos: Sistema de Memória Auto-Evolutiva (05/Abr/2026)
+
+### Fase 3.1: Self-Evolving Memory System
+
+**Novo módulo `core/memory/kairos/` — 8 arquivos:**
+
+- `types.py` — Dataclasses e enums (MemorySnapshotData, MemoryEntry, ConsolidationResult, MemoryQuery, KairosConfig, MemoryType, SnapshotSource)
+- `consolidation_lock.py` — Lock baseado em arquivo com TTL 10min + detecção de PID morto + cleanup de locks stale
+- `memory_snapshot.py` — SnapshotManager: captura, listagem, marcação e limpeza de snapshots
+- `consolidation_prompt.py` — Prompts para o LLM consolidar snapshots e mesclar memórias duplicadas
+- `auto_dream.py` — AutoDream: consolidação automática em background (loop + ciclo único)
+- `registry.py` — MemoryRegistry: CRUD de memórias consolidadas com busca textual e tracking de acessos
+- `service.py` — KairosService: singleton orquestrador (captura → consulta → dream → status)
+- `__init__.py` — Exports limpos + docstring
+
+**Modelos de banco (database/models.py):**
+- `MemorySnapshotDB` — snapshots brutos com campos: id, agente_id, tenant_id, source, conteudo, contexto (JSON), relevancia, consolidado
+- `MemoryEntryDB` — memórias consolidadas com campos: id, tipo, titulo, conteudo, tags (JSON), relevancia, acessos, fonte_snapshots (JSON), ativo
+
+**Características:**
+- Multi-tenant desde o início (tenant_id em todos os modelos)
+- Lock de concorrência com TTL + detecção de processos mortos
+- 4 tipos de memória: episódica, semântica, procedural, estratégica
+- 6 fontes de snapshot: luna, mission_control, reuniao, workflow, manual, agente
+- Consolidação via LLM (usa cadeia de fallback existente)
+- Loop automático configurável (intervalo, max snapshots, modelo)
+- Soft delete em memórias + TTL em snapshots consolidados
+- 11 testes de import + integração passaram
+
+### Alterações
+
+- `core/memory/__init__.py` — novo
+- `core/memory/kairos/` — 8 arquivos novos (types, lock, snapshot, prompt, dream, registry, service, init)
+- `database/models.py` — +2 modelos (MemorySnapshotDB, MemoryEntryDB)
+
+---
+
 ## v0.59.8 — Fork Real de Sub-Agentes na Luna (04/Abr/2026)
 
 ### Fase 2.3 Finalizada: Fork Real ativado

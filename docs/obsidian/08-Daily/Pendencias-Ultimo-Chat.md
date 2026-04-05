@@ -1,4 +1,26 @@
-# Pendencias do Ultimo Chat — 04/Abr/2026
+# Pendencias do Ultimo Chat — 05/Abr/2026
+
+## Sessao 56 (05/Abr/2026) — Kairos: Self-Evolving Memory System (v0.60.0)
+
+### v0.60.0 — Fase 3.1: Kairos implementado
+- [x] `core/memory/kairos/types.py` — dataclasses + enums (8 tipos)
+- [x] `core/memory/kairos/consolidation_lock.py` — lock com TTL + PID detection
+- [x] `core/memory/kairos/memory_snapshot.py` — SnapshotManager singleton
+- [x] `core/memory/kairos/consolidation_prompt.py` — prompts de consolidação + mesclagem
+- [x] `core/memory/kairos/auto_dream.py` — AutoDream com loop background + ciclo único
+- [x] `core/memory/kairos/registry.py` — MemoryRegistry com busca + tracking de acessos
+- [x] `core/memory/kairos/service.py` — KairosService singleton orquestrador
+- [x] `database/models.py` — MemorySnapshotDB + MemoryEntryDB
+- [x] 11 testes de import + integração: TODOS PASSARAM ✅
+- [x] Documentação: Changelog v0.60.0, Pendencias sessão 56
+
+### Pendencias
+- [ ] Integrar Kairos com Luna (capturar snapshots automaticamente das conversas)
+- [ ] Integrar Kairos com Mission Control (snapshots de sessões)
+- [ ] API REST para consulta/status do Kairos no dashboard
+- [ ] Auto-dream no startup da API (iniciar_auto_dream no main.py)
+
+---
 
 ## Sessao 55 (04/Abr/2026) — Fork Real de Sub-Agentes na Luna (v0.59.8)
 

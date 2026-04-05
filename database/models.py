@@ -853,3 +853,61 @@ class FeatureFlagHistoryDB(Base):
         de = "ON" if self.valor_anterior else "OFF"
         para = "ON" if self.valor_novo else "OFF"
         return f"<FeatureFlagHistory {self.flag_nome}: {de} → {para} por {self.usuario_email}>"
+
+
+# =============================================================================
+# Kairos — Sistema de Memória Auto-Evolutiva (v0.60.0)
+# =============================================================================
+
+
+class MemorySnapshotDB(Base):
+    """
+    Snapshot de memória — fragmento bruto capturado de interações.
+
+    Capturado de diversas fontes (Luna, Mission Control, reuniões)
+    e processado pelo AutoDream para gerar memórias consolidadas.
+    """
+    __tablename__ = "memory_snapshots"
+
+    id = Column(String(50), primary_key=True)
+    agente_id = Column(String(100), nullable=False, index=True)
+    tenant_id = Column(Integer, default=1, index=True)
+    source = Column(String(50), nullable=False)  # luna, mission_control, reuniao, etc.
+    conteudo = Column(Text, nullable=False)
+    contexto = Column(JSON, default={})
+    relevancia = Column(Float, default=0.5)
+    consolidado = Column(Boolean, default=False, index=True)
+    consolidado_em = Column(DateTime, nullable=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        status = "✓" if self.consolidado else "○"
+        return f"<MemorySnapshot {self.id} [{status}] agente={self.agente_id} source={self.source}>"
+
+
+class MemoryEntryDB(Base):
+    """
+    Memória consolidada — resultado do processo de dream.
+
+    Informação destilada, categorizada e pronta para consulta.
+    Cada entry é gerada pelo AutoDream a partir de snapshots brutos.
+    """
+    __tablename__ = "memory_entries"
+
+    id = Column(String(50), primary_key=True)
+    agente_id = Column(String(100), nullable=False, index=True)
+    tenant_id = Column(Integer, default=1, index=True)
+    tipo = Column(String(50), nullable=False)  # episodica, semantica, procedural, estrategica
+    titulo = Column(String(255), nullable=False)
+    conteudo = Column(Text, nullable=False)
+    tags = Column(JSON, default=[])
+    relevancia = Column(Float, default=0.5, index=True)
+    acessos = Column(Integer, default=0)
+    ultimo_acesso = Column(DateTime, nullable=True)
+    fonte_snapshots = Column(JSON, default=[])
+    ativo = Column(Boolean, default=True, index=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<MemoryEntry {self.id} [{self.tipo}] '{self.titulo[:40]}' rel={self.relevancia}>"
