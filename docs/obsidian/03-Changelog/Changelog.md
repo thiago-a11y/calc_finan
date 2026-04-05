@@ -10,6 +10,8 @@
 - Adicionado estado `refreshing` com spinner `Loader2` + texto "Atualizando..."
 - `onClick` agora usa `async/await` com `Promise.all` (espera os 3 fetchers antes de liberar)
 - Botão `disabled` durante refresh para evitar cliques duplos
+- Mínimo 800ms de loading (mesmo se dados carregarem rápido) para usuário perceber o spinner
+- Após atualizar: botão fica verde + check + "Atualizado!" por 2 segundos, depois volta ao normal
 
 ---
 

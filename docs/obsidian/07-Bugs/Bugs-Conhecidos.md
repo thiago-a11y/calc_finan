@@ -12,7 +12,7 @@ Nenhum bug ativo no momento.
 
 | # | Descrição | Causa | Solução | Data |
 |---|---|---|---|---|
-| 55 | Botão Atualizar da página Kairos não dava feedback visual — clicava e nada acontecia visualmente | Fetchers eram chamados sem `await` e sem indicador de loading, então o botão parecia não funcionar mesmo buscando dados | Adicionado estado `refreshing` com spinner + `Promise.all` com await + botão `disabled` durante refresh | 2026-04-05 |
+| 55 | Botão Atualizar da página Kairos sem feedback visual — spinner aparecia e sumia rápido demais | Fetchers completavam em <100ms, spinner era imperceptível | Mínimo 800ms de loading via `Promise.all([...fetchers, delay(800)])` + estado `refreshed` com mensagem verde "Atualizado!" por 2s + botão `disabled` durante refresh | 2026-04-05 |
 | 54 | Luna simulava sub-agente em vez de executar fork real — respondia "Vou preparar um pedido... aguarde" | `stream_resposta()` enviava mensagem direto ao LLM sem interceptar pedidos de sub-agente, mesmo com `fork_subagent=True` no banco | Interceptação em `stream_resposta()`: detecta sub-agente via regex + valida feature flag + executa via `AgentSpawner` + LLM com system prompt do agente | 2026-04-04 |
 | 53 | Banner de restart não desaparecia após restart — `requer_restart=True` não era limpo no banco após restart via SIGTERM | O endpoint de restart apenas enviava SIGTERM mas não atualizava o campo `requer_restart` da flag no banco | Endpoint agora limpa `requer_restart=False` em todas as flags ANTES de enviar o SIGTERM. Flags com restart pendente são "consumidas" após cada restart. | 2026-04-04 |
 
