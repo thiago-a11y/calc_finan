@@ -309,7 +309,17 @@ class LunaEngine:
         mensagens_db.reverse()
 
         # Montar lista de mensagens LangChain
-        mensagens = [SystemMessage(content=SYSTEM_PROMPT)]
+        # Brief Mode: injetar instrução de respostas curtas se ativo
+        prompt_atual = SYSTEM_PROMPT
+        if feature_flag_service.is_enabled("brief_mode"):
+            prompt_atual += (
+                "\n\n=== BRIEF MODE ATIVO ===\n"
+                "Responda de forma CURTA e DIRETA. Maximo 3-5 frases por resposta.\n"
+                "Sem repeticao, sem preambulo, sem explicacao desnecessaria.\n"
+                "Formato: resposta direta → evidencia/dado → proximo passo (se aplicavel).\n"
+                "NAO use frases como 'Claro!', 'Com certeza!', 'Vou te ajudar com isso!'."
+            )
+        mensagens = [SystemMessage(content=prompt_atual)]
 
         for msg in mensagens_db:
             conteudo = msg.conteudo

@@ -41,6 +41,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from core.memory.kairos.service import kairos_service
 from core.governance.plan_mode.service import plan_mode_service
+from core.feature_flags import feature_flag_service
 
 logger = logging.getLogger("synerium.mission_control")
 
@@ -197,6 +198,31 @@ def _plan_mode_action(acao: str, usuario_id: int, usuario_nome: str, sessao_id: 
     except Exception as e:
         logger.warning(f"[MISSION/PlanMode] Erro: {e}")
         return {"sucesso": False, "erro": str(e)}
+
+
+# ─── Feature Flags: helpers para adaptar comportamento dos agentes ────
+
+def _is_autonomous() -> bool:
+    """Retorna True se autonomous_mode está ativo."""
+    return feature_flag_service.is_enabled("autonomous_mode")
+
+def _is_brief() -> bool:
+    """Retorna True se brief_mode está ativo."""
+    return feature_flag_service.is_enabled("brief_mode")
+
+def _is_visible_exec() -> bool:
+    """Retorna True se visible_execution está ativo."""
+    return feature_flag_service.is_enabled("visible_execution")
+
+def _sufixo_brief() -> str:
+    """Retorna instrução de brevidade para injetar nos prompts se brief_mode ativo."""
+    if not _is_brief():
+        return ""
+    return (
+        "\n\nBRIEF MODE: Responda em MAXIMO 5 frases. "
+        "Formato: acao tomada → resultado → proximo passo. "
+        "Sem repeticao, sem preambulo."
+    )
 
 
 COMANDOS_BLOQUEADOS = [
@@ -1436,12 +1462,22 @@ def _executar_agente_mission_control(
         _chat_msg(db, sessao_id, "Sistema", f"🚀 Nova tarefa recebida: {instrucao[:200]}", tipo="sistema", fase="planejamento")
         _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento", 5)
 
-        # Terminal realista desde o inicio
-        _adicionar_terminal_agente(sessao_id, "mkdir -p .synerium/workspace && cd .synerium/workspace", "OK", True)
-        time.sleep(0.2)
-        _adicionar_terminal_agente(sessao_id, "echo '🏗️ Iniciando analise da tarefa...'", f"Tarefa: {instrucao[:120]}", True)
-        time.sleep(0.2)
-        _adicionar_terminal_agente(sessao_id, "cat package.json | jq '.dependencies | keys | length'", "42 dependencias encontradas", True)
+        # Terminal — visible_execution mostra comandos reais, senão simulados
+        if _is_visible_exec():
+            _cwd_sessao, _ = _obter_cwd_sessao(sessao, db)
+            try:
+                ls_result = subprocess.run(["ls", "-la"], cwd=_cwd_sessao, capture_output=True, text=True, timeout=5)
+                _adicionar_terminal_agente(sessao_id, f"ls -la {_cwd_sessao}", ls_result.stdout[:500] if ls_result.returncode == 0 else "Diretório vazio", ls_result.returncode == 0)
+            except Exception:
+                _adicionar_terminal_agente(sessao_id, f"ls -la {_cwd_sessao}", "timeout", False)
+            time.sleep(0.2)
+            _adicionar_terminal_agente(sessao_id, f"echo 'Tarefa: {instrucao[:100]}'", f"Tarefa: {instrucao[:120]}", True)
+        else:
+            _adicionar_terminal_agente(sessao_id, "mkdir -p .synerium/workspace && cd .synerium/workspace", "OK", True)
+            time.sleep(0.2)
+            _adicionar_terminal_agente(sessao_id, "echo 'Iniciando analise da tarefa...'", f"Tarefa: {instrucao[:120]}", True)
+            time.sleep(0.2)
+            _adicionar_terminal_agente(sessao_id, "cat package.json | jq '.dependencies | keys | length'", "42 dependencias encontradas", True)
 
         # Escrever scaffold inicial no editor (usuario ve atividade imediatamente)
         _escrever_codigo_no_editor(
@@ -1468,6 +1504,7 @@ def _executar_agente_mission_control(
             '"arquivos_impactados": ["arquivo1.tsx"], '
             '"riscos": ["risco1"], '
             '"estimativa_minutos": 30}'
+            + _sufixo_brief()
         )
 
         cls_plan = classificar_mensagem(instrucao)
@@ -1516,20 +1553,26 @@ def _executar_agente_mission_control(
             _adicionar_terminal_agente(sessao_id, f"echo 'Etapas: {len(etapas)}' && tree -L 1", etapas_texto, True)
 
         # ── FASE 1: PONTO DE DECISAO ──
-        # Sinaliza que Fase 1 completou e aguarda decisao do usuario
-        _chat_msg(db, sessao_id, "Sistema", "📋 Fase 1/5 (Planejamento) concluida — aguardando sua decisao.", tipo="sistema", fase="planejamento")
-        _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento — Aguardando Decisao", 33)
-        _decision_engine.set_pending(sessao_id, 1)
+        if _is_autonomous():
+            # Autonomous Mode: pula aprovação, auto-aprova
+            _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 1/5 (Planejamento) concluida — auto-aprovada (Autonomous Mode).", tipo="sistema", fase="planejamento")
+            _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento — Auto-aprovado", 33)
+            decisao_f1 = "aprovar"
+            logger.info(f"[MISSION] Autonomous Mode: Fase 1 auto-aprovada (sessao={sessao_id})")
+        else:
+            # Modo normal: aguarda decisão humana
+            _chat_msg(db, sessao_id, "Sistema", "📋 Fase 1/5 (Planejamento) concluida — aguardando sua decisao.", tipo="sistema", fase="planejamento")
+            _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento — Aguardando Decisao", 33)
+            _decision_engine.set_pending(sessao_id, 1)
 
-        decisao_f1 = _decision_engine.wait_decision(sessao_id, 1)
-        _decision_engine.clear(sessao_id)
+            decisao_f1 = _decision_engine.wait_decision(sessao_id, 1)
+            _decision_engine.clear(sessao_id)
 
         _chat_msg(db, sessao_id, "Sistema", f"💬 Decisao recebida: **{decisao_f1.upper()}**", tipo="sistema", fase="planejamento")
 
         if decisao_f1 == "rejeitar":
             _chat_msg(db, sessao_id, "Sistema", "❌ Planejamento rejeitado. Sessao encerrada.", tipo="sistema", fase="planejamento")
             _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento Rejeitado", 100)
-            # Atualizar agente como rejeitado
             ativos = sessao.agentes_ativos or []
             for a in ativos:
                 if a.get("id") == agente_id:
@@ -1541,9 +1584,7 @@ def _executar_agente_mission_control(
 
         if decisao_f1 == "regenerar":
             _chat_msg(db, sessao_id, "Sistema", "🔄 Regenerando Fase 1 (Planejamento)...", tipo="sistema", fase="planejamento")
-            # Refaz Fase 1 (loop simples)
             _chat_msg(db, sessao_id, "Tech Lead", "Regenerando plano conforme seu feedback...", tipo="planejamento", fase="planejamento")
-            # Reusa mesmo plano por ora (regeneracao real usaria feedback do usuario se disponivel)
             _chat_msg(db, sessao_id, "Tech Lead", f"Plano revisado: {plano_texto[:300]}", tipo="planejamento", fase="planejamento")
             _chat_msg(db, sessao_id, "Sistema", "✅ Fase 1/5 regenerada — aguardando decisao.", tipo="sistema", fase="planejamento")
             _decision_engine.set_pending(sessao_id, 1)
@@ -1557,9 +1598,12 @@ def _executar_agente_mission_control(
         # ── FASE 2: DISCUSSAO (cada agente opina) ──
 
         _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussão", 35)
-        _adicionar_terminal_agente(sessao_id, "npm run lint -- --quiet", "✔ Nenhum erro de lint encontrado", True)
-        time.sleep(0.15)
-        _adicionar_terminal_agente(sessao_id, "tsc --noEmit --pretty", "✔ Compilação TypeScript OK", True)
+        if _is_visible_exec():
+            _adicionar_terminal_agente(sessao_id, "# Fase 2: Discussao entre agentes", "Coletando pareceres da equipe...", True)
+        else:
+            _adicionar_terminal_agente(sessao_id, "npm run lint -- --quiet", "✔ Nenhum erro de lint encontrado", True)
+            time.sleep(0.15)
+            _adicionar_terminal_agente(sessao_id, "tsc --noEmit --pretty", "✔ Compilação TypeScript OK", True)
         _chat_msg(db, sessao_id, "Sistema", "💬 Fase de discussao iniciada — agentes analisando o plano.", tipo="sistema", fase="discussao")
 
         disc_idx = 0
@@ -1573,6 +1617,7 @@ def _executar_agente_mission_control(
                 f"- O que voce faria na sua area\n"
                 f"- Algum risco ou sugestao\n"
                 "Responda em texto simples, SEM JSON."
+                + _sufixo_brief()
             )
             try:
                 cls_disc = classificar_mensagem("parecer tecnico sobre o plano")
@@ -1590,12 +1635,17 @@ def _executar_agente_mission_control(
                 disc_idx += 1
 
         # ── FASE 2: PONTO DE DECISAO ──
-        _chat_msg(db, sessao_id, "Sistema", "💬 Fase 2/5 (Discussao) concluida — aguardando sua decisao.", tipo="sistema", fase="discussao")
-        _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussao — Aguardando Decisao", 55)
-        _decision_engine.set_pending(sessao_id, 2)
-
-        decisao_f2 = _decision_engine.wait_decision(sessao_id, 2)
-        _decision_engine.clear(sessao_id)
+        if _is_autonomous():
+            _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 2/5 (Discussao) concluida — auto-aprovada (Autonomous Mode).", tipo="sistema", fase="discussao")
+            _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussao — Auto-aprovada", 55)
+            decisao_f2 = "aprovar"
+            logger.info(f"[MISSION] Autonomous Mode: Fase 2 auto-aprovada (sessao={sessao_id})")
+        else:
+            _chat_msg(db, sessao_id, "Sistema", "💬 Fase 2/5 (Discussao) concluida — aguardando sua decisao.", tipo="sistema", fase="discussao")
+            _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussao — Aguardando Decisao", 55)
+            _decision_engine.set_pending(sessao_id, 2)
+            decisao_f2 = _decision_engine.wait_decision(sessao_id, 2)
+            _decision_engine.clear(sessao_id)
         _chat_msg(db, sessao_id, "Sistema", f"💬 Decisao: **{decisao_f2.upper()}**", tipo="sistema", fase="discussao")
 
         if decisao_f2 == "rejeitar":
@@ -1664,6 +1714,7 @@ def _executar_agente_mission_control(
             "Retorne JSON:\n"
             '{"codigo": "codigo completo aqui...", "arquivo": "caminho/do/arquivo.ext", '
             '"descricao": "o que este codigo faz", "linguagem": "python|typescript|php"}'
+            + _sufixo_brief()
         )
 
         try:
@@ -1726,12 +1777,17 @@ def _executar_agente_mission_control(
             _chat_msg(db, sessao_id, "Backend Dev", f"Erro ao gerar codigo: {str(e_code)[:200]}", tipo="alerta", fase="execucao")
 
         # ── FASE 3: PONTO DE DECISAO ──
-        _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 3/5 (Execucao) concluida — aguardando sua decisao.", tipo="sistema", fase="execucao")
-        _atualizar_fase_agente(sessao_id, agente_id, 3, "Execucao — Aguardando Decisao", 80)
-        _decision_engine.set_pending(sessao_id, 3)
-
-        decisao_f3 = _decision_engine.wait_decision(sessao_id, 3)
-        _decision_engine.clear(sessao_id)
+        if _is_autonomous():
+            _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 3/5 (Execucao) concluida — auto-aprovada (Autonomous Mode).", tipo="sistema", fase="execucao")
+            _atualizar_fase_agente(sessao_id, agente_id, 3, "Execucao — Auto-aprovada", 80)
+            decisao_f3 = "aprovar"
+            logger.info(f"[MISSION] Autonomous Mode: Fase 3 auto-aprovada (sessao={sessao_id})")
+        else:
+            _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 3/5 (Execucao) concluida — aguardando sua decisao.", tipo="sistema", fase="execucao")
+            _atualizar_fase_agente(sessao_id, agente_id, 3, "Execucao — Aguardando Decisao", 80)
+            _decision_engine.set_pending(sessao_id, 3)
+            decisao_f3 = _decision_engine.wait_decision(sessao_id, 3)
+            _decision_engine.clear(sessao_id)
         _chat_msg(db, sessao_id, "Sistema", f"💬 Decisao: **{decisao_f3.upper()}**", tipo="sistema", fase="execucao")
 
         if decisao_f3 == "rejeitar":
@@ -1802,6 +1858,7 @@ def _executar_agente_mission_control(
             f"Tarefa: {instrucao}\n\n"
             "Gere uma checklist de validacao. Retorne JSON:\n"
             '{"checklist": [{"item": "...", "feito": false}], "parecer": "aprovado|pendente|reprovado", "observacoes": "..."}'
+            + _sufixo_brief()
         )
 
         try:
@@ -1841,12 +1898,17 @@ def _executar_agente_mission_control(
             _chat_msg(db, sessao_id, "QA Engineer", f"Erro no review: {str(e_qa)[:200]}", tipo="alerta", fase="review")
 
         # ── FASE 4: PONTO DE DECISAO ──
-        _chat_msg(db, sessao_id, "Sistema", "🔍 Fase 4/5 (Review QA) concluida — aguardando sua decisao.", tipo="sistema", fase="review")
-        _atualizar_fase_agente(sessao_id, agente_id, 4, "Review QA — Aguardando Decisao", 90)
-        _decision_engine.set_pending(sessao_id, 4)
-
-        decisao_f4 = _decision_engine.wait_decision(sessao_id, 4)
-        _decision_engine.clear(sessao_id)
+        if _is_autonomous():
+            _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 4/5 (Review QA) concluida — auto-aprovada (Autonomous Mode).", tipo="sistema", fase="review")
+            _atualizar_fase_agente(sessao_id, agente_id, 4, "Review QA — Auto-aprovada", 90)
+            decisao_f4 = "aprovar"
+            logger.info(f"[MISSION] Autonomous Mode: Fase 4 auto-aprovada (sessao={sessao_id})")
+        else:
+            _chat_msg(db, sessao_id, "Sistema", "🔍 Fase 4/5 (Review QA) concluida — aguardando sua decisao.", tipo="sistema", fase="review")
+            _atualizar_fase_agente(sessao_id, agente_id, 4, "Review QA — Aguardando Decisao", 90)
+            _decision_engine.set_pending(sessao_id, 4)
+            decisao_f4 = _decision_engine.wait_decision(sessao_id, 4)
+            _decision_engine.clear(sessao_id)
         _chat_msg(db, sessao_id, "Sistema", f"💬 Decisao: **{decisao_f4.upper()}**", tipo="sistema", fase="review")
 
         if decisao_f4 == "rejeitar":
