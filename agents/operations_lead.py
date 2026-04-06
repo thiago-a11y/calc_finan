@@ -8,15 +8,19 @@ em tudo que é crítico no Synerium Factory. Responsável por toda a
 
 from crewai import Agent
 from core.llm_router import smart_router
+from core.prompts.composers import compose_agent_prompt
 
 
 def criar_operations_lead() -> Agent:
     """
     Cria o agente do Jonatas — Diretor Técnico e Operations Lead.
     Usa Claude Opus via Smart Router (perfil operations_lead, peso 0.7).
+    Regras anti-alucinação injetadas via compose_agent_prompt (Fase 2.1).
     """
     llm = smart_router.obter_llm_para_agente("operations_lead")
-    return Agent(
+
+    config = compose_agent_prompt(
+        name="Jonatas",
         role="Jonatas — Diretor Técnico e Operations Lead",
         goal=(
             "Supervisionar todas as operações técnicas do Synerium Factory. "
@@ -32,6 +36,16 @@ def criar_operations_lead() -> Agent:
             "arquitetura ou campanha de marketing acontece sem aprovação sua ou do Thiago. "
             "Você é pragmático, técnico, direto e focado em resultados."
         ),
+        perfil="tech_lead",
+        squad_name="Operations Lead",
+        include_rules=True,
+        include_tools=True,
+    )
+
+    return Agent(
+        role=config["role"],
+        goal=config["goal"],
+        backstory=config["backstory"],
         verbose=True,
         allow_delegation=False,
         llm=llm,

@@ -8,19 +8,23 @@ Reporta diretamente ao Operations Lead.
 
 from crewai import Agent
 from core.llm_router import smart_router
+from core.prompts.composers import compose_agent_prompt
 
 
 def criar_pm_central(tools: list | None = None) -> Agent:
     """
     Cria o agente PM Central — Alex.
     Usa Claude Opus via Smart Router (perfil product_manager, peso 0.5).
+    Regras anti-alucinação injetadas via compose_agent_prompt (Fase 2.1).
 
     Args:
         tools: Lista de ferramentas disponíveis para o agente.
                Inclui a ferramenta de consulta à base de conhecimento (RAG).
     """
     llm = smart_router.obter_llm_para_agente("product_manager")
-    return Agent(
+
+    config = compose_agent_prompt(
+        name="Alex",
         role="Project Manager Central",
         goal=(
             "Coordenar todos os squads do Synerium Factory, garantindo que "
@@ -37,6 +41,16 @@ def criar_pm_central(tools: list | None = None) -> Agent:
             "Você tem acesso à base de conhecimento completa dos projetos "
             "via a ferramenta consultar_base_conhecimento."
         ),
+        perfil="product_manager",
+        squad_name="PM Central",
+        include_rules=True,
+        include_tools=True,
+    )
+
+    return Agent(
+        role=config["role"],
+        goal=config["goal"],
+        backstory=config["backstory"],
         verbose=True,
         allow_delegation=True,
         max_iter=15,
