@@ -96,8 +96,12 @@
 ### v0.61.5 — Fix: Skills restauradas
 - [x] Bug #56: `inicializar_skills(rag_query=None)` — 30 skills + 9 perfis ✅
 
+### v0.61.6 — Fix: Polling infinito no Mission Control
+- [x] Bug #57: `headers` com `useMemo` + `fetchPlanStatus` em useEffect separado
+- [x] Build TypeScript: OK ✅
+
 ### Pendencias
-- [ ] Deploy produção v0.61.5
+- [ ] Deploy produção v0.61.6
 
 ---
 

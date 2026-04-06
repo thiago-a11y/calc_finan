@@ -2,7 +2,7 @@
  * Adiciona Phase Decision Controls para aprovacao de fases
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
@@ -104,10 +104,10 @@ export default function MissionControl() {
   const [editorConteudo, setEditorConteudo] = useState('')
   const [editorArquivo, setEditorArquivo] = useState('novo-arquivo.tsx')
 
-  const headers = {
+  const headers = useMemo(() => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
-  }
+  }), [token])
 
   // Plan Mode helpers
   const fetchPlanStatus = useCallback(async () => {
@@ -296,10 +296,15 @@ export default function MissionControl() {
   useEffect(() => {
     if (!sessao?.sessao_id) return
     carregarFaseStatus()
-    fetchPlanStatus()
     const timer = setInterval(carregarFaseStatus, 2000)
     return () => clearInterval(timer)
-  }, [sessao?.sessao_id, carregarFaseStatus, fetchPlanStatus])
+  }, [sessao?.sessao_id, carregarFaseStatus])
+
+  // Plan Mode status — fetch uma vez ao abrir sessão (não no polling)
+  useEffect(() => {
+    if (!sessao?.sessao_id) return
+    fetchPlanStatus()
+  }, [sessao?.sessao_id])
 
   /* ============================================================
      Execute command

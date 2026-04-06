@@ -4,6 +4,20 @@
 
 ---
 
+## v0.61.6 — Fix: Polling infinito no Mission Control (05/Abr/2026)
+
+### Bug #57: `headers` recriado a cada render causava loop infinito de requests
+
+**Causa raiz:** `headers` era um objeto literal recriado a cada render → `useCallback` com dependência `headers` recriava as funções → `useEffect` re-executava → intervals duplicados → dezenas de requests/segundo ao servidor (chat + fase-status + plan-mode/status).
+
+**Correções:**
+- `headers` agora usa `useMemo([token])` — estável entre renders
+- `fetchPlanStatus` removido das dependências do useEffect de polling
+- Plan Mode status carregado em useEffect separado (uma vez ao abrir sessão)
+- Botão executar e botões de ação restaurados (não eram re-renderizados por causa dos re-renders infinitos)
+
+---
+
 ## v0.61.5 — Fix: Skills restauradas em produção (05/Abr/2026)
 
 - `tools/skills_catalog.py` — catálogo leve de metadados (31 skills + 9 perfis)
