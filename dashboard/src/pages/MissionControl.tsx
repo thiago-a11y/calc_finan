@@ -67,6 +67,7 @@ export default function MissionControl() {
   const [titulo, setTitulo] = useState('')
   const [projetoId, setProjetoId] = useState<number | null>(null)
   const [projetos, setProjetos] = useState<{ id: number; nome: string; descricao: string }[]>([])
+  const [projetoUrl, setProjetoUrl] = useState('')
 
   // Instruction input
   const [instrucao, setInstrucao] = useState('')
@@ -386,9 +387,19 @@ export default function MissionControl() {
               </button>
             </div>
             {projetoId && (
-              <p className="text-[11px] flex items-center gap-1" style={{ color: 'var(--sf-text-secondary)' }}>
-                <Code2 className="w-3 h-3" /> Arquivos gerados serao salvos no diretorio do projeto selecionado
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-[11px] flex items-center gap-1" style={{ color: 'var(--sf-text-secondary)' }}>
+                  <Code2 className="w-3 h-3" /> Arquivos salvos no diretorio do projeto
+                </p>
+                <input
+                  type="text"
+                  placeholder="URL local (ex: http://localhost:3000)"
+                  value={projetoUrl}
+                  onChange={e => setProjetoUrl(e.target.value)}
+                  className="flex-1 px-3 py-1 rounded-lg text-[11px]"
+                  style={{ background: 'var(--sf-bg-primary)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }}
+                />
+              </div>
             )}
           </div>
 
@@ -648,8 +659,8 @@ export default function MissionControl() {
           sessaoTitulo={sessao.titulo}
           totalArtifacts={artifacts.length}
           totalComandos={sessao.total_comandos}
+          projetoUrl={projetoUrl || undefined}
           onVoltarRevisao={() => {
-            // Voltar para os 3 painéis (editor + terminal + chat)
             setForcarRevisao(true)
           }}
           onNovaSessao={() => {

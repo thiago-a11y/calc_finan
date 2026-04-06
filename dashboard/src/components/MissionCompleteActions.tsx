@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Play, Code2, Bot, ShieldCheck, Users,
   FileText, Plus, Loader2, CheckCircle2, Sparkles,
-  GitCommit, GitBranch,
+  GitCommit, GitBranch, ExternalLink,
   AlertCircle, Check, X,
 } from 'lucide-react'
 
@@ -48,12 +48,13 @@ interface MissionCompleteActionsProps {
   onGerarRelatorioCEO?: () => void
   onNovaSessao?: () => void
   onVoltarRevisao?: () => void  // volta para tela de execucao completa
+  projetoUrl?: string           // URL local do projeto para abrir no navegador
   sessaoTitulo?: string
   totalArtifacts?: number
   totalComandos?: number
 }
 
-type GitAction = 'commit' | 'push' | 'pr' | 'merge' | 'testar' | 'codeStudio' | 'optimizer' | 'aprovar' | 'convidar' | 'relatorio' | 'novaSessao' | 'voltarRevisao' | null
+type GitAction = 'commit' | 'push' | 'pr' | 'merge' | 'testar' | 'codeStudio' | 'optimizer' | 'aprovar' | 'convidar' | 'relatorio' | 'novaSessao' | 'voltarRevisao' | 'abrirProjeto' | null
 
 export default function MissionCompleteActions({
   token,
@@ -67,6 +68,7 @@ export default function MissionCompleteActions({
   onGerarRelatorioCEO,
   onNovaSessao,
   onVoltarRevisao,
+  projetoUrl,
   sessaoTitulo = 'Missao',
   totalArtifacts = 0,
   totalComandos = 0,
@@ -154,6 +156,16 @@ export default function MissionCompleteActions({
       hoverCor: 'hover:from-indigo-600 hover:to-indigo-700',
       ativo: !!onVoltarRevisao,
       fn: onVoltarRevisao,
+    },
+    {
+      id: 'abrirProjeto' as GitAction,
+      titulo: 'Abrir Projeto',
+      descricao: projetoUrl ? `Abrir ${projetoUrl}` : 'URL do projeto nao configurada',
+      icone: <ExternalLink className="w-6 h-6" />,
+      cor: 'from-teal-500 to-teal-600',
+      hoverCor: 'hover:from-teal-600 hover:to-teal-700',
+      ativo: !!projetoUrl,
+      fn: () => { if (projetoUrl) window.open(projetoUrl, '_blank') },
     },
     {
       id: 'testar' as GitAction,
