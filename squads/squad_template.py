@@ -69,17 +69,36 @@ class SquadPessoal:
         return agente
 
     def criar_agente_auxiliar(self, papel: str, objetivo: str, historia: str,
-                              perfil_agente: str = "general") -> Agent:
-        """Cria um agente auxiliar com LLM do Smart Router (tracking automático)."""
+                              perfil_agente: str = "general",
+                              include_rules: bool = True) -> Agent:
+        """
+        Cria um agente auxiliar com LLM do Smart Router (tracking automático).
+
+        Se include_rules=True, injeta regras anti-alucinação e instrução de
+        ferramentas via compose_agent_prompt() do sistema de prompts modular.
+        """
         llm = smart_router.obter_llm_para_agente(
             perfil_agente,
             agente_nome=papel,
             squad_nome=self.nome_membro,
         )
+
+        # Compor backstory com regras e ferramentas via sistema modular
+        backstory_final = historia
+        if include_rules:
+            from core.prompts.composers import compose_agent_prompt
+            config = compose_agent_prompt(
+                name=papel, role=papel, goal=objetivo,
+                backstory=historia, perfil=perfil_agente,
+                squad_name=self.nome_membro,
+                include_rules=True, include_tools=True,
+            )
+            backstory_final = config["backstory"]
+
         agente = Agent(
             role=papel,
             goal=objetivo,
-            backstory=historia,
+            backstory=backstory_final,
             verbose=True,
             allow_delegation=False,
             llm=llm,

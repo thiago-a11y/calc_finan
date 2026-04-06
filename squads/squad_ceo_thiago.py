@@ -8,7 +8,6 @@ a usar ferramentas reais antes de responder.
 
 from crewai import Agent
 from squads.squad_template import SquadPessoal
-from squads.regras import REGRAS_ANTI_ALUCINACAO
 from tools.registry import skill_registry
 
 
@@ -49,7 +48,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         historia=(
             "Você é Kenji, Tech Lead do Squad CEO no Synerium Factory. "
             "O SyneriumX está em /opt/projetos/syneriumx (PHP 7.4 + React 18 + MySQL). "
-            + REGRAS_ANTI_ALUCINACAO
+            # Regras anti-alucinação injetadas automaticamente via compose_agent_prompt (squad_template)
         ),
         perfil_agente="tech_lead",
     )
@@ -69,7 +68,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         historia=(
             "Você é Amara, Dev Backend do Squad CEO. PHP 7.4, MySQL, PDO. "
             "Código do SyneriumX em /opt/projetos/syneriumx. "
-            + REGRAS_ANTI_ALUCINACAO
+            # Regras anti-alucinação injetadas automaticamente via compose_agent_prompt (squad_template)
         ),
         perfil_agente="backend_dev",
     )
@@ -89,7 +88,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         historia=(
             "Você é Carlos, Dev Frontend do Squad CEO. React 18 + TypeScript + Tailwind. "
             "Código em /opt/projetos/syneriumx/src/. "
-            + REGRAS_ANTI_ALUCINACAO
+            # Regras anti-alucinação injetadas automaticamente via compose_agent_prompt (squad_template)
         ),
         perfil_agente="frontend_dev",
     )
@@ -109,7 +108,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         historia=(
             "Você é Yuki, Especialista IA do Squad CEO. "
             "SyneriumX tem Claude + GPT-4o + Gemini com fallback, RAG, Lead Scoring. "
-            + REGRAS_ANTI_ALUCINACAO
+            # Regras anti-alucinação injetadas automaticamente via compose_agent_prompt (squad_template)
         ),
         perfil_agente="especialista_ia",
     )
@@ -128,7 +127,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         historia=(
             "Você é Rafael, Especialista em Integrações do Squad CEO. "
             "O SyneriumX tem 10 integrações externas em /opt/projetos/syneriumx/api/. "
-            + REGRAS_ANTI_ALUCINACAO
+            # Regras anti-alucinação injetadas automaticamente via compose_agent_prompt (squad_template)
         ),
         perfil_agente="integracao",
     )
@@ -148,7 +147,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         historia=(
             "Você é Hans, DevOps do Squad CEO. "
             "Deploy: GitHub Actions → FTP → cPanel. Migração AWS planejada. "
-            + REGRAS_ANTI_ALUCINACAO
+            # Regras anti-alucinação injetadas automaticamente via compose_agent_prompt (squad_template)
         ),
         perfil_agente="devops",
     )
@@ -168,7 +167,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         historia=(
             "Você é Fatima, QA e Segurança do Squad CEO. "
             "Foco: LGPD, SQL injection, XSS, autenticação JWT. "
-            + REGRAS_ANTI_ALUCINACAO
+            # Regras anti-alucinação injetadas automaticamente via compose_agent_prompt (squad_template)
         ),
         perfil_agente="qa_seguranca",
     )
@@ -188,7 +187,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
         historia=(
             "Você é Marco, PM do Squad CEO. "
             "O SyneriumX tem roadmap de 9 fases, backlog de 30+ itens. "
-            + REGRAS_ANTI_ALUCINACAO
+            # Regras anti-alucinação injetadas automaticamente via compose_agent_prompt (squad_template)
         ),
         perfil_agente="product_manager",
     )
@@ -211,7 +210,7 @@ def criar_squad_ceo(tools: list | None = None) -> SquadPessoal:
             "Domínio: @objetivasolucao.com.br — NÃO existe outro domínio. "
             "Ferramentas que você TEM: criar_projeto, criar_zip, enviar_email, "
             "enviar_email_com_anexo, ler_arquivo_syneriumx, propor_edicao_syneriumx. "
-            + REGRAS_ANTI_ALUCINACAO
+            # Regras anti-alucinação injetadas automaticamente via compose_agent_prompt (squad_template)
         ),
         perfil_agente="secretaria_executiva",
     )
