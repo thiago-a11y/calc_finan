@@ -662,14 +662,94 @@ def salvar_arquivos(
 # =====================================================================
 
 def _obter_cwd_sessao(sessao: MissionControlSessaoDB, db: Session) -> tuple[str, ProjetoDB | None]:
-    """Retorna o cwd do projeto da sessao e o projeto."""
+    """
+    Retorna o cwd do projeto da sessao e o projeto.
+
+    Se o projeto tem caminho vazio mas tem VCS configurado,
+    clona o repositório automaticamente em /opt/projetos/{slug}/.
+    """
     cwd = "/opt/synerium-factory"
     projeto = None
     if sessao.projeto_id:
         projeto = db.query(ProjetoDB).filter_by(id=sessao.projeto_id).first()
         if projeto:
-            cwd = getattr(projeto, "caminho", cwd) or getattr(projeto, "caminho_local", cwd) or cwd
+            caminho = getattr(projeto, "caminho", "") or ""
+            if caminho and os.path.isdir(caminho):
+                cwd = caminho
+            elif not caminho:
+                # Tentar criar diretório e clonar do VCS
+                cwd = _auto_clone_projeto(projeto, sessao.projeto_id, db)
+                if cwd != "/opt/synerium-factory":
+                    projeto.caminho = cwd
+                    db.commit()
+                    logger.info(f"[MISSION] Projeto {projeto.nome}: caminho atualizado para {cwd}")
     return cwd, projeto
+
+
+def _auto_clone_projeto(projeto: ProjetoDB, projeto_id: int, db: Session) -> str:
+    """
+    Clona repositório do projeto automaticamente se VCS configurado.
+    Retorna o caminho do clone, ou fallback /opt/synerium-factory.
+    """
+    fallback = "/opt/synerium-factory"
+    try:
+        vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=projeto_id, ativo=True).first()
+        if not vcs or not vcs.repo_url:
+            # Sem VCS — criar diretório vazio para o projeto
+            slug = projeto.nome.lower().replace(" ", "-").replace("/", "-")[:30]
+            path = f"/opt/projetos/{slug}"
+            os.makedirs(path, exist_ok=True)
+            # Inicializar git
+            subprocess.run(["git", "init"], cwd=path, capture_output=True, timeout=10)
+            subprocess.run(
+                ["git", "-c", "user.name=Synerium", "-c", "user.email=factory@synerium.com",
+                 "commit", "--allow-empty", "-m", "Initial commit via Mission Control"],
+                cwd=path, capture_output=True, timeout=10,
+            )
+            logger.info(f"[MISSION] Diretório criado para projeto: {path}")
+            return path
+
+        # Com VCS — clonar
+        from core.vcs_service import descriptografar_token
+        token = descriptografar_token(vcs.api_token_encrypted)
+        slug = projeto.nome.lower().replace(" ", "-").replace("/", "-")[:30]
+        path = f"/opt/projetos/{slug}"
+
+        if os.path.isdir(os.path.join(path, ".git")):
+            logger.info(f"[MISSION] Projeto já clonado: {path}")
+            return path
+
+        os.makedirs("/opt/projetos", exist_ok=True)
+
+        # Injetar token na URL para clone
+        repo_url = vcs.repo_url
+        if "github.com" in repo_url and token:
+            repo_url = repo_url.replace("https://", f"https://{token}@")
+
+        result = subprocess.run(
+            ["git", "clone", repo_url, path],
+            capture_output=True, text=True, timeout=60,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+
+        if result.returncode == 0:
+            logger.info(f"[MISSION] Projeto clonado: {path}")
+            return path
+        else:
+            logger.warning(f"[MISSION] Clone falhou: {result.stderr[:200]}")
+            # Criar diretório vazio como fallback
+            os.makedirs(path, exist_ok=True)
+            subprocess.run(["git", "init"], cwd=path, capture_output=True, timeout=10)
+            subprocess.run(
+                ["git", "-c", "user.name=Synerium", "-c", "user.email=factory@synerium.com",
+                 "commit", "--allow-empty", "-m", "Initial commit via Mission Control"],
+                cwd=path, capture_output=True, timeout=10,
+            )
+            return path
+
+    except Exception as e:
+        logger.warning(f"[MISSION] Auto-clone falhou: {e}")
+        return fallback
 
 
 @router.get("/sessao/{sessao_id}/git-info")
