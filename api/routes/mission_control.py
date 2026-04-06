@@ -547,6 +547,12 @@ def fase_status(
     # Fase atual do agente
     fase_atual = agente.get("fase_atual") if agente else 0
     progresso = agente.get("progresso") if agente else 0
+    fase_label = agente.get("fase_label", "") if agente else ""
+
+    # Fallback: detectar "Aguardando Decisao" no fase_label do banco
+    # quando o _decision_engine ainda não registrou (race condition)
+    if not waiting and "Aguardando" in fase_label and status == "executando":
+        waiting = True
 
     return {
         "status": status,
@@ -555,6 +561,7 @@ def fase_status(
         "waiting_decision": waiting,
         "fase_decisao": fase_decisao,
         "agente_nome": agente.get("nome") if agente else None,
+        "fase_label": fase_label,
     }
 
 

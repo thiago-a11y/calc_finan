@@ -4,6 +4,20 @@
 
 ---
 
+## v0.61.7 — Fix: Botões de aprovação só funcionavam na primeira fase (05/Abr/2026)
+
+### Bug #58: Após aprovar Fase 1, botões de aprovação da Fase 2+ nunca apareciam
+
+**Causa raiz (2 problemas simultâneos):**
+1. **Backend**: `fase_status` dependia exclusivamente de `_decision_engine.is_waiting()`, mas entre a aprovação e o `set_pending` da próxima fase há um delay (LLM call). O frontend carregava `waiting_decision=false` e escondia os botões.
+2. **Frontend**: Após aprovar, `carregarFaseStatus()` era chamado imediatamente — antes do agente thread avançar para a próxima fase.
+
+**Correções:**
+- Backend: fallback no `fase_status` — se `fase_label` contém "Aguardando" e agente está "executando", trata como `waiting_decision=true`
+- Frontend: delay de 2s após aprovar antes de recarregar o status
+
+---
+
 ## v0.61.6 — Fix: Polling infinito no Mission Control (05/Abr/2026)
 
 ### Bug #57: `headers` recriado a cada render causava loop infinito de requests

@@ -100,8 +100,12 @@
 - [x] Bug #57: `headers` com `useMemo` + `fetchPlanStatus` em useEffect separado
 - [x] Build TypeScript: OK ✅
 
+### v0.61.7 — Fix: Botões aprovação só funcionavam na primeira fase
+- [x] Bug #58: fallback `fase_label` no backend + delay 2s no frontend
+- [x] Build TypeScript: OK ✅
+
 ### Pendencias
-- [ ] Deploy produção v0.61.6
+- [ ] Deploy produção v0.61.7
 
 ---
 

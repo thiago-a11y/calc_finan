@@ -551,6 +551,9 @@ export default function MissionControl() {
                   method: 'POST', headers,
                   body: JSON.stringify({ fase, acao }),
                 })
+                // Delay para dar tempo ao agente de avançar para a próxima fase
+                // antes de recarregar o status (evita esconder botões prematuramente)
+                await new Promise(r => setTimeout(r, 2000))
                 carregarFaseStatus()
                 carregarSessao(sessao.sessao_id)
               } catch { /* */ }
