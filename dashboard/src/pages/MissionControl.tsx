@@ -214,7 +214,7 @@ export default function MissionControl() {
 
   const carregarProjetos = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/mission-control/projetos`, { headers })
+      const res = await fetch(`${API}/api/projetos`, { headers })
       if (res.ok) setProjetos(await res.json())
     } catch { /* silenciar */ }
   }, [headers])
