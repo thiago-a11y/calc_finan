@@ -4,6 +4,30 @@
 
 ---
 
+## v0.61.8 — Seletor de Projeto + Salvar Arquivos + Fix Git Commit (05/Abr/2026)
+
+### Mission Control agora vincula sessões a projetos reais
+
+**Seletor de projeto ao criar sessão:**
+- Dropdown com projetos disponíveis ao lado do campo de título
+- Sessão criada com `projeto_id` associado
+- Indicador visual: "Arquivos gerados serão salvos no diretório do projeto selecionado"
+
+**Novo endpoint: POST /sessao/{id}/salvar-arquivos:**
+- Salva conteúdo do editor/artifacts como arquivos reais no diretório do projeto
+- Proteção contra path traversal (`.lstrip("/")`, `replace("..", "")`)
+- Fallback: se nenhum arquivo explícito, salva conteúdo do editor como arquivo
+
+**Novo endpoint: GET /projetos:**
+- Lista projetos disponíveis para o seletor
+
+**Fix git-commit:**
+- Adicionado `git add -A` antes do commit (faltava — nada era staged)
+- Unificado `git -c user.name=... -c user.email=... commit -m ...` em um único comando
+- Verificação dupla: `--porcelain` antes do add, `--cached --stat` depois do add
+
+---
+
 ## v0.61.7 — Fix: Botões de aprovação só funcionavam na primeira fase (05/Abr/2026)
 
 ### Bug #58: Após aprovar Fase 1, botões de aprovação da Fase 2+ nunca apareciam

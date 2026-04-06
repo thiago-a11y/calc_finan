@@ -100,6 +100,11 @@ class GitMergeRequest(BaseModel):
     pr_number: int
 
 
+class SalvarArquivosRequest(BaseModel):
+    """Salva artifacts/editor como arquivos reais no projeto."""
+    arquivos: list[dict] = []  # [{"caminho": "src/App.tsx", "conteudo": "..."}]
+
+
 class FaseDecisaoRequest(BaseModel):
     """Decisao do usuario sobre uma fase: aprovar, regenerar, rejeitar ou revisar."""
     fase: int  # Numero da fase (1-5)
@@ -566,6 +571,93 @@ def fase_status(
 
 
 # =====================================================================
+# PROJETOS — Listar projetos disponíveis para vincular à sessão
+# =====================================================================
+
+@router.get("/projetos")
+def listar_projetos_mc(
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """Lista projetos disponíveis para selecionar ao criar sessão."""
+    projetos = db.query(ProjetoDB).filter_by(company_id=usuario.company_id or 1).all()
+    return [
+        {
+            "id": p.id,
+            "nome": p.nome,
+            "descricao": getattr(p, "descricao", "") or "",
+            "caminho": getattr(p, "caminho", "") or getattr(p, "caminho_local", "") or "",
+        }
+        for p in projetos
+    ]
+
+
+# =====================================================================
+# SALVAR ARQUIVOS — Converte artifacts/editor em arquivos reais
+# =====================================================================
+
+@router.post("/sessao/{sessao_id}/salvar-arquivos")
+def salvar_arquivos(
+    sessao_id: str,
+    req: SalvarArquivosRequest,
+    usuario: UsuarioDB = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db),
+):
+    """
+    Salva artifacts/editor como arquivos reais no diretório do projeto.
+
+    O Mission Control gera código no editor virtual. Este endpoint
+    persiste esse código como arquivos no filesystem para que o
+    git commit funcione.
+    """
+    sessao = db.query(MissionControlSessaoDB).filter_by(
+        sessao_id=sessao_id, usuario_id=usuario.id
+    ).first()
+    if not sessao:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    cwd, projeto = _obter_cwd_sessao(sessao, db)
+
+    if not req.arquivos:
+        # Fallback: salvar conteúdo do editor como arquivo
+        editor = sessao.painel_editor or {}
+        conteudo = editor.get("conteudo", "")
+        arquivo = editor.get("arquivo_ativo", "output.txt")
+        if conteudo:
+            req.arquivos = [{"caminho": arquivo, "conteudo": conteudo}]
+
+    if not req.arquivos:
+        return {"sucesso": False, "mensagem": "Nenhum arquivo para salvar", "salvos": 0}
+
+    salvos = 0
+    erros = []
+    for arq in req.arquivos:
+        caminho = arq.get("caminho", "")
+        conteudo = arq.get("conteudo", "")
+        if not caminho or not conteudo:
+            continue
+        try:
+            # Segurança: não permitir path traversal
+            caminho_limpo = caminho.lstrip("/").replace("..", "")
+            full_path = os.path.join(cwd, caminho_limpo)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(conteudo)
+            salvos += 1
+            logger.info(f"[MISSION] Arquivo salvo: {full_path}")
+        except Exception as e:
+            erros.append(f"{caminho}: {str(e)[:80]}")
+
+    return {
+        "sucesso": salvos > 0,
+        "mensagem": f"{salvos} arquivo(s) salvo(s) em {cwd}",
+        "salvos": salvos,
+        "erros": erros,
+        "cwd": cwd,
+    }
+
+
+# =====================================================================
 # GIT — Status, Commit, Push+PR, Merge
 # =====================================================================
 
@@ -576,7 +668,7 @@ def _obter_cwd_sessao(sessao: MissionControlSessaoDB, db: Session) -> tuple[str,
     if sessao.projeto_id:
         projeto = db.query(ProjetoDB).filter_by(id=sessao.projeto_id).first()
         if projeto:
-            cwd = getattr(projeto, "caminho_local", cwd) or cwd
+            cwd = getattr(projeto, "caminho", cwd) or getattr(projeto, "caminho_local", cwd) or cwd
     return cwd, projeto
 
 
@@ -684,15 +776,29 @@ def git_commit(
     if not status_result.stdout.strip():
         return {"sucesso": True, "mensagem": "Nenhuma alteracao para commitar", "commit_hash": ""}
 
-    # Commit
-    mensagem = req.mensagem or f"Alteracoes via Mission Control — {usuario.nome}"
-    result = subprocess.run(
-        ["git", "-c", f"user.name={usuario.nome}", "-c", f"user.email={usuario.email}"],
-        cwd=cwd, capture_output=True, text=True, timeout=30,
+    # Stage todas as alterações
+    add_result = subprocess.run(
+        ["git", "add", "-A"],
+        cwd=cwd, capture_output=True, text=True, timeout=15,
     )
+    if add_result.returncode != 0:
+        raise HTTPException(status_code=400, detail=f"Erro no git add: {add_result.stderr[:200]}")
 
+    # Verificar novamente se tem algo staged
+    diff_result = subprocess.run(
+        ["git", "diff", "--cached", "--stat"],
+        cwd=cwd, capture_output=True, text=True, timeout=10,
+    )
+    if not diff_result.stdout.strip():
+        return {"sucesso": True, "mensagem": "Nenhuma alteracao staged para commitar", "commit_hash": ""}
+
+    # Commit com autor configurado
+    mensagem = req.mensagem or f"Alteracoes via Mission Control — {usuario.nome}"
     commit_result = subprocess.run(
-        ["git", "commit", "-m", mensagem],
+        [
+            "git", "-c", f"user.name={usuario.nome}", "-c", f"user.email={usuario.email}",
+            "commit", "-m", mensagem,
+        ],
         cwd=cwd, capture_output=True, text=True, timeout=30,
     )
 

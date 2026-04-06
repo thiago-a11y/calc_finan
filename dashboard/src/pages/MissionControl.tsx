@@ -65,6 +65,8 @@ export default function MissionControl() {
   const [carregandoSessoes, setCarregandoSessoes] = useState(true)
   const [criando, setCriando] = useState(false)
   const [titulo, setTitulo] = useState('')
+  const [projetoId, setProjetoId] = useState<number | null>(null)
+  const [projetos, setProjetos] = useState<{ id: number; nome: string; descricao: string }[]>([])
 
   // Instruction input
   const [instrucao, setInstrucao] = useState('')
@@ -204,6 +206,17 @@ export default function MissionControl() {
   }, [headers])
 
   /* ============================================================
+     Load projects for selector
+   ============================================================ */
+
+  const carregarProjetos = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/api/mission-control/projetos`, { headers })
+      if (res.ok) setProjetos(await res.json())
+    } catch { /* silenciar */ }
+  }, [headers])
+
+  /* ============================================================
      Create session
    ============================================================ */
 
@@ -212,12 +225,15 @@ export default function MissionControl() {
     try {
       const res = await fetch(`${API}/api/mission-control/sessao`, {
         method: 'POST', headers,
-        body: JSON.stringify({ titulo: titulo || 'Nova Sessao Mission Control' }),
+        body: JSON.stringify({
+          titulo: titulo || 'Nova Sessao Mission Control',
+          projeto_id: projetoId,
+        }),
       })
       const data = await res.json()
       navigate(`/mission-control/${data.sessao_id}`, { replace: true })
     } catch { /* */ } finally { setCriando(false) }
-  }, [headers, titulo, navigate])
+  }, [headers, titulo, projetoId, navigate])
 
   /* ============================================================
      Enviar instrucao ao agente
@@ -243,6 +259,7 @@ export default function MissionControl() {
    ============================================================ */
 
   useEffect(() => {
+    carregarProjetos()
     if (urlSessionId) {
       carregarSessao(urlSessionId)
       setCarregandoSessoes(false)
@@ -342,18 +359,34 @@ export default function MissionControl() {
             </div>
           </div>
 
-          <div className="p-5 rounded-xl mb-8" style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
+          <div className="p-5 rounded-xl mb-8 space-y-3" style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
             <div className="flex items-center gap-3">
               <input type="text" placeholder="Nome da sessao" value={titulo}
                 onChange={e => setTitulo(e.target.value)} onKeyDown={e => e.key === 'Enter' && criarSessao()}
                 className="flex-1 px-4 py-2.5 rounded-lg text-sm"
                 style={{ background: 'var(--sf-bg-primary)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
+              <select
+                value={projetoId ?? ''}
+                onChange={e => setProjetoId(e.target.value ? Number(e.target.value) : null)}
+                className="px-3 py-2.5 rounded-lg text-sm"
+                style={{ background: 'var(--sf-bg-primary)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }}
+              >
+                <option value="">Sem projeto</option>
+                {projetos.map(p => (
+                  <option key={p.id} value={p.id}>{p.nome}</option>
+                ))}
+              </select>
               <button onClick={criarSessao} disabled={criando}
                 className="px-5 py-2.5 rounded-lg font-semibold text-white flex items-center gap-2"
                 style={{ background: 'var(--sf-accent)' }}>
                 {criando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Nova Sessao
               </button>
             </div>
+            {projetoId && (
+              <p className="text-[11px] flex items-center gap-1" style={{ color: 'var(--sf-text-secondary)' }}>
+                <Code2 className="w-3 h-3" /> Arquivos gerados serao salvos no diretorio do projeto selecionado
+              </p>
+            )}
           </div>
 
           <h2 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--sf-text-secondary)' }}>

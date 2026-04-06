@@ -104,8 +104,15 @@
 - [x] Bug #58: fallback `fase_label` no backend + delay 2s no frontend
 - [x] Build TypeScript: OK ✅
 
+### v0.61.8 — Seletor de Projeto + Salvar Arquivos + Fix Git Commit
+- [x] Bug #59: git commit falhava (sem git add + sem projeto vinculado)
+- [x] Seletor de projeto ao criar sessão (dropdown frontend + GET /projetos backend)
+- [x] POST /salvar-arquivos — persiste editor como arquivos reais no projeto
+- [x] git-commit corrigido: git add -A + comando unificado com user.name/email
+- [x] Build TypeScript: OK ✅
+
 ### Pendencias
-- [ ] Deploy produção v0.61.7
+- [ ] Deploy produção v0.61.8
 
 ---
 
