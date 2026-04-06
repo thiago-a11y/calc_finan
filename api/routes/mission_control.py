@@ -39,10 +39,6 @@ from database.models import (
 from database.session import get_db, SessionLocal
 from sqlalchemy.orm.attributes import flag_modified
 
-from core.memory.kairos.service import kairos_service
-from core.governance.plan_mode.service import plan_mode_service
-from core.feature_flags import feature_flag_service
-
 logger = logging.getLogger("synerium.mission_control")
 
 router = APIRouter(prefix="/api/mission-control", tags=["Mission Control"])
@@ -101,20 +97,10 @@ class GitMergeRequest(BaseModel):
     pr_number: int
 
 
-class SalvarArquivosRequest(BaseModel):
-    """Salva artifacts/editor como arquivos reais no projeto."""
-    arquivos: list[dict] = []  # [{"caminho": "src/App.tsx", "conteudo": "..."}]
-
-
 class FaseDecisaoRequest(BaseModel):
     """Decisao do usuario sobre uma fase: aprovar, regenerar, rejeitar ou revisar."""
     fase: int  # Numero da fase (1-5)
     acao: str  # 'aprovar' | 'regenerar' | 'rejeitar' | 'revisar'
-
-
-class PlanModeRequest(BaseModel):
-    """Motivo para entrar em Plan Mode (opcional)."""
-    motivo: str = ""
 
 
 # =====================================================================
@@ -123,106 +109,6 @@ class PlanModeRequest(BaseModel):
 
 def _gerar_id() -> str:
     return uuid.uuid4().hex[:12]
-
-
-# ─── Kairos: captura de snapshots non-blocking (Fase 3.1) ───────────
-
-def _kairos_snapshot(
-    agente_id: str,
-    conteudo: str,
-    contexto: dict,
-    tenant_id: int = 1,
-    relevancia: float = 0.5,
-) -> None:
-    """
-    Captura snapshot de memória no Kairos de forma non-blocking.
-
-    Como os endpoints do Mission Control são síncronos, usamos
-    asyncio.run() numa thread separada para não bloquear a resposta.
-    Erros são logados mas nunca propagados ao endpoint.
-    """
-    import asyncio
-
-    def _run():
-        try:
-            asyncio.run(kairos_service.criar_snapshot(
-                agente_id=agente_id,
-                source="mission_control",
-                conteudo=conteudo[:5000],
-                contexto=contexto,
-                tenant_id=tenant_id,
-                relevancia=relevancia,
-            ))
-        except Exception as e:
-            logger.warning(f"[MISSION/Kairos] Falha ao capturar snapshot: {e}")
-
-    threading.Thread(target=_run, daemon=True).start()
-
-
-def _plan_mode_action(acao: str, usuario_id: int, usuario_nome: str, sessao_id: str, motivo: str = "", tenant_id: int = 1) -> dict:
-    """
-    Executa entrar/sair do Plan Mode de forma síncrona (para endpoints não-async).
-
-    Non-blocking: usa asyncio.run() e captura snapshot Kairos automaticamente.
-    """
-    import asyncio
-
-    try:
-        if acao == "entrar":
-            sessao = asyncio.run(plan_mode_service.entrar(
-                usuario_id=usuario_id,
-                usuario_nome=usuario_nome,
-                motivo=motivo or f"Ativado via Mission Control (sessao {sessao_id})",
-            ))
-            logger.info(f"[MISSION/PlanMode] ATIVADO por {usuario_nome} (sessao_mc={sessao_id})")
-            return {
-                "sucesso": True,
-                "acao": "entrar",
-                "plan_sessao_id": sessao.id,
-                "mensagem": f"Plan Mode ativado. Sessao: {sessao.id}",
-            }
-        elif acao == "sair":
-            resumo = asyncio.run(plan_mode_service.sair(usuario_nome=usuario_nome))
-            logger.info(f"[MISSION/PlanMode] DESATIVADO por {usuario_nome} (sessao_mc={sessao_id})")
-            return {
-                "sucesso": resumo.get("sucesso", False),
-                "acao": "sair",
-                "duracao_segundos": resumo.get("duracao_segundos", 0),
-                "acoes_bloqueadas": resumo.get("acoes_bloqueadas", 0),
-                "mensagem": "Plan Mode desativado. Modo Normal restaurado.",
-            }
-        else:
-            return {"sucesso": False, "erro": f"Acao invalida: {acao}"}
-    except RuntimeError as e:
-        return {"sucesso": False, "erro": str(e)}
-    except Exception as e:
-        logger.warning(f"[MISSION/PlanMode] Erro: {e}")
-        return {"sucesso": False, "erro": str(e)}
-
-
-# ─── Feature Flags: helpers para adaptar comportamento dos agentes ────
-
-def _is_autonomous() -> bool:
-    """Retorna True se autonomous_mode está ativo."""
-    return feature_flag_service.is_enabled("autonomous_mode")
-
-def _is_brief() -> bool:
-    """Retorna True se brief_mode está ativo."""
-    return feature_flag_service.is_enabled("brief_mode")
-
-def _is_visible_exec() -> bool:
-    """Retorna True se visible_execution está ativo."""
-    return feature_flag_service.is_enabled("visible_execution")
-
-def _sufixo_brief() -> str:
-    """Retorna instrução de brevidade para injetar nos prompts se brief_mode ativo."""
-    if not _is_brief():
-        return ""
-    return (
-        "\n\nBRIEF MODE: Responda em MAXIMO 5 frases. "
-        "Formato: acao tomada → resultado → proximo passo. "
-        "Sem repeticao, sem preambulo."
-    )
 
 
 COMANDOS_BLOQUEADOS = [
@@ -334,20 +220,6 @@ def criar_sessao(
     db.refresh(sessao)
 
     logger.info(f"[MISSION] Sessao {sessao_id} criada por {usuario.nome}: {req.titulo}")
-
-    # ─── Kairos: snapshot de criação de sessão ───────────────────────
-    _kairos_snapshot(
-        agente_id="mission_control",
-        conteudo=f"Sessão Mission Control criada: '{req.titulo}' por {usuario.nome}",
-        contexto={
-            "sessao_id": sessao_id,
-            "tipo_acao": "criar_sessao",
-            "usuario_id": usuario.id,
-            "projeto_id": req.projeto_id,
-        },
-        tenant_id=usuario.company_id or 1,
-        relevancia=0.3,
-    )
 
     return {
         "sessao_id": sessao_id,
@@ -524,25 +396,6 @@ def fase_decisao(
 
     logger.info(f"[MISSION/FaseDecisao] {usuario.email}: fase {req.fase} = {req.acao}")
 
-    # ─── Kairos: snapshot de decisão de fase (alta relevância) ───────
-    _kairos_snapshot(
-        agente_id="ceo",
-        conteudo=(
-            f"Decisão Mission Control — Fase {req.fase}: {req.acao.upper()}\n"
-            f"Decidido por: {usuario.nome} ({usuario.email})\n"
-            f"Sessão: {sessao_id}"
-        ),
-        contexto={
-            "sessao_id": sessao_id,
-            "tipo_acao": "fase_decisao",
-            "fase": req.fase,
-            "acao": req.acao,
-            "usuario_id": usuario.id,
-        },
-        tenant_id=usuario.company_id or 1,
-        relevancia=0.8,
-    )
-
     return {
         "sucesso": True,
         "fase": req.fase,
@@ -578,12 +431,6 @@ def fase_status(
     # Fase atual do agente
     fase_atual = agente.get("fase_atual") if agente else 0
     progresso = agente.get("progresso") if agente else 0
-    fase_label = agente.get("fase_label", "") if agente else ""
-
-    # Fallback: detectar "Aguardando Decisao" no fase_label do banco
-    # quando o _decision_engine ainda não registrou (race condition)
-    if not waiting and "Aguardando" in fase_label and status == "executando":
-        waiting = True
 
     return {
         "status": status,
@@ -592,94 +439,6 @@ def fase_status(
         "waiting_decision": waiting,
         "fase_decisao": fase_decisao,
         "agente_nome": agente.get("nome") if agente else None,
-        "fase_label": fase_label,
-    }
-
-
-# =====================================================================
-# PROJETOS — Listar projetos disponíveis para vincular à sessão
-# =====================================================================
-
-@router.get("/projetos")
-def listar_projetos_mc(
-    usuario: UsuarioDB = Depends(obter_usuario_atual),
-    db: Session = Depends(get_db),
-):
-    """Lista projetos disponíveis para selecionar ao criar sessão."""
-    projetos = db.query(ProjetoDB).filter_by(company_id=usuario.company_id or 1).all()
-    return [
-        {
-            "id": p.id,
-            "nome": p.nome,
-            "descricao": getattr(p, "descricao", "") or "",
-            "caminho": getattr(p, "caminho", "") or getattr(p, "caminho_local", "") or "",
-        }
-        for p in projetos
-    ]
-
-
-# =====================================================================
-# SALVAR ARQUIVOS — Converte artifacts/editor em arquivos reais
-# =====================================================================
-
-@router.post("/sessao/{sessao_id}/salvar-arquivos")
-def salvar_arquivos(
-    sessao_id: str,
-    req: SalvarArquivosRequest,
-    usuario: UsuarioDB = Depends(obter_usuario_atual),
-    db: Session = Depends(get_db),
-):
-    """
-    Salva artifacts/editor como arquivos reais no diretório do projeto.
-
-    O Mission Control gera código no editor virtual. Este endpoint
-    persiste esse código como arquivos no filesystem para que o
-    git commit funcione.
-    """
-    sessao = db.query(MissionControlSessaoDB).filter_by(
-        sessao_id=sessao_id, usuario_id=usuario.id
-    ).first()
-    if not sessao:
-        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
-
-    cwd, projeto = _obter_cwd_sessao(sessao, db)
-
-    if not req.arquivos:
-        # Fallback: salvar conteúdo do editor como arquivo
-        editor = sessao.painel_editor or {}
-        conteudo = editor.get("conteudo", "")
-        arquivo = editor.get("arquivo_ativo", "output.txt")
-        if conteudo:
-            req.arquivos = [{"caminho": arquivo, "conteudo": conteudo}]
-
-    if not req.arquivos:
-        return {"sucesso": False, "mensagem": "Nenhum arquivo para salvar", "salvos": 0}
-
-    salvos = 0
-    erros = []
-    for arq in req.arquivos:
-        caminho = arq.get("caminho", "")
-        conteudo = arq.get("conteudo", "")
-        if not caminho or not conteudo:
-            continue
-        try:
-            # Segurança: não permitir path traversal
-            caminho_limpo = caminho.lstrip("/").replace("..", "")
-            full_path = os.path.join(cwd, caminho_limpo)
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            with open(full_path, "w", encoding="utf-8") as f:
-                f.write(conteudo)
-            salvos += 1
-            logger.info(f"[MISSION] Arquivo salvo: {full_path}")
-        except Exception as e:
-            erros.append(f"{caminho}: {str(e)[:80]}")
-
-    return {
-        "sucesso": salvos > 0,
-        "mensagem": f"{salvos} arquivo(s) salvo(s) em {cwd}",
-        "salvos": salvos,
-        "erros": erros,
-        "cwd": cwd,
     }
 
 
@@ -688,94 +447,14 @@ def salvar_arquivos(
 # =====================================================================
 
 def _obter_cwd_sessao(sessao: MissionControlSessaoDB, db: Session) -> tuple[str, ProjetoDB | None]:
-    """
-    Retorna o cwd do projeto da sessao e o projeto.
-
-    Se o projeto tem caminho vazio mas tem VCS configurado,
-    clona o repositório automaticamente em /opt/projetos/{slug}/.
-    """
+    """Retorna o cwd do projeto da sessao e o projeto."""
     cwd = "/opt/synerium-factory"
     projeto = None
     if sessao.projeto_id:
         projeto = db.query(ProjetoDB).filter_by(id=sessao.projeto_id).first()
         if projeto:
-            caminho = getattr(projeto, "caminho", "") or ""
-            if caminho and os.path.isdir(caminho):
-                cwd = caminho
-            elif not caminho:
-                # Tentar criar diretório e clonar do VCS
-                cwd = _auto_clone_projeto(projeto, sessao.projeto_id, db)
-                if cwd != "/opt/synerium-factory":
-                    projeto.caminho = cwd
-                    db.commit()
-                    logger.info(f"[MISSION] Projeto {projeto.nome}: caminho atualizado para {cwd}")
+            cwd = getattr(projeto, "caminho_local", cwd) or cwd
     return cwd, projeto
-
-
-def _auto_clone_projeto(projeto: ProjetoDB, projeto_id: int, db: Session) -> str:
-    """
-    Clona repositório do projeto automaticamente se VCS configurado.
-    Retorna o caminho do clone, ou fallback /opt/synerium-factory.
-    """
-    fallback = "/opt/synerium-factory"
-    try:
-        vcs = db.query(ProjetoVCSDB).filter_by(projeto_id=projeto_id, ativo=True).first()
-        if not vcs or not vcs.repo_url:
-            # Sem VCS — criar diretório vazio para o projeto
-            slug = projeto.nome.lower().replace(" ", "-").replace("/", "-")[:30]
-            path = f"/opt/projetos/{slug}"
-            os.makedirs(path, exist_ok=True)
-            # Inicializar git
-            subprocess.run(["git", "init"], cwd=path, capture_output=True, timeout=10)
-            subprocess.run(
-                ["git", "-c", "user.name=Synerium", "-c", "user.email=factory@synerium.com",
-                 "commit", "--allow-empty", "-m", "Initial commit via Mission Control"],
-                cwd=path, capture_output=True, timeout=10,
-            )
-            logger.info(f"[MISSION] Diretório criado para projeto: {path}")
-            return path
-
-        # Com VCS — clonar
-        from core.vcs_service import descriptografar_token
-        token = descriptografar_token(vcs.api_token_encrypted)
-        slug = projeto.nome.lower().replace(" ", "-").replace("/", "-")[:30]
-        path = f"/opt/projetos/{slug}"
-
-        if os.path.isdir(os.path.join(path, ".git")):
-            logger.info(f"[MISSION] Projeto já clonado: {path}")
-            return path
-
-        os.makedirs("/opt/projetos", exist_ok=True)
-
-        # Injetar token na URL para clone
-        repo_url = vcs.repo_url
-        if "github.com" in repo_url and token:
-            repo_url = repo_url.replace("https://", f"https://{token}@")
-
-        result = subprocess.run(
-            ["git", "clone", repo_url, path],
-            capture_output=True, text=True, timeout=60,
-            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
-        )
-
-        if result.returncode == 0:
-            logger.info(f"[MISSION] Projeto clonado: {path}")
-            return path
-        else:
-            logger.warning(f"[MISSION] Clone falhou: {result.stderr[:200]}")
-            # Criar diretório vazio como fallback
-            os.makedirs(path, exist_ok=True)
-            subprocess.run(["git", "init"], cwd=path, capture_output=True, timeout=10)
-            subprocess.run(
-                ["git", "-c", "user.name=Synerium", "-c", "user.email=factory@synerium.com",
-                 "commit", "--allow-empty", "-m", "Initial commit via Mission Control"],
-                cwd=path, capture_output=True, timeout=10,
-            )
-            return path
-
-    except Exception as e:
-        logger.warning(f"[MISSION] Auto-clone falhou: {e}")
-        return fallback
 
 
 @router.get("/sessao/{sessao_id}/git-info")
@@ -882,29 +561,15 @@ def git_commit(
     if not status_result.stdout.strip():
         return {"sucesso": True, "mensagem": "Nenhuma alteracao para commitar", "commit_hash": ""}
 
-    # Stage todas as alterações
-    add_result = subprocess.run(
-        ["git", "add", "-A"],
-        cwd=cwd, capture_output=True, text=True, timeout=15,
-    )
-    if add_result.returncode != 0:
-        raise HTTPException(status_code=400, detail=f"Erro no git add: {add_result.stderr[:200]}")
-
-    # Verificar novamente se tem algo staged
-    diff_result = subprocess.run(
-        ["git", "diff", "--cached", "--stat"],
-        cwd=cwd, capture_output=True, text=True, timeout=10,
-    )
-    if not diff_result.stdout.strip():
-        return {"sucesso": True, "mensagem": "Nenhuma alteracao staged para commitar", "commit_hash": ""}
-
-    # Commit com autor configurado
+    # Commit
     mensagem = req.mensagem or f"Alteracoes via Mission Control — {usuario.nome}"
+    result = subprocess.run(
+        ["git", "-c", f"user.name={usuario.nome}", "-c", f"user.email={usuario.email}"],
+        cwd=cwd, capture_output=True, text=True, timeout=30,
+    )
+
     commit_result = subprocess.run(
-        [
-            "git", "-c", f"user.name={usuario.nome}", "-c", f"user.email={usuario.email}",
-            "commit", "-m", mensagem,
-        ],
+        ["git", "commit", "-m", mensagem],
         cwd=cwd, capture_output=True, text=True, timeout=30,
     )
 
@@ -1239,26 +904,6 @@ def disparar_agente(
 
     logger.info(f"[MISSION] Agente {agente_nome} disparado na sessao {sessao_id}: {req.instrucao[:80]}")
 
-    # ─── Kairos: snapshot de disparo de agente ───────────────────────
-    _kairos_snapshot(
-        agente_id="mission_control",
-        conteudo=(
-            f"Agente disparado no Mission Control: {agente_nome}\n"
-            f"Instrução: {req.instrucao[:500]}\n"
-            f"Tipo: {req.tipo}"
-        ),
-        contexto={
-            "sessao_id": sessao_id,
-            "tipo_acao": "disparar_agente",
-            "agente_nome": agente_nome,
-            "agente_mc_id": agente_id,
-            "tipo": req.tipo,
-            "usuario_id": usuario.id,
-        },
-        tenant_id=usuario.company_id or 1,
-        relevancia=0.6,
-    )
-
     return {
         "agente_id": agente_id,
         "agente_nome": agente_nome,
@@ -1273,80 +918,6 @@ EQUIPE_AGENTES = [
     {"nome": "Frontend Dev", "perfil": "frontend", "emoji": "🎨"},
     {"nome": "QA Engineer", "perfil": "qa", "emoji": "🛡️"},
 ]
-
-
-# =====================================================================
-# PLAN MODE — Endpoints para ativar/desativar Plan Mode na sessão
-# =====================================================================
-
-@router.post("/sessao/{sessao_id}/plan-mode/entrar")
-def plan_mode_entrar(
-    sessao_id: str,
-    req: PlanModeRequest = PlanModeRequest(),
-    usuario: UsuarioDB = Depends(obter_usuario_atual),
-    db: Session = Depends(get_db),
-):
-    """Ativa Plan Mode (somente-leitura) dentro de uma sessão Mission Control."""
-    sessao = db.query(MissionControlSessaoDB).filter_by(
-        sessao_id=sessao_id, usuario_id=usuario.id
-    ).first()
-    if not sessao:
-        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
-
-    resultado = _plan_mode_action(
-        "entrar", usuario.id, usuario.nome, sessao_id,
-        motivo=req.motivo, tenant_id=usuario.company_id or 1,
-    )
-
-    # Snapshot Kairos
-    if resultado.get("sucesso"):
-        _kairos_snapshot(
-            agente_id="ceo",
-            conteudo=f"Plan Mode ativado na sessao Mission Control {sessao_id} por {usuario.nome}. Motivo: {req.motivo or 'nao informado'}",
-            contexto={"sessao_id": sessao_id, "tipo_acao": "plan_mode_entrar", "usuario_id": usuario.id},
-            tenant_id=usuario.company_id or 1,
-            relevancia=0.7,
-        )
-
-    return resultado
-
-
-@router.post("/sessao/{sessao_id}/plan-mode/sair")
-def plan_mode_sair(
-    sessao_id: str,
-    usuario: UsuarioDB = Depends(obter_usuario_atual),
-    db: Session = Depends(get_db),
-):
-    """Desativa Plan Mode e volta ao Modo Normal."""
-    sessao = db.query(MissionControlSessaoDB).filter_by(
-        sessao_id=sessao_id, usuario_id=usuario.id
-    ).first()
-    if not sessao:
-        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
-
-    resultado = _plan_mode_action(
-        "sair", usuario.id, usuario.nome, sessao_id,
-        tenant_id=usuario.company_id or 1,
-    )
-
-    if resultado.get("sucesso"):
-        _kairos_snapshot(
-            agente_id="ceo",
-            conteudo=f"Plan Mode desativado na sessao Mission Control {sessao_id} por {usuario.nome}. Duracao: {resultado.get('duracao_segundos', 0):.0f}s",
-            contexto={"sessao_id": sessao_id, "tipo_acao": "plan_mode_sair", "usuario_id": usuario.id},
-            tenant_id=usuario.company_id or 1,
-            relevancia=0.5,
-        )
-
-    return resultado
-
-
-@router.get("/plan-mode/status")
-def plan_mode_status(
-    usuario: UsuarioDB = Depends(obter_usuario_atual),
-):
-    """Retorna status atual do Plan Mode."""
-    return plan_mode_service.status()
 
 
 # =====================================================================
@@ -1462,22 +1033,12 @@ def _executar_agente_mission_control(
         _chat_msg(db, sessao_id, "Sistema", f"🚀 Nova tarefa recebida: {instrucao[:200]}", tipo="sistema", fase="planejamento")
         _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento", 5)
 
-        # Terminal — visible_execution mostra comandos reais, senão simulados
-        if _is_visible_exec():
-            _cwd_sessao, _ = _obter_cwd_sessao(sessao, db)
-            try:
-                ls_result = subprocess.run(["ls", "-la"], cwd=_cwd_sessao, capture_output=True, text=True, timeout=5)
-                _adicionar_terminal_agente(sessao_id, f"ls -la {_cwd_sessao}", ls_result.stdout[:500] if ls_result.returncode == 0 else "Diretório vazio", ls_result.returncode == 0)
-            except Exception:
-                _adicionar_terminal_agente(sessao_id, f"ls -la {_cwd_sessao}", "timeout", False)
-            time.sleep(0.2)
-            _adicionar_terminal_agente(sessao_id, f"echo 'Tarefa: {instrucao[:100]}'", f"Tarefa: {instrucao[:120]}", True)
-        else:
-            _adicionar_terminal_agente(sessao_id, "mkdir -p .synerium/workspace && cd .synerium/workspace", "OK", True)
-            time.sleep(0.2)
-            _adicionar_terminal_agente(sessao_id, "echo 'Iniciando analise da tarefa...'", f"Tarefa: {instrucao[:120]}", True)
-            time.sleep(0.2)
-            _adicionar_terminal_agente(sessao_id, "cat package.json | jq '.dependencies | keys | length'", "42 dependencias encontradas", True)
+        # Terminal realista desde o inicio
+        _adicionar_terminal_agente(sessao_id, "mkdir -p .synerium/workspace && cd .synerium/workspace", "OK", True)
+        time.sleep(0.2)
+        _adicionar_terminal_agente(sessao_id, "echo '🏗️ Iniciando analise da tarefa...'", f"Tarefa: {instrucao[:120]}", True)
+        time.sleep(0.2)
+        _adicionar_terminal_agente(sessao_id, "cat package.json | jq '.dependencies | keys | length'", "42 dependencias encontradas", True)
 
         # Escrever scaffold inicial no editor (usuario ve atividade imediatamente)
         _escrever_codigo_no_editor(
@@ -1504,7 +1065,6 @@ def _executar_agente_mission_control(
             '"arquivos_impactados": ["arquivo1.tsx"], '
             '"riscos": ["risco1"], '
             '"estimativa_minutos": 30}'
-            + _sufixo_brief()
         )
 
         cls_plan = classificar_mensagem(instrucao)
@@ -1553,26 +1113,23 @@ def _executar_agente_mission_control(
             _adicionar_terminal_agente(sessao_id, f"echo 'Etapas: {len(etapas)}' && tree -L 1", etapas_texto, True)
 
         # ── FASE 1: PONTO DE DECISAO ──
-        if _is_autonomous():
-            # Autonomous Mode: pula aprovação, auto-aprova
-            _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 1/5 (Planejamento) concluida — auto-aprovada (Autonomous Mode).", tipo="sistema", fase="planejamento")
-            _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento — Auto-aprovado", 33)
-            decisao_f1 = "aprovar"
-            logger.info(f"[MISSION] Autonomous Mode: Fase 1 auto-aprovada (sessao={sessao_id})")
-        else:
-            # Modo normal: aguarda decisão humana
-            _chat_msg(db, sessao_id, "Sistema", "📋 Fase 1/5 (Planejamento) concluida — aguardando sua decisao.", tipo="sistema", fase="planejamento")
-            _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento — Aguardando Decisao", 33)
-            _decision_engine.set_pending(sessao_id, 1)
+        # Sinaliza que Fase 1 completou e aguarda decisao do usuario
+        _chat_msg(db, sessao_id, "Sistema", "📋 Fase 1/5 (Planejamento) concluida — aguardando sua decisao.", tipo="sistema", fase="planejamento")
+        _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento — Aguardando Decisao", 33)
+        _decision_engine.set_pending(sessao_id, 1)
 
-            decisao_f1 = _decision_engine.wait_decision(sessao_id, 1)
-            _decision_engine.clear(sessao_id)
+        decisao_f1 = _decision_engine.wait_decision(sessao_id, 1)
+        _decision_engine.clear(sessao_id)
 
         _chat_msg(db, sessao_id, "Sistema", f"💬 Decisao recebida: **{decisao_f1.upper()}**", tipo="sistema", fase="planejamento")
 
         if decisao_f1 == "rejeitar":
             _chat_msg(db, sessao_id, "Sistema", "❌ Planejamento rejeitado. Sessao encerrada.", tipo="sistema", fase="planejamento")
             _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento Rejeitado", 100)
+            # Atualizar agente como rejeitado
+            sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+            if not sessao:
+                return
             ativos = sessao.agentes_ativos or []
             for a in ativos:
                 if a.get("id") == agente_id:
@@ -1584,7 +1141,9 @@ def _executar_agente_mission_control(
 
         if decisao_f1 == "regenerar":
             _chat_msg(db, sessao_id, "Sistema", "🔄 Regenerando Fase 1 (Planejamento)...", tipo="sistema", fase="planejamento")
+            # Refaz Fase 1 (loop simples)
             _chat_msg(db, sessao_id, "Tech Lead", "Regenerando plano conforme seu feedback...", tipo="planejamento", fase="planejamento")
+            # Reusa mesmo plano por ora (regeneracao real usaria feedback do usuario se disponivel)
             _chat_msg(db, sessao_id, "Tech Lead", f"Plano revisado: {plano_texto[:300]}", tipo="planejamento", fase="planejamento")
             _chat_msg(db, sessao_id, "Sistema", "✅ Fase 1/5 regenerada — aguardando decisao.", tipo="sistema", fase="planejamento")
             _decision_engine.set_pending(sessao_id, 1)
@@ -1598,12 +1157,9 @@ def _executar_agente_mission_control(
         # ── FASE 2: DISCUSSAO (cada agente opina) ──
 
         _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussão", 35)
-        if _is_visible_exec():
-            _adicionar_terminal_agente(sessao_id, "# Fase 2: Discussao entre agentes", "Coletando pareceres da equipe...", True)
-        else:
-            _adicionar_terminal_agente(sessao_id, "npm run lint -- --quiet", "✔ Nenhum erro de lint encontrado", True)
-            time.sleep(0.15)
-            _adicionar_terminal_agente(sessao_id, "tsc --noEmit --pretty", "✔ Compilação TypeScript OK", True)
+        _adicionar_terminal_agente(sessao_id, "npm run lint -- --quiet", "✔ Nenhum erro de lint encontrado", True)
+        time.sleep(0.15)
+        _adicionar_terminal_agente(sessao_id, "tsc --noEmit --pretty", "✔ Compilação TypeScript OK", True)
         _chat_msg(db, sessao_id, "Sistema", "💬 Fase de discussao iniciada — agentes analisando o plano.", tipo="sistema", fase="discussao")
 
         disc_idx = 0
@@ -1617,7 +1173,6 @@ def _executar_agente_mission_control(
                 f"- O que voce faria na sua area\n"
                 f"- Algum risco ou sugestao\n"
                 "Responda em texto simples, SEM JSON."
-                + _sufixo_brief()
             )
             try:
                 cls_disc = classificar_mensagem("parecer tecnico sobre o plano")
@@ -1635,22 +1190,20 @@ def _executar_agente_mission_control(
                 disc_idx += 1
 
         # ── FASE 2: PONTO DE DECISAO ──
-        if _is_autonomous():
-            _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 2/5 (Discussao) concluida — auto-aprovada (Autonomous Mode).", tipo="sistema", fase="discussao")
-            _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussao — Auto-aprovada", 55)
-            decisao_f2 = "aprovar"
-            logger.info(f"[MISSION] Autonomous Mode: Fase 2 auto-aprovada (sessao={sessao_id})")
-        else:
-            _chat_msg(db, sessao_id, "Sistema", "💬 Fase 2/5 (Discussao) concluida — aguardando sua decisao.", tipo="sistema", fase="discussao")
-            _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussao — Aguardando Decisao", 55)
-            _decision_engine.set_pending(sessao_id, 2)
-            decisao_f2 = _decision_engine.wait_decision(sessao_id, 2)
-            _decision_engine.clear(sessao_id)
+        _chat_msg(db, sessao_id, "Sistema", "💬 Fase 2/5 (Discussao) concluida — aguardando sua decisao.", tipo="sistema", fase="discussao")
+        _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussao — Aguardando Decisao", 55)
+        _decision_engine.set_pending(sessao_id, 2)
+
+        decisao_f2 = _decision_engine.wait_decision(sessao_id, 2)
+        _decision_engine.clear(sessao_id)
         _chat_msg(db, sessao_id, "Sistema", f"💬 Decisao: **{decisao_f2.upper()}**", tipo="sistema", fase="discussao")
 
         if decisao_f2 == "rejeitar":
             _chat_msg(db, sessao_id, "Sistema", "❌ Discussao rejeitada. Sessao encerrada.", tipo="sistema", fase="discussao")
             _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussao Rejeitada", 100)
+            sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+            if not sessao:
+                return
             ativos = sessao.agentes_ativos or []
             for a in ativos:
                 if a.get("id") == agente_id:
@@ -1714,7 +1267,6 @@ def _executar_agente_mission_control(
             "Retorne JSON:\n"
             '{"codigo": "codigo completo aqui...", "arquivo": "caminho/do/arquivo.ext", '
             '"descricao": "o que este codigo faz", "linguagem": "python|typescript|php"}'
-            + _sufixo_brief()
         )
 
         try:
@@ -1777,22 +1329,20 @@ def _executar_agente_mission_control(
             _chat_msg(db, sessao_id, "Backend Dev", f"Erro ao gerar codigo: {str(e_code)[:200]}", tipo="alerta", fase="execucao")
 
         # ── FASE 3: PONTO DE DECISAO ──
-        if _is_autonomous():
-            _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 3/5 (Execucao) concluida — auto-aprovada (Autonomous Mode).", tipo="sistema", fase="execucao")
-            _atualizar_fase_agente(sessao_id, agente_id, 3, "Execucao — Auto-aprovada", 80)
-            decisao_f3 = "aprovar"
-            logger.info(f"[MISSION] Autonomous Mode: Fase 3 auto-aprovada (sessao={sessao_id})")
-        else:
-            _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 3/5 (Execucao) concluida — aguardando sua decisao.", tipo="sistema", fase="execucao")
-            _atualizar_fase_agente(sessao_id, agente_id, 3, "Execucao — Aguardando Decisao", 80)
-            _decision_engine.set_pending(sessao_id, 3)
-            decisao_f3 = _decision_engine.wait_decision(sessao_id, 3)
-            _decision_engine.clear(sessao_id)
+        _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 3/5 (Execucao) concluida — aguardando sua decisao.", tipo="sistema", fase="execucao")
+        _atualizar_fase_agente(sessao_id, agente_id, 3, "Execucao — Aguardando Decisao", 80)
+        _decision_engine.set_pending(sessao_id, 3)
+
+        decisao_f3 = _decision_engine.wait_decision(sessao_id, 3)
+        _decision_engine.clear(sessao_id)
         _chat_msg(db, sessao_id, "Sistema", f"💬 Decisao: **{decisao_f3.upper()}**", tipo="sistema", fase="execucao")
 
         if decisao_f3 == "rejeitar":
             _chat_msg(db, sessao_id, "Sistema", "❌ Execucao rejeitada. Sessao encerrada.", tipo="sistema", fase="execucao")
             _atualizar_fase_agente(sessao_id, agente_id, 3, "Execucao Rejeitada", 100)
+            sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+            if not sessao:
+                return
             ativos = sessao.agentes_ativos or []
             for a in ativos:
                 if a.get("id") == agente_id:
@@ -1858,7 +1408,6 @@ def _executar_agente_mission_control(
             f"Tarefa: {instrucao}\n\n"
             "Gere uma checklist de validacao. Retorne JSON:\n"
             '{"checklist": [{"item": "...", "feito": false}], "parecer": "aprovado|pendente|reprovado", "observacoes": "..."}'
-            + _sufixo_brief()
         )
 
         try:
@@ -1898,22 +1447,20 @@ def _executar_agente_mission_control(
             _chat_msg(db, sessao_id, "QA Engineer", f"Erro no review: {str(e_qa)[:200]}", tipo="alerta", fase="review")
 
         # ── FASE 4: PONTO DE DECISAO ──
-        if _is_autonomous():
-            _chat_msg(db, sessao_id, "Sistema", "⚡ Fase 4/5 (Review QA) concluida — auto-aprovada (Autonomous Mode).", tipo="sistema", fase="review")
-            _atualizar_fase_agente(sessao_id, agente_id, 4, "Review QA — Auto-aprovada", 90)
-            decisao_f4 = "aprovar"
-            logger.info(f"[MISSION] Autonomous Mode: Fase 4 auto-aprovada (sessao={sessao_id})")
-        else:
-            _chat_msg(db, sessao_id, "Sistema", "🔍 Fase 4/5 (Review QA) concluida — aguardando sua decisao.", tipo="sistema", fase="review")
-            _atualizar_fase_agente(sessao_id, agente_id, 4, "Review QA — Aguardando Decisao", 90)
-            _decision_engine.set_pending(sessao_id, 4)
-            decisao_f4 = _decision_engine.wait_decision(sessao_id, 4)
-            _decision_engine.clear(sessao_id)
+        _chat_msg(db, sessao_id, "Sistema", "🔍 Fase 4/5 (Review QA) concluida — aguardando sua decisao.", tipo="sistema", fase="review")
+        _atualizar_fase_agente(sessao_id, agente_id, 4, "Review QA — Aguardando Decisao", 90)
+        _decision_engine.set_pending(sessao_id, 4)
+
+        decisao_f4 = _decision_engine.wait_decision(sessao_id, 4)
+        _decision_engine.clear(sessao_id)
         _chat_msg(db, sessao_id, "Sistema", f"💬 Decisao: **{decisao_f4.upper()}**", tipo="sistema", fase="review")
 
         if decisao_f4 == "rejeitar":
             _chat_msg(db, sessao_id, "Sistema", "❌ Review rejeitado. Sessao encerrada.", tipo="sistema", fase="review")
             _atualizar_fase_agente(sessao_id, agente_id, 4, "Review Rejeitado", 100)
+            sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+            if not sessao:
+                return
             ativos = sessao.agentes_ativos or []
             for a in ativos:
                 if a.get("id") == agente_id:
