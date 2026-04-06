@@ -2,13 +2,14 @@
  * Adiciona Phase Decision Controls para aprovacao de fases
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Rocket, Loader2, Bot, Terminal, Code2, MessageSquare,
   Package, Sparkles, Plus, X,
   Clock, ArrowRight, Play, Send, Copy, Download,
+  Shield, ShieldOff,
 } from 'lucide-react'
 import PhaseDecisionControls from '../components/PhaseDecisionControls'
 import MissionCompleteActions from '../components/MissionCompleteActions'
@@ -64,6 +65,8 @@ export default function MissionControl() {
   const [carregandoSessoes, setCarregandoSessoes] = useState(true)
   const [criando, setCriando] = useState(false)
   const [titulo, setTitulo] = useState('')
+  const [projetoId, setProjetoId] = useState<number | null>(null)
+  const [projetos, setProjetos] = useState<{ id: number; nome: string; descricao: string }[]>([])
 
   // Instruction input
   const [instrucao, setInstrucao] = useState('')
@@ -94,13 +97,74 @@ export default function MissionControl() {
   const [artifactModal, setArtifactModal] = useState<Artifact | null>(null)
   const [abaPainel3, setAbaPainel3] = useState<'chat' | 'artifacts'>('chat')
 
+  // Forçar modo revisão (voltar do painel de conclusão para os 3 painéis)
+  const [forcarRevisao, setForcarRevisao] = useState(false)
+
+  // Plan Mode state
+  const [planMode, setPlanMode] = useState(false)
+  const [planLoading, setPlanLoading] = useState(false)
+  const [planToast, setPlanToast] = useState('')
+
   // Editor state
   const [editorConteudo, setEditorConteudo] = useState('')
   const [editorArquivo, setEditorArquivo] = useState('novo-arquivo.tsx')
 
-  const headers = {
+  const headers = useMemo(() => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
+  }), [token])
+
+  // Plan Mode helpers
+  const fetchPlanStatus = useCallback(async () => {
+    if (!token) return
+    try {
+      const res = await fetch(`${API}/api/mission-control/plan-mode/status`, {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setPlanMode(data.em_plan_mode)
+      }
+    } catch { /* silenciar */ }
+  }, [token])
+
+  const togglePlanMode = async () => {
+    if (!sessao?.sessao_id || planLoading) return
+    setPlanLoading(true)
+    setPlanToast('')
+    const acao = planMode ? 'sair' : 'entrar'
+    try {
+      const minDelay = new Promise(r => setTimeout(r, 600))
+      const [res] = await Promise.all([
+        fetch(`${API}/api/mission-control/sessao/${sessao.sessao_id}/plan-mode/${acao}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ motivo: 'Via Mission Control UI' }),
+        }),
+        minDelay,
+      ])
+      if (!res.ok) {
+        setPlanToast('Erro ao alterar Plan Mode')
+        setTimeout(() => setPlanToast(''), 3000)
+        return
+      }
+      const data = await res.json()
+      if (data.sucesso) {
+        setPlanMode(acao === 'entrar')
+        setPlanToast(acao === 'entrar' ? 'Plan Mode ativado' : 'Modo Normal restaurado')
+        setTimeout(() => setPlanToast(''), 2500)
+        // Re-fetch para confirmar estado real do servidor
+        setTimeout(() => fetchPlanStatus(), 500)
+      } else {
+        setPlanToast(data.erro || 'Erro ao alterar Plan Mode')
+        setTimeout(() => setPlanToast(''), 3000)
+      }
+    } catch {
+      setPlanToast('Falha de conexao')
+      setTimeout(() => setPlanToast(''), 3000)
+    } finally {
+      setPlanLoading(false)
+    }
   }
 
   function tempoRelativo(iso: string | null): string {
@@ -145,6 +209,17 @@ export default function MissionControl() {
   }, [headers])
 
   /* ============================================================
+     Load projects for selector
+   ============================================================ */
+
+  const carregarProjetos = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/api/mission-control/projetos`, { headers })
+      if (res.ok) setProjetos(await res.json())
+    } catch { /* silenciar */ }
+  }, [headers])
+
+  /* ============================================================
      Create session
    ============================================================ */
 
@@ -153,12 +228,15 @@ export default function MissionControl() {
     try {
       const res = await fetch(`${API}/api/mission-control/sessao`, {
         method: 'POST', headers,
-        body: JSON.stringify({ titulo: titulo || 'Nova Sessao Mission Control' }),
+        body: JSON.stringify({
+          titulo: titulo || 'Nova Sessao Mission Control',
+          projeto_id: projetoId,
+        }),
       })
       const data = await res.json()
       navigate(`/mission-control/${data.sessao_id}`, { replace: true })
     } catch { /* */ } finally { setCriando(false) }
-  }, [headers, titulo, navigate])
+  }, [headers, titulo, projetoId, navigate])
 
   /* ============================================================
      Enviar instrucao ao agente
@@ -184,6 +262,7 @@ export default function MissionControl() {
    ============================================================ */
 
   useEffect(() => {
+    carregarProjetos()
     if (urlSessionId) {
       carregarSessao(urlSessionId)
       setCarregandoSessoes(false)
@@ -241,6 +320,12 @@ export default function MissionControl() {
     return () => clearInterval(timer)
   }, [sessao?.sessao_id, carregarFaseStatus])
 
+  // Plan Mode status — fetch uma vez ao abrir sessão (não no polling)
+  useEffect(() => {
+    if (!sessao?.sessao_id) return
+    fetchPlanStatus()
+  }, [sessao?.sessao_id])
+
   /* ============================================================
      Execute command
    ============================================================ */
@@ -277,18 +362,34 @@ export default function MissionControl() {
             </div>
           </div>
 
-          <div className="p-5 rounded-xl mb-8" style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
+          <div className="p-5 rounded-xl mb-8 space-y-3" style={{ background: 'var(--sf-bg-card)', border: '1px solid var(--sf-border-subtle)' }}>
             <div className="flex items-center gap-3">
               <input type="text" placeholder="Nome da sessao" value={titulo}
                 onChange={e => setTitulo(e.target.value)} onKeyDown={e => e.key === 'Enter' && criarSessao()}
                 className="flex-1 px-4 py-2.5 rounded-lg text-sm"
                 style={{ background: 'var(--sf-bg-primary)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }} />
+              <select
+                value={projetoId ?? ''}
+                onChange={e => setProjetoId(e.target.value ? Number(e.target.value) : null)}
+                className="px-3 py-2.5 rounded-lg text-sm"
+                style={{ background: 'var(--sf-bg-primary)', border: '1px solid var(--sf-border-subtle)', color: 'var(--sf-text)' }}
+              >
+                <option value="">Sem projeto</option>
+                {projetos.map(p => (
+                  <option key={p.id} value={p.id}>{p.nome}</option>
+                ))}
+              </select>
               <button onClick={criarSessao} disabled={criando}
                 className="px-5 py-2.5 rounded-lg font-semibold text-white flex items-center gap-2"
                 style={{ background: 'var(--sf-accent)' }}>
                 {criando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Nova Sessao
               </button>
             </div>
+            {projetoId && (
+              <p className="text-[11px] flex items-center gap-1" style={{ color: 'var(--sf-text-secondary)' }}>
+                <Code2 className="w-3 h-3" /> Arquivos gerados serao salvos no diretorio do projeto selecionado
+              </p>
+            )}
           </div>
 
           <h2 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--sf-text-secondary)' }}>
@@ -347,9 +448,12 @@ export default function MissionControl() {
   const agentesExecutando = agentes.filter(a => a.status === 'executando')
 
   // Detectar conclusao: status da sessao OU progresso 100% OU todas fases completas
-  const missaoConcluida = sessao.status === 'concluida'
+  // forcarRevisao=true desativa a tela de conclusão e volta para os 3 painéis
+  const missaoConcluida = !forcarRevisao && (
+    sessao.status === 'concluida'
     || (faseStatus && faseStatus.progresso >= 100 && !faseStatus.waiting_decision)
     || (agentes.length > 0 && agentes.every(a => a.status === 'concluido' || a.status === 'erro'))
+  )
 
   // Labels das fases BMAD
   const FASES_BMAD = [
@@ -386,6 +490,59 @@ export default function MissionControl() {
           <span><Terminal className="w-3.5 h-3.5 inline mr-1" />{sessao.total_comandos}</span>
           <span><MessageSquare className="w-3.5 h-3.5 inline mr-1" />{chatMsgs.length}</span>
         </div>
+
+        {/* Plan Mode toggle */}
+        <button
+          onClick={togglePlanMode}
+          disabled={planLoading || !sessao?.sessao_id}
+          title={planMode ? 'Sair do Plan Mode (somente-leitura)' : 'Entrar em Plan Mode (somente-leitura)'}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+          style={{
+            background: planToast
+              ? (planToast.includes('Erro') || planToast.includes('Falha')
+                ? 'rgba(239,68,68,0.12)'
+                : 'rgba(16,185,129,0.12)')
+              : planMode
+                ? 'rgba(168,85,247,0.15)'
+                : 'rgba(100,116,139,0.1)',
+            color: planToast
+              ? (planToast.includes('Erro') || planToast.includes('Falha')
+                ? '#ef4444'
+                : '#10b981')
+              : planMode
+                ? '#c084fc'
+                : 'var(--sf-text-secondary)',
+            border: `1px solid ${
+              planToast
+                ? (planToast.includes('Erro') || planToast.includes('Falha')
+                  ? 'rgba(239,68,68,0.25)'
+                  : 'rgba(16,185,129,0.25)')
+                : planMode
+                  ? 'rgba(168,85,247,0.3)'
+                  : 'transparent'
+            }`,
+            cursor: (planLoading || !sessao?.sessao_id) ? 'not-allowed' : 'pointer',
+            opacity: !sessao?.sessao_id ? 0.4 : 1,
+          }}
+        >
+          {planLoading
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            : planMode
+              ? <Shield className="w-3.5 h-3.5" />
+              : <ShieldOff className="w-3.5 h-3.5" />
+          }
+          {planToast
+            ? planToast
+            : planLoading
+              ? '...'
+              : planMode
+                ? 'Plan Mode'
+                : 'Plan Mode'
+          }
+          {planMode && !planToast && !planLoading && (
+            <span className="w-1.5 h-1.5 rounded-full ml-0.5" style={{ background: '#c084fc' }} />
+          )}
+        </button>
       </header>
 
       {/* Instrucoes do Agente */}
@@ -433,6 +590,9 @@ export default function MissionControl() {
                   method: 'POST', headers,
                   body: JSON.stringify({ fase, acao }),
                 })
+                // Delay para dar tempo ao agente de avançar para a próxima fase
+                // antes de recarregar o status (evita esconder botões prematuramente)
+                await new Promise(r => setTimeout(r, 2000))
                 carregarFaseStatus()
                 carregarSessao(sessao.sessao_id)
               } catch { /* */ }
@@ -489,8 +649,8 @@ export default function MissionControl() {
           totalArtifacts={artifacts.length}
           totalComandos={sessao.total_comandos}
           onVoltarRevisao={() => {
-            // Voltar para o painel de execucao (forcar re-render sem conclusao)
-            setSessao(prev => prev ? { ...prev, status: 'ativa' } : prev)
+            // Voltar para os 3 painéis (editor + terminal + chat)
+            setForcarRevisao(true)
           }}
           onNovaSessao={() => {
             setSessao(null)
@@ -499,6 +659,23 @@ export default function MissionControl() {
         />
       ) : (
       <>
+      {/* Banner de revisão — permite voltar para tela de conclusão */}
+      {forcarRevisao && (
+        <div className="flex items-center justify-between px-4 py-2 flex-shrink-0"
+          style={{ background: 'rgba(99,102,241,0.1)', borderBottom: '1px solid rgba(99,102,241,0.2)' }}>
+          <span className="text-xs font-medium" style={{ color: '#818cf8' }}>
+            Modo Revisao — visualizando paineis de execucao
+          </span>
+          <button
+            onClick={() => setForcarRevisao(false)}
+            className="text-xs px-3 py-1 rounded-lg font-medium transition-all"
+            style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}
+          >
+            Voltar para Conclusao
+          </button>
+        </div>
+      )}
+
       {/* Painel Triplo SIMPLES — 3 divs uma do lado da outra */}
       <div className="flex flex-1 overflow-hidden">
 
