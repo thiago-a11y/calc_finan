@@ -97,6 +97,9 @@ export default function MissionControl() {
   const [artifactModal, setArtifactModal] = useState<Artifact | null>(null)
   const [abaPainel3, setAbaPainel3] = useState<'chat' | 'artifacts'>('chat')
 
+  // Forçar modo revisão (voltar do painel de conclusão para os 3 painéis)
+  const [forcarRevisao, setForcarRevisao] = useState(false)
+
   // Plan Mode state
   const [planMode, setPlanMode] = useState(false)
   const [planLoading, setPlanLoading] = useState(false)
@@ -445,9 +448,12 @@ export default function MissionControl() {
   const agentesExecutando = agentes.filter(a => a.status === 'executando')
 
   // Detectar conclusao: status da sessao OU progresso 100% OU todas fases completas
-  const missaoConcluida = sessao.status === 'concluida'
+  // forcarRevisao=true desativa a tela de conclusão e volta para os 3 painéis
+  const missaoConcluida = !forcarRevisao && (
+    sessao.status === 'concluida'
     || (faseStatus && faseStatus.progresso >= 100 && !faseStatus.waiting_decision)
     || (agentes.length > 0 && agentes.every(a => a.status === 'concluido' || a.status === 'erro'))
+  )
 
   // Labels das fases BMAD
   const FASES_BMAD = [
@@ -643,8 +649,8 @@ export default function MissionControl() {
           totalArtifacts={artifacts.length}
           totalComandos={sessao.total_comandos}
           onVoltarRevisao={() => {
-            // Voltar para o painel de execucao (forcar re-render sem conclusao)
-            setSessao(prev => prev ? { ...prev, status: 'ativa' } : prev)
+            // Voltar para os 3 painéis (editor + terminal + chat)
+            setForcarRevisao(true)
           }}
           onNovaSessao={() => {
             setSessao(null)
@@ -653,6 +659,23 @@ export default function MissionControl() {
         />
       ) : (
       <>
+      {/* Banner de revisão — permite voltar para tela de conclusão */}
+      {forcarRevisao && (
+        <div className="flex items-center justify-between px-4 py-2 flex-shrink-0"
+          style={{ background: 'rgba(99,102,241,0.1)', borderBottom: '1px solid rgba(99,102,241,0.2)' }}>
+          <span className="text-xs font-medium" style={{ color: '#818cf8' }}>
+            Modo Revisao — visualizando paineis de execucao
+          </span>
+          <button
+            onClick={() => setForcarRevisao(false)}
+            className="text-xs px-3 py-1 rounded-lg font-medium transition-all"
+            style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}
+          >
+            Voltar para Conclusao
+          </button>
+        </div>
+      )}
+
       {/* Painel Triplo SIMPLES — 3 divs uma do lado da outra */}
       <div className="flex flex-1 overflow-hidden">
 

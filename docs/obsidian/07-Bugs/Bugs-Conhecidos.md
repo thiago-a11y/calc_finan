@@ -12,6 +12,7 @@ Nenhum bug ativo no momento.
 
 | # | Descrição | Causa | Solução | Data |
 |---|---|---|---|---|
+| 60 | Botão "Voltar para Revisão" não voltava para os 3 painéis — clicava mas ficava na mesma tela | `missaoConcluida` era true por 3 condições OR; mudar `sessao.status` só resolvia 1 das 3 | Novo flag `forcarRevisao` que desativa `missaoConcluida` + banner "Modo Revisão" com botão voltar | 2026-04-06 |
 | 59 | Git commit no Mission Control falhava com 400 Bad Request | 3 problemas: (1) sessão criada sem projeto vinculado (projeto_id=None), (2) agente gera código no editor virtual mas não salva arquivos no disco, (3) `git commit` sem `git add` antes — nada staged | Seletor de projeto ao criar sessão, endpoint salvar-arquivos para persistir editor no disco, `git add -A` antes do commit | 2026-04-05 |
 | 58 | Botões de aprovação só funcionavam na primeira fase — Fase 2+ nunca mostrava botões | Race condition: `_decision_engine.is_waiting()` retornava false entre fases (agente ainda no LLM call), e frontend recarregava status imediatamente após aprovar | Backend: fallback via `fase_label` contendo "Aguardando" + Frontend: delay 2s após aprovar antes de recarregar | 2026-04-05 |
 | 57 | Botões executar e ação do Mission Control não funcionavam — polling infinito travava a UI | `headers` era objeto literal recriado a cada render, causando loop infinito de `useCallback` → `useEffect` → intervals duplicados → dezenas de requests/s | `headers` com `useMemo([token])`, `fetchPlanStatus` em useEffect separado (não no polling) | 2026-04-05 |

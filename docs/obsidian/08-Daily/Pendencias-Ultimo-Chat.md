@@ -111,8 +111,12 @@
 - [x] git-commit corrigido: git add -A + comando unificado com user.name/email
 - [x] Build TypeScript: OK ✅
 
+### v0.61.9 — Fix: Botão Voltar para Revisão
+- [x] Bug #60: flag `forcarRevisao` + banner "Modo Revisão"
+- [x] Build TypeScript: OK ✅
+
 ### Pendencias
-- [ ] Deploy produção v0.61.8
+- [ ] Deploy produção v0.61.9
 
 ---
 

@@ -4,6 +4,19 @@
 
 ---
 
+## v0.61.9 — Fix: Botão Voltar para Revisão no Mission Control (06/Abr/2026)
+
+### Bug #60: Botão "Voltar para Revisão" não voltava para os 3 painéis
+
+**Causa:** `missaoConcluida` era true por 3 condições OR (status, progresso 100%, agentes concluídos). O `onVoltarRevisao` só mudava `sessao.status` para 'ativa', mas as outras 2 condições continuavam true.
+
+**Correção:**
+- Novo estado `forcarRevisao` — quando true, desativa `missaoConcluida` independente das condições
+- `onVoltarRevisao` agora seta `forcarRevisao=true` (simples e confiável)
+- Banner "Modo Revisão" no topo com botão "Voltar para Conclusão"
+
+---
+
 ## v0.61.8 — Seletor de Projeto + Salvar Arquivos + Fix Git Commit (05/Abr/2026)
 
 ### Mission Control agora vincula sessões a projetos reais
