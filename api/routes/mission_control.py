@@ -1127,6 +1127,9 @@ def _executar_agente_mission_control(
             _chat_msg(db, sessao_id, "Sistema", "❌ Planejamento rejeitado. Sessao encerrada.", tipo="sistema", fase="planejamento")
             _atualizar_fase_agente(sessao_id, agente_id, 1, "Planejamento Rejeitado", 100)
             # Atualizar agente como rejeitado
+            sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+            if not sessao:
+                return
             ativos = sessao.agentes_ativos or []
             for a in ativos:
                 if a.get("id") == agente_id:
@@ -1198,6 +1201,9 @@ def _executar_agente_mission_control(
         if decisao_f2 == "rejeitar":
             _chat_msg(db, sessao_id, "Sistema", "❌ Discussao rejeitada. Sessao encerrada.", tipo="sistema", fase="discussao")
             _atualizar_fase_agente(sessao_id, agente_id, 2, "Discussao Rejeitada", 100)
+            sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+            if not sessao:
+                return
             ativos = sessao.agentes_ativos or []
             for a in ativos:
                 if a.get("id") == agente_id:
@@ -1334,6 +1340,9 @@ def _executar_agente_mission_control(
         if decisao_f3 == "rejeitar":
             _chat_msg(db, sessao_id, "Sistema", "❌ Execucao rejeitada. Sessao encerrada.", tipo="sistema", fase="execucao")
             _atualizar_fase_agente(sessao_id, agente_id, 3, "Execucao Rejeitada", 100)
+            sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+            if not sessao:
+                return
             ativos = sessao.agentes_ativos or []
             for a in ativos:
                 if a.get("id") == agente_id:
@@ -1449,6 +1458,9 @@ def _executar_agente_mission_control(
         if decisao_f4 == "rejeitar":
             _chat_msg(db, sessao_id, "Sistema", "❌ Review rejeitado. Sessao encerrada.", tipo="sistema", fase="review")
             _atualizar_fase_agente(sessao_id, agente_id, 4, "Review Rejeitado", 100)
+            sessao = db.query(MissionControlSessaoDB).filter_by(sessao_id=sessao_id).first()
+            if not sessao:
+                return
             ativos = sessao.agentes_ativos or []
             for a in ativos:
                 if a.get("id") == agente_id:
