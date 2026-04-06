@@ -561,15 +561,16 @@ def git_commit(
     if not status_result.stdout.strip():
         return {"sucesso": True, "mensagem": "Nenhuma alteracao para commitar", "commit_hash": ""}
 
-    # Commit
+    # Stage all + Commit com identidade
     mensagem = req.mensagem or f"Alteracoes via Mission Control — {usuario.nome}"
-    result = subprocess.run(
-        ["git", "-c", f"user.name={usuario.nome}", "-c", f"user.email={usuario.email}"],
-        cwd=cwd, capture_output=True, text=True, timeout=30,
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=cwd, capture_output=True, text=True, timeout=15,
     )
 
     commit_result = subprocess.run(
-        ["git", "commit", "-m", mensagem],
+        ["git", "-c", f"user.name={usuario.nome}", "-c", f"user.email={usuario.email}",
+         "commit", "-m", mensagem],
         cwd=cwd, capture_output=True, text=True, timeout=30,
     )
 
