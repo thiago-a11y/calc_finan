@@ -43,14 +43,17 @@ def inicializar_fabrica():
     _fabrica = SyneriumFactory()
 
     # ==========================================
-    # Inicializar Skills (ferramentas dos agentes)
-    # rag_query=None → pula skill RAG (ChromaDB crash no Ubuntu 22.04)
-    # As demais 27+ skills funcionam normalmente sem ChromaDB
+    # Inicializar Skills (catálogo visual para o dashboard)
+    # ChromaDB crash no Ubuntu 22.04 impede instanciar ferramentas RAG-based.
+    # Solução: registrar metadados de TODAS as skills (sem instanciar ferramentas)
+    # para que a aba Skills do dashboard funcione. Ferramentas reais são
+    # instanciadas apenas quando o agente CrewAI é disparado.
     # ==========================================
     try:
-        inicializar_skills(rag_query=None, vault_factory_path="")
+        from tools.skills_catalog import registrar_catalogo_skills
+        registrar_catalogo_skills()
     except Exception as e:
-        logger.warning(f"[API] Skills parcialmente inicializadas: {e}")
+        logger.warning(f"[API] Skills catálogo falhou: {e}")
 
     # ==========================================
     # Carregar squads dinamicamente do banco

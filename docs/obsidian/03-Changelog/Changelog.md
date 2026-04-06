@@ -6,11 +6,12 @@
 
 ## v0.61.5 — Fix: Skills restauradas em produção (05/Abr/2026)
 
-- `api/dependencias.py` — descomentado `inicializar_skills()` com `rag_query=None`
-- Pula apenas a skill RAG (ChromaDB incompatível com Ubuntu 22.04)
-- 30 skills + 9 perfis registrados com sucesso
-- Endpoint GET /api/skills agora retorna dados (antes retornava lista vazia)
-- try/except para não quebrar startup se alguma skill falhar
+- `tools/skills_catalog.py` — catálogo leve de metadados (31 skills + 9 perfis)
+- Registra apenas nome/descrição/categoria/ícone SEM instanciar ferramentas
+- Resolve ChromaDB crash: tools RAG-based (WebsiteSearchTool, DirectorySearchTool) inicializavam ChromaDB ao instanciar
+- `api/dependencias.py` — chama `registrar_catalogo_skills()` no startup
+- 31 skills registradas (30 ativas, RAG desabilitada por ChromaDB)
+- GET /api/skills retorna dados completos no dashboard
 
 ---
 
