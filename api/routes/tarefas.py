@@ -1186,111 +1186,11 @@ async def montar_time(
 # =====================================================================
 
 # Nomes das fases BMAD
-FASES_BMAD = {
-    1: "Analise",
-    2: "Planejamento",
-    3: "Solucao",
-    4: "Implementacao",
-}
-
-# Prompts por fase (o que cada fase deve produzir)
 # =====================================================================
-# INSTRUCAO UNIVERSAL DE TOOLS (v0.53.2)
-# Injetada em TODAS as fases que podem precisar ler/editar codigo.
-# Garante que os agentes USEM as ferramentas em vez de dizer
-# "nao tenho ferramenta" ou colar codigo no chat.
+# BMAD Constants — importadas de core.prompts.bmad (Fase 2.1)
+# Fonte de verdade: core/prompts/bmad.py + core/prompts/tools.py
 # =====================================================================
-_INSTRUCAO_TOOLS = (
-    "\n\n"
-    "IMPORTANTE — FERRAMENTAS DISPONIVEIS:\n"
-    "Voce TEM ferramentas — USE-AS. Lista completa:\n"
-    "- ler_arquivo_syneriumx: le conteudo de qualquer arquivo do projeto\n"
-    "- listar_diretorio_syneriumx: lista arquivos e pastas\n"
-    "- buscar_no_syneriumx: busca texto com grep recursivo\n"
-    "- propor_edicao_syneriumx: propoe edicao (caminho|||conteudo|||descricao)\n"
-    "- git_syneriumx: executa comandos git (status, diff, log)\n"
-    "- terminal_syneriumx: executa comandos de terminal seguros\n"
-    "- consultar_base_conhecimento: consulta documentacao RAG\n\n"
-    "FLUXO OBRIGATORIO PARA IMPLEMENTACAO/CORRECAO DE CODIGO:\n"
-    "1. Use ler_arquivo_syneriumx para VER o codigo atual\n"
-    "2. Analise e escreva o codigo corrigido/novo\n"
-    "3. Use propor_edicao_syneriumx para PROPOR a edicao (caminho|||conteudo_novo|||descricao)\n"
-    "4. NUNCA cole codigo no chat — SEMPRE use propor_edicao_syneriumx\n"
-    "5. A proposta vai para o dashboard de aprovacoes automaticamente\n\n"
-    "Se precisar entender o projeto, use consultar_base_conhecimento.\n"
-    "NUNCA diga 'nao tenho ferramenta' — voce TEM. Use-as.\n"
-)
-
-PROMPTS_FASE = {
-    1: (
-        "FASE 1 — ANALISE\n"
-        "Tarefa: {titulo}\nDescricao: {descricao}\n\n"
-        "Voce deve:\n"
-        "1. Analisar o problema/feature solicitado\n"
-        "2. Pesquisar viabilidade tecnica (use ler_arquivo_syneriumx e buscar_no_syneriumx para ver o codigo atual)\n"
-        "3. Identificar riscos e dependencias\n"
-        "4. Produzir um Product Brief com escopo, objetivo e criterios de sucesso\n"
-        "Responda de forma estruturada em portugues brasileiro."
-        + _INSTRUCAO_TOOLS
-    ),
-    2: (
-        "FASE 2 — PLANEJAMENTO\n"
-        "Tarefa: {titulo}\nDescricao: {descricao}\n\n"
-        "Resultado da Fase 1 (Analise):\n{output_anterior}\n\n"
-        "Voce deve:\n"
-        "1. Criar um PRD (Product Requirements Document) completo\n"
-        "2. Definir requisitos funcionais e nao-funcionais\n"
-        "3. Criar epicos e stories com criterios de aceitacao BDD (Given/When/Then)\n"
-        "4. Priorizar e estimar complexidade\n"
-        "Responda de forma estruturada em portugues brasileiro."
-        + _INSTRUCAO_TOOLS
-    ),
-    3: (
-        "FASE 3 — SOLUCAO (Arquitetura)\n"
-        "Tarefa: {titulo}\nDescricao: {descricao}\n\n"
-        "Resultado do Planejamento:\n{output_anterior}\n\n"
-        "Voce deve:\n"
-        "1. Definir arquitetura tecnica (componentes, patterns, stack)\n"
-        "2. Criar ADRs (Architecture Decision Records) para decisoes criticas\n"
-        "3. Fazer Implementation Readiness Check\n"
-        "4. Listar arquivos que serao criados/modificados (use listar_diretorio_syneriumx para ver a estrutura atual)\n"
-        "Responda de forma estruturada em portugues brasileiro."
-        + _INSTRUCAO_TOOLS
-    ),
-    4: (
-        "FASE 4 — IMPLEMENTACAO\n"
-        "Tarefa: {titulo}\nDescricao: {descricao}\n\n"
-        "Arquitetura definida:\n{output_anterior}\n\n"
-        "Voce deve:\n"
-        "1. Use ler_arquivo_syneriumx para ler os arquivos que serao modificados\n"
-        "2. Implementar a solucao seguindo a arquitetura definida\n"
-        "3. Use propor_edicao_syneriumx para CADA arquivo criado/modificado\n"
-        "4. Escrever testes para cada componente\n"
-        "5. Fazer code review cruzado dos arquivos propostos\n"
-        "6. Validar que todos os criterios de aceitacao passam\n\n"
-        "REGRA CRITICA: Todo codigo DEVE ser enviado via propor_edicao_syneriumx.\n"
-        "NAO cole codigo no chat. CADA arquivo = uma proposta separada.\n"
-        "Formato: caminho_do_arquivo|||conteudo_completo|||descricao_da_mudanca\n"
-        "Responda em portugues brasileiro."
-        + _INSTRUCAO_TOOLS
-    ),
-}
-
-# Agentes por fase (perfis do catalogo)
-AGENTES_POR_FASE = {
-    1: ["product_manager", "tech_lead"],
-    2: ["product_manager", "frontend_dev", "tech_lead"],
-    3: ["tech_lead", "backend_dev", "qa_seguranca"],
-    4: ["backend_dev", "frontend_dev", "qa_seguranca"],
-}
-
-# Gates por fase
-GATES_FASE = {
-    1: "soft",   # Auto-pass (opcional)
-    2: "hard",   # CEO/Operations Lead deve aprovar PRD
-    3: "hard",   # Implementation Readiness Check
-    4: "hard",   # Deploy requer aprovacao
-}
+from core.prompts.bmad import FASES_BMAD, PROMPTS_FASE, AGENTES_POR_FASE, GATES_FASE
 
 
 class IniciarAutonomoRequest(BaseModel):
