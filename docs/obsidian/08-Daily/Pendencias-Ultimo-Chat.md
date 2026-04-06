@@ -93,8 +93,11 @@
 - [x] Headers inline + re-fetch após toggle + dependências useEffect corrigidas
 - [x] Build TypeScript: OK ✅
 
+### v0.61.5 — Fix: Skills restauradas
+- [x] Bug #56: `inicializar_skills(rag_query=None)` — 30 skills + 9 perfis ✅
+
 ### Pendencias
-- [ ] Deploy produção
+- [ ] Deploy produção v0.61.5
 
 ---
 

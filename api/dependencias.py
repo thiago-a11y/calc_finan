@@ -44,12 +44,13 @@ def inicializar_fabrica():
 
     # ==========================================
     # Inicializar Skills (ferramentas dos agentes)
-    # DESABILITADO - ChromaDB crash no servidor Ubuntu 22.04
+    # rag_query=None → pula skill RAG (ChromaDB crash no Ubuntu 22.04)
+    # As demais 27+ skills funcionam normalmente sem ChromaDB
     # ==========================================
-    # inicializar_skills(
-    #     rag_query=_fabrica.rag_query,
-    #     vault_factory_path=_fabrica.rag_config.vaults.get("factory", ""),
-    # )
+    try:
+        inicializar_skills(rag_query=None, vault_factory_path="")
+    except Exception as e:
+        logger.warning(f"[API] Skills parcialmente inicializadas: {e}")
 
     # ==========================================
     # Carregar squads dinamicamente do banco

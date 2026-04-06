@@ -4,6 +4,16 @@
 
 ---
 
+## v0.61.5 — Fix: Skills restauradas em produção (05/Abr/2026)
+
+- `api/dependencias.py` — descomentado `inicializar_skills()` com `rag_query=None`
+- Pula apenas a skill RAG (ChromaDB incompatível com Ubuntu 22.04)
+- 30 skills + 9 perfis registrados com sucesso
+- Endpoint GET /api/skills agora retorna dados (antes retornava lista vazia)
+- try/except para não quebrar startup se alguma skill falhar
+
+---
+
 ## v0.61.4 — Correção de Intermitência no Botão Plan Mode (05/Abr/2026)
 
 - Botão desabilitado quando `sessao_id` não existe (opacity 0.4 + cursor not-allowed)
